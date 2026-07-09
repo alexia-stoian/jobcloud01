@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 type LanguageRow = {
@@ -47,6 +47,38 @@ type SectionKey =
   | "certifications"
   | "preferences";
 
+type ProfileDraft = {
+  profileHeadline: string;
+  valueProposition: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  city: string;
+  canton: string;
+  birthDate: string;
+  workExperienceRows: WorkExperienceRow[];
+  educationRows: EducationRow[];
+  skillRows: SkillRow[];
+  languageRows: LanguageRow[];
+  certificationRows: CertificationRow[];
+  currentJobSituation: string;
+  employmentObjective: string;
+  targetRoles: string;
+  targetSeniority: string;
+  targetIndustries: string;
+  preferredWorkModel: string;
+  contractPreference: string;
+  workRate: string;
+  workPermitStatus: string;
+  salaryExpectation: string;
+  workAuthorization: string;
+  visaSponsorship: string;
+  relocationWillingness: string;
+  commuteRadius: string;
+};
+
+const PROFILE_DRAFT_STORAGE_KEY = "jobscout24.profile-summary-draft.v1";
+
 type Props = {
   profile: {
     fullName: string | null;
@@ -64,9 +96,16 @@ type Props = {
 
 export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
   const t = useTranslations("profile");
-  const [firstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
-  const lastName = lastNameParts.join(" ");
-  const [city = "", canton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
+  const [initialFirstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  const initialLastName = lastNameParts.join(" ");
+  const [initialCity = "", initialCanton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
+
+  const [firstName, setFirstName] = useState<string>(initialFirstName);
+  const [lastName, setLastName] = useState<string>(initialLastName);
+  const [phone, setPhone] = useState<string>("");
+  const [city, setCity] = useState<string>(initialCity);
+  const [canton, setCanton] = useState<string>(initialCanton);
+
   const [profileHeadline, setProfileHeadline] = useState<string>("");
   const [valueProposition, setValueProposition] = useState<string>("");
   const [languageRows, setLanguageRows] = useState<LanguageRow[]>([
@@ -88,10 +127,19 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
   const [certificationRows, setCertificationRows] = useState<CertificationRow[]>([
     { name: "", issuer: "", year: "" },
   ]);
+  const [currentJobSituation, setCurrentJobSituation] = useState<string>(profile.currentJobSituation ?? "");
+  const [employmentObjective, setEmploymentObjective] = useState<string>(profile.employmentObjective ?? "");
+
   const [targetRoles, setTargetRoles] = useState<string>("");
   const [targetSeniority, setTargetSeniority] = useState<string>("");
   const [targetIndustries, setTargetIndustries] = useState<string>("");
   const [preferredWorkModel, setPreferredWorkModel] = useState<string>("");
+
+  const [contractPreference, setContractPreference] = useState<string>(profile.contractPreference ?? "");
+  const [workRate, setWorkRate] = useState<string>(profile.workRate ?? "");
+  const [workPermitStatus, setWorkPermitStatus] = useState<string>(profile.workPermitStatus ?? "");
+  const [salaryExpectation, setSalaryExpectation] = useState<string>(profile.salaryExpectation ?? "");
+
   const [workAuthorization, setWorkAuthorization] = useState<string>("");
   const [visaSponsorship, setVisaSponsorship] = useState<string>("");
   const [relocationWillingness, setRelocationWillingness] = useState<string>("");
@@ -187,6 +235,110 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
   const sectionToggleLabel = (section: SectionKey): string =>
     collapsedSections[section] ? "Expand section" : "Collapse section";
 
+  useEffect(() => {
+    try {
+      const rawDraft = window.localStorage.getItem(PROFILE_DRAFT_STORAGE_KEY);
+      if (!rawDraft) {
+        return;
+      }
+
+      const draft = JSON.parse(rawDraft) as Partial<ProfileDraft>;
+      if (typeof draft.profileHeadline === "string") setProfileHeadline(draft.profileHeadline);
+      if (typeof draft.valueProposition === "string") setValueProposition(draft.valueProposition);
+      if (typeof draft.firstName === "string") setFirstName(draft.firstName);
+      if (typeof draft.lastName === "string") setLastName(draft.lastName);
+      if (typeof draft.phone === "string") setPhone(draft.phone);
+      if (typeof draft.city === "string") setCity(draft.city);
+      if (typeof draft.canton === "string") setCanton(draft.canton);
+      if (typeof draft.birthDate === "string") setBirthDate(draft.birthDate);
+
+      if (Array.isArray(draft.workExperienceRows) && draft.workExperienceRows.length > 0) setWorkExperienceRows(draft.workExperienceRows);
+      if (Array.isArray(draft.educationRows) && draft.educationRows.length > 0) setEducationRows(draft.educationRows);
+      if (Array.isArray(draft.skillRows) && draft.skillRows.length > 0) setSkillRows(draft.skillRows);
+      if (Array.isArray(draft.languageRows) && draft.languageRows.length > 0) setLanguageRows(draft.languageRows);
+      if (Array.isArray(draft.certificationRows) && draft.certificationRows.length > 0) setCertificationRows(draft.certificationRows);
+
+      if (typeof draft.currentJobSituation === "string") setCurrentJobSituation(draft.currentJobSituation);
+      if (typeof draft.employmentObjective === "string") setEmploymentObjective(draft.employmentObjective);
+      if (typeof draft.targetRoles === "string") setTargetRoles(draft.targetRoles);
+      if (typeof draft.targetSeniority === "string") setTargetSeniority(draft.targetSeniority);
+      if (typeof draft.targetIndustries === "string") setTargetIndustries(draft.targetIndustries);
+      if (typeof draft.preferredWorkModel === "string") setPreferredWorkModel(draft.preferredWorkModel);
+      if (typeof draft.contractPreference === "string") setContractPreference(draft.contractPreference);
+      if (typeof draft.workRate === "string") setWorkRate(draft.workRate);
+      if (typeof draft.workPermitStatus === "string") setWorkPermitStatus(draft.workPermitStatus);
+      if (typeof draft.salaryExpectation === "string") setSalaryExpectation(draft.salaryExpectation);
+      if (typeof draft.workAuthorization === "string") setWorkAuthorization(draft.workAuthorization);
+      if (typeof draft.visaSponsorship === "string") setVisaSponsorship(draft.visaSponsorship);
+      if (typeof draft.relocationWillingness === "string") setRelocationWillingness(draft.relocationWillingness);
+      if (typeof draft.commuteRadius === "string") setCommuteRadius(draft.commuteRadius);
+    } catch {
+      // Ignore malformed local drafts and continue with defaults.
+    }
+  }, []);
+
+  useEffect(() => {
+    const draft: ProfileDraft = {
+      profileHeadline,
+      valueProposition,
+      firstName,
+      lastName,
+      phone,
+      city,
+      canton,
+      birthDate,
+      workExperienceRows,
+      educationRows,
+      skillRows,
+      languageRows,
+      certificationRows,
+      currentJobSituation,
+      employmentObjective,
+      targetRoles,
+      targetSeniority,
+      targetIndustries,
+      preferredWorkModel,
+      contractPreference,
+      workRate,
+      workPermitStatus,
+      salaryExpectation,
+      workAuthorization,
+      visaSponsorship,
+      relocationWillingness,
+      commuteRadius,
+    };
+
+    window.localStorage.setItem(PROFILE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  }, [
+    profileHeadline,
+    valueProposition,
+    firstName,
+    lastName,
+    phone,
+    city,
+    canton,
+    birthDate,
+    workExperienceRows,
+    educationRows,
+    skillRows,
+    languageRows,
+    certificationRows,
+    currentJobSituation,
+    employmentObjective,
+    targetRoles,
+    targetSeniority,
+    targetIndustries,
+    preferredWorkModel,
+    contractPreference,
+    workRate,
+    workPermitStatus,
+    salaryExpectation,
+    workAuthorization,
+    visaSponsorship,
+    relocationWillingness,
+    commuteRadius,
+  ]);
+
   return (
     <article className="img3-panel">
       <form className="profile-sections" onSubmit={(event) => event.preventDefault()}>
@@ -241,23 +393,23 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
           {!collapsedSections.personal && <div className="profile-fields-grid">
             <label>
               First name
-              <input type="text" defaultValue={firstName} placeholder="First name" />
+              <input type="text" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name" />
             </label>
             <label>
               Last name
-              <input type="text" defaultValue={lastName} placeholder="Last name" />
+              <input type="text" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name" />
             </label>
             <label>
               Phone
-              <input type="text" defaultValue="" placeholder="Phone" />
+              <input type="text" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone" />
             </label>
             <label>
               City
-              <input type="text" defaultValue={city} placeholder="City" />
+              <input type="text" value={city} onChange={(event) => setCity(event.target.value)} placeholder="City" />
             </label>
             <label>
               Canton
-              <input type="text" defaultValue={canton} placeholder="Canton" />
+              <input type="text" value={canton} onChange={(event) => setCanton(event.target.value)} placeholder="Canton" />
             </label>
             <label>
               Birth date
@@ -622,11 +774,11 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
           {!collapsedSections.preferences && <div className="profile-fields-grid">
             <label>
               {t("summaryCurrentSituation")}
-              <input type="text" defaultValue={profile.currentJobSituation ?? ""} placeholder={t("summaryCurrentSituation")} />
+              <input type="text" value={currentJobSituation} onChange={(event) => setCurrentJobSituation(event.target.value)} placeholder={t("summaryCurrentSituation")} />
             </label>
             <label>
               {t("summaryEmploymentObjective")}
-              <input type="text" defaultValue={profile.employmentObjective ?? ""} placeholder={t("summaryEmploymentObjective")} />
+              <input type="text" value={employmentObjective} onChange={(event) => setEmploymentObjective(event.target.value)} placeholder={t("summaryEmploymentObjective")} />
             </label>
             <label>
               Target roles
@@ -666,19 +818,19 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
             </label>
             <label>
               {t("summaryContract")}
-              <input type="text" defaultValue={profile.contractPreference ?? ""} placeholder={t("summaryContract")} />
+              <input type="text" value={contractPreference} onChange={(event) => setContractPreference(event.target.value)} placeholder={t("summaryContract")} />
             </label>
             <label>
               {t("summaryWorkRate")}
-              <input type="text" defaultValue={profile.workRate ?? ""} placeholder={t("summaryWorkRate")} />
+              <input type="text" value={workRate} onChange={(event) => setWorkRate(event.target.value)} placeholder={t("summaryWorkRate")} />
             </label>
             <label>
               {t("summaryPermit")}
-              <input type="text" defaultValue={profile.workPermitStatus ?? ""} placeholder={t("summaryPermit")} />
+              <input type="text" value={workPermitStatus} onChange={(event) => setWorkPermitStatus(event.target.value)} placeholder={t("summaryPermit")} />
             </label>
             <label>
               {t("summarySalary")}
-              <input type="text" defaultValue={profile.salaryExpectation ?? ""} placeholder={t("summaryOptional")} />
+              <input type="text" value={salaryExpectation} onChange={(event) => setSalaryExpectation(event.target.value)} placeholder={t("summaryOptional")} />
             </label>
             <label>
               Work authorization
