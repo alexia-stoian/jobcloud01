@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ActorType {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ProfileMutationSource {
+  CHAT
+  AUTH_FLOW
+  SYSTEM_REVERT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  profile        CandidateProfile?
+  onboardingSession OnboardingSession?
+  verifyTokens   VerificationToken[] @relation("verify_token_user")
+  resetTokens    PasswordResetToken[]
+  authAuditEvent AuthAuditEvent[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  tokenHash  String   @unique
+  expires    DateTime
+  userId     String?
+
+  user User? @relation("verify_token_user", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([identifier, tokenHash])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CandidateProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  locale                String   @default("en")
+  fullName              String?
+  currentJobSituation   String?
+  employmentObjective   String?
+  primaryRole           String?
+  preferredLocation     String?
+  contractPreference    String?
+  workRate              String?
+  workPermitStatus      String?
+  salaryExpectation     String?
+  roleSuggestionsUsed   Boolean  @default(false)
+  isMinimallyComplete   Boolean  @default(false)
+  missingCriticalFields Json     @default("[]")
+  lastCompletionCheckAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qualifications ProfileQualification[]
+  historyEvents  ProfileHistoryEvent[]
+  onboardingSession OnboardingSession?
+}
+
+model ProfileQualification {
+  id          String   @id @default(cuid())
+  profileId   String
+  category    String
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model ProfileHistoryEvent {
+  id              String                @id @default(cuid())
+  profileId       String
+  userId          String
+  actorType       ActorType
+  source          ProfileMutationSource
+  changeSet       Json
+  confirmationRef String?
+  createdAt       DateTime              @default(now())
+
+  profile CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+}
+
+model OnboardingSession {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  profileId             String?  @unique
+  locale                String   @default("en")
+  currentStep           String   @default("cv_upload")
+  targetRole            String?
+  cvFileName            String?
+  cvMimeType            String?
+  cvExtractedFacts      Json     @default("{}")
+  cvUncertainFacts      Json     @default("{}")
+  pendingQuestions      Json     @default("[]")
+  skippedQuestionIds    Json     @default("[]")
+  confirmedQuestionIds  Json     @default("[]")
+  lastInteractedAt      DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile CandidateProfile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, currentStep])
+}
+
+model AuthAuditEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+}

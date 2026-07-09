@@ -7,10 +7,10 @@
 
 ## Phases
 
-- [ ] **Phase 1: Account, Language, And Candidate Profile Foundation** - Users can securely access the product, work in EN/DE/FR, and build a reusable baseline candidate profile.
-- [ ] **Phase 2: CV-Aware Guided Onboarding** - Users can upload a CV and complete AI-led onboarding that asks role-relevant follow-up questions without locking in unconfirmed facts.
-- [ ] **Phase 3: Durable Memory And Readiness** - Users get a reliable long-lived profile memory that reuses prior answers and shows what is complete versus what still needs clarification.
-- [ ] **Phase 4: Personalized Job Guidance And Coaching** - Users receive profile-grounded next steps, interview preparation, salary guidance, and skill-improvement coaching.
+- [x] **Phase 1: Account, Language, And Candidate Profile Foundation** - Users can securely access the product, work in EN/DE/FR, and build a reusable baseline candidate profile.
+- [x] **Phase 2: CV-Aware Guided Onboarding** - Users can upload a CV and complete AI-led onboarding that asks role-relevant follow-up questions without locking in unconfirmed facts.
+- [x] **Phase 3: Durable Memory And Readiness** - Users get a reliable long-lived profile memory that reuses prior answers and shows what is complete versus what still needs clarification.
+- [x] **Phase 4: Personalized Job Guidance And Coaching** - Users receive profile-grounded next steps, interview preparation, salary guidance, and skill-improvement coaching.
 
 ## Phase Details
 
@@ -24,7 +24,7 @@
 2. User can use the landing page, onboarding entry points, and profile surfaces in English, German, or French and switch languages later without losing saved data.
 3. User can enter, save, and later edit their personal details, job situation, target roles, location, contract preferences, work rate, qualifications, work permit status, and salary expectations.
 4. User can review a structured summary of their saved candidate profile before moving into deeper AI-guided flows.
-**Plans**: TBD
+**Plans**: 01-PLAN.md, 01-SUMMARY.md
 **UI hint**: yes
 
 ### Phase 2: CV-Aware Guided Onboarding
@@ -71,10 +71,10 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Account, Language, And Candidate Profile Foundation | 0/TBD | Not started | - |
-| 2. CV-Aware Guided Onboarding | 0/TBD | Not started | - |
-| 3. Durable Memory And Readiness | 0/TBD | Not started | - |
-| 4. Personalized Job Guidance And Coaching | 0/TBD | Not started | - |
+| 1. Account, Language, And Candidate Profile Foundation | 1/1 | Completed | 2026-07-08 |
+| 2. CV-Aware Guided Onboarding | 1/1 | Completed | 2026-07-09 |
+| 3. Durable Memory And Readiness | 1/1 | Completed | 2026-07-09 |
+| 4. Personalized Job Guidance And Coaching | 1/1 | Completed | 2026-07-09 |
 
 ---
-*Last updated: 2026-07-08 during roadmap creation*
+*Last updated: 2026-07-09 after Phase 4 completion*
