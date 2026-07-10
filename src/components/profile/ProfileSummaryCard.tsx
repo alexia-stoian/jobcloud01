@@ -441,7 +441,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
 
   const sectionToggleArrow = (section: SectionKey): string => (collapsedSections[section] ? "v" : "^");
   const sectionToggleLabel = (section: SectionKey): string =>
-    collapsedSections[section] ? "Expand section" : "Collapse section";
+    collapsedSections[section] ? t("summaryExpandSection") : t("summaryCollapseSection");
 
   useEffect(() => {
     try {
@@ -627,7 +627,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
       <form className="profile-sections" onSubmit={(event) => event.preventDefault()}>
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Professional headline</h2>
+            <h2 className="profile-section-title">{t("summarySectionHeadline")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -639,22 +639,22 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
             </button>
           </div>
           {!collapsedSections.headline && <div className="profile-fields-grid">
-            <p className="img3-note profile-field-full">These fields can also be filled automatically by the Career Guide agent.</p>
+            <p className="img3-note profile-field-full">{t("summaryHeadlineNote")}</p>
             <label className="profile-field-full">
-              Headline
+              {t("summaryHeadline")}
               <input
                 type="text"
                 value={profileHeadline}
                 onChange={(event) => setProfileHeadline(event.target.value)}
-                placeholder="e.g. Senior Product Designer focused on growth"
+                placeholder={t("summaryHeadlinePlaceholder")}
               />
             </label>
             <label className="profile-field-full">
-              Value proposition
+              {t("summaryValueProposition")}
               <textarea
                 value={valueProposition}
                 onChange={(event) => setValueProposition(event.target.value)}
-                placeholder="One short statement on what you consistently deliver"
+                placeholder={t("summaryValuePropositionPlaceholder")}
               />
             </label>
           </div>}
@@ -662,7 +662,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Personal information</h2>
+            <h2 className="profile-section-title">{t("summarySectionPersonal")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -675,27 +675,27 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
           </div>
           {!collapsedSections.personal && <div className="profile-fields-grid">
             <label>
-              First name
-              <input type="text" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name" />
+              {t("summaryFirstName")}
+              <input type="text" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder={t("summaryFirstName")} />
             </label>
             <label>
-              Last name
-              <input type="text" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name" />
+              {t("summaryLastName")}
+              <input type="text" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder={t("summaryLastName")} />
             </label>
             <label>
-              Phone
-              <input type="text" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone" />
+              {t("summaryPhone")}
+              <input type="text" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t("summaryPhone")} />
             </label>
             <label>
-              City
-              <input type="text" value={city} onChange={(event) => setCity(event.target.value)} placeholder="City" />
+              {t("summaryCity")}
+              <input type="text" value={city} onChange={(event) => setCity(event.target.value)} placeholder={t("summaryCity")} />
             </label>
             <label>
-              Canton
-              <input type="text" value={canton} onChange={(event) => setCanton(event.target.value)} placeholder="Canton" />
+              {t("summaryCanton")}
+              <input type="text" value={canton} onChange={(event) => setCanton(event.target.value)} placeholder={t("summaryCanton")} />
             </label>
             <label>
-              Birth date
+              {t("summaryBirthDate")}
               <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
             </label>
           </div>}
@@ -703,7 +703,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Work experience</h2>
+            <h2 className="profile-section-title">{t("summarySectionWork")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -719,47 +719,47 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <div className="profile-repeatable-item" key={`work-experience-row-${index}`}>
                 <div className="profile-repeatable-grid">
                   <label>
-                    Job title
+                    {t("summaryJobTitle")}
                     <input
                       type="text"
                       value={row.jobTitle}
                       onChange={(event) => updateWorkExperienceRow(index, "jobTitle", event.target.value)}
-                      placeholder="Job title"
+                      placeholder={t("summaryJobTitle")}
                     />
                   </label>
                   <label>
-                    Company
+                    {t("summaryCompany")}
                     <input
                       type="text"
                       value={row.company}
                       onChange={(event) => updateWorkExperienceRow(index, "company", event.target.value)}
-                      placeholder="Company"
+                      placeholder={t("summaryCompany")}
                     />
                   </label>
                   <label>
-                    Location
+                    {t("summaryLocation")}
                     <input
                       type="text"
                       value={row.location}
                       onChange={(event) => updateWorkExperienceRow(index, "location", event.target.value)}
-                      placeholder="Location"
+                      placeholder={t("summaryLocation")}
                     />
                   </label>
                   <label>
-                    Period
+                    {t("summaryPeriod")}
                     <input
                       type="text"
                       value={row.period}
                       onChange={(event) => updateWorkExperienceRow(index, "period", event.target.value)}
-                      placeholder="e.g. 2022 - Present"
+                      placeholder={t("summaryPeriodPlaceholder")}
                     />
                   </label>
                   <label className="profile-field-full">
-                    Responsibilities / achievements
+                    {t("summaryResponsibilities")}
                     <textarea
                       value={row.details}
                       onChange={(event) => updateWorkExperienceRow(index, "details", event.target.value)}
-                      placeholder="Add responsibilities and achievements"
+                      placeholder={t("summaryResponsibilitiesPlaceholder")}
                     />
                   </label>
                 </div>
@@ -769,19 +769,19 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                   onClick={() => removeWorkExperienceRow(index)}
                   disabled={workExperienceRows.length === 1}
                 >
-                  Remove
+                  {t("summaryRemove")}
                 </button>
               </div>
             ))}
             <button type="button" className="profile-add-action" onClick={addWorkExperienceRow}>
-              + Add experience
+              {t("summaryAddExperience")}
             </button>
           </div>}
         </section>
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Education</h2>
+            <h2 className="profile-section-title">{t("summarySectionEducation")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -797,39 +797,39 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <div className="profile-repeatable-item" key={`education-row-${index}`}>
                 <div className="profile-repeatable-grid">
                   <label>
-                    Degree
+                    {t("summaryDegree")}
                     <input
                       type="text"
                       value={row.degree}
                       onChange={(event) => updateEducationRow(index, "degree", event.target.value)}
-                      placeholder="Degree"
+                      placeholder={t("summaryDegree")}
                     />
                   </label>
                   <label>
-                    School
+                    {t("summarySchool")}
                     <input
                       type="text"
                       value={row.school}
                       onChange={(event) => updateEducationRow(index, "school", event.target.value)}
-                      placeholder="School"
+                      placeholder={t("summarySchool")}
                     />
                   </label>
                   <label>
-                    Location
+                    {t("summaryLocation")}
                     <input
                       type="text"
                       value={row.location}
                       onChange={(event) => updateEducationRow(index, "location", event.target.value)}
-                      placeholder="Location"
+                      placeholder={t("summaryLocation")}
                     />
                   </label>
                   <label>
-                    Years
+                    {t("summaryYears")}
                     <input
                       type="text"
                       value={row.years}
                       onChange={(event) => updateEducationRow(index, "years", event.target.value)}
-                      placeholder="e.g. 2018 - 2021"
+                      placeholder={t("summaryYearsPlaceholder")}
                     />
                   </label>
                 </div>
@@ -839,19 +839,19 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                   onClick={() => removeEducationRow(index)}
                   disabled={educationRows.length === 1}
                 >
-                  Remove
+                  {t("summaryRemove")}
                 </button>
               </div>
             ))}
             <button type="button" className="profile-add-action" onClick={addEducationRow}>
-              + Add education
+              {t("summaryAddEducation")}
             </button>
           </div>}
         </section>
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Skills</h2>
+            <h2 className="profile-section-title">{t("summarySectionSkills")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -867,30 +867,30 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <div className="profile-repeatable-item" key={`skill-row-${index}`}>
                 <div className="profile-repeatable-grid">
                   <label className="profile-field-full">
-                    Skill
+                    {t("summarySkill")}
                     <input
                       type="text"
                       value={row.skill}
                       onChange={(event) => updateSkillRow(index, "skill", event.target.value)}
-                      placeholder="Skill"
+                      placeholder={t("summarySkill")}
                     />
                   </label>
                   <label>
-                    Proficiency
+                    {t("summaryProficiency")}
                     <input
                       type="text"
                       value={row.proficiency}
                       onChange={(event) => updateSkillRow(index, "proficiency", event.target.value)}
-                      placeholder="e.g. Beginner, Intermediate, Advanced"
+                      placeholder={t("summaryProficiencyPlaceholder")}
                     />
                   </label>
                   <label>
-                    Last used
+                    {t("summaryLastUsed")}
                     <input
                       type="text"
                       value={row.lastUsed}
                       onChange={(event) => updateSkillRow(index, "lastUsed", event.target.value)}
-                      placeholder="e.g. Used in last 12 months"
+                      placeholder={t("summaryLastUsedPlaceholder")}
                     />
                   </label>
                 </div>
@@ -900,19 +900,19 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                   onClick={() => removeSkillRow(index)}
                   disabled={skillRows.length === 1}
                 >
-                  Remove
+                  {t("summaryRemove")}
                 </button>
               </div>
             ))}
             <button type="button" className="profile-add-action" onClick={addSkillRow}>
-              + Add skill
+              {t("summaryAddSkill")}
             </button>
           </div>}
         </section>
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Languages</h2>
+            <h2 className="profile-section-title">{t("summarySectionLanguages")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -928,39 +928,39 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <div className="profile-repeatable-item" key={`language-row-${index}`}>
                 <div className="profile-repeatable-grid">
                   <label>
-                    Language
+                    {t("summaryLanguage")}
                     <input
                       type="text"
                       value={row.language}
                       onChange={(event) => updateLanguageRow(index, "language", event.target.value)}
-                      placeholder="Language"
+                      placeholder={t("summaryLanguage")}
                     />
                   </label>
                   <label>
-                    Proficiency standard
+                    {t("summaryProficiencyStandard")}
                     <input
                       type="text"
                       value={row.proficiencyStandard}
                       onChange={(event) => updateLanguageRow(index, "proficiencyStandard", event.target.value)}
-                      placeholder="e.g. CEFR"
+                      placeholder={t("summaryProficiencyStandardPlaceholder")}
                     />
                   </label>
                   <label>
-                    Level
+                    {t("summaryLevel")}
                     <input
                       type="text"
                       value={row.level}
                       onChange={(event) => updateLanguageRow(index, "level", event.target.value)}
-                      placeholder="Level (e.g. Native, C1, B2)"
+                      placeholder={t("summaryLevelPlaceholder")}
                     />
                   </label>
                   <label>
-                    Usage context
+                    {t("summaryUsageContext")}
                     <input
                       type="text"
                       value={row.usageContext}
                       onChange={(event) => updateLanguageRow(index, "usageContext", event.target.value)}
-                      placeholder="e.g. Daily working language"
+                      placeholder={t("summaryUsageContextPlaceholder")}
                     />
                   </label>
                 </div>
@@ -970,19 +970,19 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                   onClick={() => removeLanguageRow(index)}
                   disabled={languageRows.length === 1}
                 >
-                  Remove
+                  {t("summaryRemove")}
                 </button>
               </div>
             ))}
             <button type="button" className="profile-add-action" onClick={addLanguageRow}>
-              + Add language
+              {t("summaryAddLanguage")}
             </button>
           </div>}
         </section>
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Certifications</h2>
+            <h2 className="profile-section-title">{t("summarySectionCertifications")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -998,30 +998,30 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <div className="profile-repeatable-item" key={`certification-row-${index}`}>
                 <div className="profile-repeatable-grid">
                   <label>
-                    Certification
+                    {t("summaryCertification")}
                     <input
                       type="text"
                       value={row.name}
                       onChange={(event) => updateCertificationRow(index, "name", event.target.value)}
-                      placeholder="Certification"
+                      placeholder={t("summaryCertification")}
                     />
                   </label>
                   <label>
-                    Issuer
+                    {t("summaryIssuer")}
                     <input
                       type="text"
                       value={row.issuer}
                       onChange={(event) => updateCertificationRow(index, "issuer", event.target.value)}
-                      placeholder="Issuer"
+                      placeholder={t("summaryIssuer")}
                     />
                   </label>
                   <label>
-                    Year
+                    {t("summaryYear")}
                     <input
                       type="text"
                       value={row.year}
                       onChange={(event) => updateCertificationRow(index, "year", event.target.value)}
-                      placeholder="Year"
+                      placeholder={t("summaryYear")}
                     />
                   </label>
                 </div>
@@ -1031,19 +1031,19 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                   onClick={() => removeCertificationRow(index)}
                   disabled={certificationRows.length === 1}
                 >
-                  Remove
+                  {t("summaryRemove")}
                 </button>
               </div>
             ))}
             <button type="button" className="profile-add-action" onClick={addCertificationRow}>
-              + Add certification
+              {t("summaryAddCertification")}
             </button>
           </div>}
         </section>
 
         <section className="profile-section-card">
           <div className="profile-section-head">
-            <h2 className="profile-section-title">Preferences</h2>
+            <h2 className="profile-section-title">{t("summarySectionPreferences")}</h2>
             <button
               type="button"
               className="profile-section-toggle"
@@ -1064,39 +1064,39 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <input type="text" value={employmentObjective} onChange={(event) => setEmploymentObjective(event.target.value)} placeholder={t("summaryEmploymentObjective")} />
             </label>
             <label>
-              Target roles
+              {t("summaryTargetRoles")}
               <input
                 type="text"
                 value={targetRoles}
                 onChange={(event) => setTargetRoles(event.target.value)}
-                placeholder="e.g. Product Manager, Senior Product Manager"
+                placeholder={t("summaryTargetRolesPlaceholder")}
               />
             </label>
             <label>
-              Seniority target
+              {t("summaryTargetSeniority")}
               <input
                 type="text"
                 value={targetSeniority}
                 onChange={(event) => setTargetSeniority(event.target.value)}
-                placeholder="e.g. Mid, Senior, Lead"
+                placeholder={t("summaryTargetSeniorityPlaceholder")}
               />
             </label>
             <label>
-              Target industries
+              {t("summaryTargetIndustries")}
               <input
                 type="text"
                 value={targetIndustries}
                 onChange={(event) => setTargetIndustries(event.target.value)}
-                placeholder="e.g. Fintech, SaaS"
+                placeholder={t("summaryTargetIndustriesPlaceholder")}
               />
             </label>
             <label>
-              Preferred work model
+              {t("summaryPreferredWorkModel")}
               <input
                 type="text"
                 value={preferredWorkModel}
                 onChange={(event) => setPreferredWorkModel(event.target.value)}
-                placeholder="e.g. Hybrid, Remote, On-site"
+                placeholder={t("summaryPreferredWorkModelPlaceholder")}
               />
             </label>
             <label>
@@ -1116,30 +1116,30 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               <input type="text" value={salaryExpectation} onChange={(event) => setSalaryExpectation(event.target.value)} placeholder={t("summaryOptional")} />
             </label>
             <label>
-              Visa sponsorship
+              {t("summaryVisaSponsorship")}
               <input
                 type="text"
                 value={visaSponsorship}
                 onChange={(event) => setVisaSponsorship(event.target.value)}
-                placeholder="e.g. Required / Not required"
+                placeholder={t("summaryVisaSponsorshipPlaceholder")}
               />
             </label>
             <label>
-              Relocation willingness
+              {t("summaryRelocationWillingness")}
               <input
                 type="text"
                 value={relocationWillingness}
                 onChange={(event) => setRelocationWillingness(event.target.value)}
-                placeholder="e.g. Open to relocation within Switzerland"
+                placeholder={t("summaryRelocationWillingnessPlaceholder")}
               />
             </label>
             <label>
-              Commute radius
+              {t("summaryCommuteRadius")}
               <input
                 type="text"
                 value={commuteRadius}
                 onChange={(event) => setCommuteRadius(event.target.value)}
-                placeholder="e.g. Up to 45 minutes"
+                placeholder={t("summaryCommuteRadiusPlaceholder")}
               />
             </label>
           </div>}
