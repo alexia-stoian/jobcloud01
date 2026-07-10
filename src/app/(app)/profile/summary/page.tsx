@@ -53,7 +53,10 @@ export default async function ProfileSummaryPage(): Promise<React.ReactElement> 
   return (
     <AppShellServer>
       <main className="img3-stack">
-        <ProfileSummaryCard profile={summary.profile} />
+        <ProfileSummaryCard 
+          profile={summary.profile}
+          qualifications={summary.qualifications}
+        />
       </main>
     </AppShellServer>
   );

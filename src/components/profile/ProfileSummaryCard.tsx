@@ -79,6 +79,58 @@ type ProfileDraft = {
 
 const PROFILE_DRAFT_STORAGE_KEY = "jobscout24.profile-summary-draft.v1";
 
+/**
+ * Parse qualifications by category and extract relevant data
+ */
+function parseQualifications(qualifications: Array<{ category: string; value: string }>) {
+  const skills: SkillRow[] = [];
+  const certifications: CertificationRow[] = [];
+  const education: EducationRow[] = [];
+
+  for (const qual of qualifications) {
+    if (qual.category === "skill") {
+      // Format: "React (expert) - 8 yrs"
+      const match = qual.value.match(/^(.+?)(?:\s*\((.+?)\))?(?:\s*-\s*(\d+)\s*yrs?)?$/);
+      if (match) {
+        skills.push({
+          skill: match[1]?.trim() || qual.value,
+          proficiency: match[2]?.trim() || "",
+          lastUsed: match[3] ? `${match[3]} years` : "",
+        });
+      } else {
+        skills.push({ skill: qual.value, proficiency: "", lastUsed: "" });
+      }
+    } else if (qual.category === "certification") {
+      // Format: "AWS Certified - Amazon (2023)"
+      const match = qual.value.match(/^(.+?)(?:\s*-\s*(.+?))?(?:\s*\((.+?)\))?$/);
+      if (match) {
+        certifications.push({
+          name: match[1]?.trim() || qual.value,
+          issuer: match[2]?.trim() || "",
+          year: match[3]?.trim() || "",
+        });
+      } else {
+        certifications.push({ name: qual.value, issuer: "", year: "" });
+      }
+    } else if (qual.category === "diploma") {
+      // Format: "MIT - Master of Science in Computer Science (2018)"
+      const match = qual.value.match(/^(.+?)(?:\s*-\s*(.+?))?(?:\s*\((.+?)\))?$/);
+      if (match) {
+        education.push({
+          school: match[1]?.trim() || qual.value,
+          degree: match[2]?.trim() || "",
+          location: "",
+          years: match[3]?.trim() || "",
+        });
+      } else {
+        education.push({ school: qual.value, degree: "", location: "", years: "" });
+      }
+    }
+  }
+
+  return { skills, certifications, education };
+}
+
 type Props = {
   profile: {
     fullName: string | null;
@@ -92,13 +144,17 @@ type Props = {
     salaryExpectation: string | null;
     locale: string;
   };
+  qualifications?: Array<{ category: string; value: string }>;
 };
 
-export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
+export function ProfileSummaryCard({ profile, qualifications = [] }: Props): React.ReactElement {
   const t = useTranslations("profile");
   const [initialFirstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
   const initialLastName = lastNameParts.join(" ");
   const [initialCity = "", initialCanton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
+
+  // Parse extracted qualifications
+  const { skills: extractedSkills, certifications: extractedCerts, education: extractedEducation } = parseQualifications(qualifications);
 
   const [firstName, setFirstName] = useState<string>(initialFirstName);
   const [lastName, setLastName] = useState<string>(initialLastName);
@@ -120,13 +176,18 @@ export function ProfileSummaryCard({ profile }: Props): React.ReactElement {
       details: "",
     },
   ]);
-  const [educationRows, setEducationRows] = useState<EducationRow[]>([
-    { degree: "", school: "", location: "", years: "" },
-  ]);
-  const [skillRows, setSkillRows] = useState<SkillRow[]>([{ skill: "", proficiency: "", lastUsed: "" }]);
-  const [certificationRows, setCertificationRows] = useState<CertificationRow[]>([
-    { name: "", issuer: "", year: "" },
-  ]);
+  // Initialize education with extracted data, or empty if none
+  const [educationRows, setEducationRows] = useState<EducationRow[]>(
+    extractedEducation.length > 0 ? extractedEducation : [{ degree: "", school: "", location: "", years: "" }]
+  );
+  // Initialize skills with extracted data, or empty if none
+  const [skillRows, setSkillRows] = useState<SkillRow[]>(
+    extractedSkills.length > 0 ? extractedSkills : [{ skill: "", proficiency: "", lastUsed: "" }]
+  );
+  // Initialize certifications with extracted data, or empty if none
+  const [certificationRows, setCertificationRows] = useState<CertificationRow[]>(
+    extractedCerts.length > 0 ? extractedCerts : [{ name: "", issuer: "", year: "" }]
+  );
   const [currentJobSituation, setCurrentJobSituation] = useState<string>(profile.currentJobSituation ?? "");
   const [employmentObjective, setEmploymentObjective] = useState<string>(profile.employmentObjective ?? "");
 
