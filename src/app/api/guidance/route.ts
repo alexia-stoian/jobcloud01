@@ -74,7 +74,7 @@ async function callAnthropic(prompt: string, locale: string): Promise<string | n
   const localeNote = locale === "de" ? "Respond in German." : locale === "fr" ? "Respond in French." : "Respond in English.";
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
