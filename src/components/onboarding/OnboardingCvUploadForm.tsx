@@ -262,7 +262,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   }, [_locale, applyInteractiveResponse]);
 
   async function submitAnswer(): Promise<void> {
-    await sendFreeMessage(message);
+    // Route to question answer or free chat depending on context
+    if (currentQuestion) {
+      await submitAnswerValue(message);
+    } else {
+      await sendFreeMessage(message);
+    }
   }
 
   function onInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
