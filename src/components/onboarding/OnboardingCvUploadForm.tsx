@@ -38,21 +38,201 @@ type InteractiveResponse = {
   };
 };
 
-const COMPLETION_HELP_TEXT = [
-  "Your profile is now filled as completely as I can make it from your CV and your answers.",
-  "I can also help with:",
-  "- improve or rewrite your CV",
-  "- draft or tailor a cover letter",
-  "- prepare interview questions and sample answers",
-  "- benchmark salary expectations in Switzerland",
-  "- identify skill gaps and learning priorities",
-  "- refine your role positioning and profile story",
-  "- explain permit and relocation implications",
-  "- suggest concrete next steps for your job search",
-  "What would you like help with next?"
-].join("\n");
+const UI_STRINGS = {
+  en: {
+    intro: "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away.",
+    assistantUnavailable: "Assistant is temporarily unavailable. Please try again.",
+    saveFailed: "I could not save that answer. Please try again.",
+    blockedFallback: "I cannot share that. Let us continue with your profile.",
+    answerFailed: "I could not answer that right now. Please try again.",
+    readingCv: "Reading your CV...",
+    fileReadFailed: "I could not read this file. Please try a PDF or plain .txt file.",
+    cvSaveFailed: "CV parsed but I could not save the extracted information. Please try again.",
+    cvAnalyzed: "Your CV has been analyzed and your profile has been filled with the information I could confidently detect. I will now ask the remaining preference questions needed to complete your profile.",
+    cvUploadedNoFacts: "CV uploaded. I could not extract structured fields automatically - let us continue filling in your profile together.",
+    uploadFailed: "Something went wrong uploading your CV. Please try again.",
+    completeNoCv: "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically.",
+    placeholderDefault: "Write your answer here",
+    placeholderComplete: "Profile complete. You can still type changes anytime.",
+    offTrackNudge: "That does not look like an answer to this question. Let us stay on track:",
+    completionHelp: [
+      "Your profile is now filled as completely as I can make it from your CV and your answers.",
+      "I can also help with:",
+      "- improve or rewrite your CV",
+      "- draft or tailor a cover letter",
+      "- prepare interview questions and sample answers",
+      "- benchmark salary expectations in Switzerland",
+      "- identify skill gaps and learning priorities",
+      "- refine your role positioning and profile story",
+      "- explain permit and relocation implications",
+      "- suggest concrete next steps for your job search",
+      "What would you like help with next?"
+    ].join("\n")
+  },
+  de: {
+    intro: "Schoen, Sie kennenzulernen 🙂 Ich begleite Sie Schritt fuer Schritt und speichere jede bestaetigte Antwort direkt in Ihrem Profil.",
+    assistantUnavailable: "Der Assistent ist voruebergehend nicht verfuegbar. Bitte versuchen Sie es erneut.",
+    saveFailed: "Ich konnte diese Antwort nicht speichern. Bitte versuchen Sie es erneut.",
+    blockedFallback: "Dabei kann ich nicht helfen. Wir machen mit Ihrem Profil weiter.",
+    answerFailed: "Ich konnte darauf gerade nicht antworten. Bitte versuchen Sie es erneut.",
+    readingCv: "Ihr CV wird gelesen...",
+    fileReadFailed: "Ich konnte diese Datei nicht lesen. Bitte versuchen Sie eine PDF- oder .txt-Datei.",
+    cvSaveFailed: "CV gelesen, aber ich konnte die extrahierten Informationen nicht speichern. Bitte erneut versuchen.",
+    cvAnalyzed: "Ihr CV wurde analysiert und Ihr Profil mit den sicher erkannten Informationen befuellt. Jetzt stelle ich die restlichen Praeferenzfragen, um Ihr Profil zu vervollstaendigen.",
+    cvUploadedNoFacts: "CV hochgeladen. Ich konnte keine strukturierten Felder automatisch extrahieren - wir fuellen Ihr Profil gemeinsam weiter aus.",
+    uploadFailed: "Beim Hochladen Ihres CV ist etwas schiefgelaufen. Bitte versuchen Sie es erneut.",
+    completeNoCv: "Super, Ihre Kern-Profildaten sind jetzt ausgefuellt. Naechster Schritt: Laden Sie Ihren CV hoch, damit ich Erfahrung und weitere Bereiche automatisch uebernehmen kann.",
+    placeholderDefault: "Schreiben Sie Ihre Antwort hier",
+    placeholderComplete: "Profil ist abgeschlossen. Sie koennen weiterhin Aenderungen eingeben.",
+    offTrackNudge: "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
+    completionHelp: [
+      "Ihr Profil ist nun so vollstaendig wie moeglich anhand Ihres CV und Ihrer Antworten.",
+      "Ich kann ausserdem helfen bei:",
+      "- Verbesserung oder Ueberarbeitung Ihres CV",
+      "- Entwurf oder Anpassung eines Motivationsschreibens",
+      "- Interviewfragen und Beispielantworten",
+      "- Gehaltsbenchmark fuer die Schweiz",
+      "- Skill-Gap-Analyse und Lernprioritaeten",
+      "- Schaerfung Ihrer Rollenpositionierung und Profilstory",
+      "- Erklaerung von Bewilligungs- und Umzugsthemen",
+      "- Konkreten naechsten Schritten fuer Ihre Jobsuche",
+      "Wobei soll ich Sie als Naechstes unterstuetzen?"
+    ].join("\n")
+  },
+  fr: {
+    intro: "Ravi de vous rencontrer 🙂 Je vous guide etape par etape et j'enregistre chaque reponse confirmee directement dans votre profil.",
+    assistantUnavailable: "L'assistant est temporairement indisponible. Veuillez reessayer.",
+    saveFailed: "Je n'ai pas pu enregistrer cette reponse. Veuillez reessayer.",
+    blockedFallback: "Je ne peux pas aider sur ce point. Continuons avec votre profil.",
+    answerFailed: "Je ne peux pas repondre a cela pour le moment. Veuillez reessayer.",
+    readingCv: "Lecture de votre CV...",
+    fileReadFailed: "Je n'ai pas pu lire ce fichier. Essayez un PDF ou un fichier .txt.",
+    cvSaveFailed: "CV analyse, mais je n'ai pas pu enregistrer les informations extraites. Veuillez reessayer.",
+    cvAnalyzed: "Votre CV a ete analyse et votre profil a ete complete avec les informations detectees avec confiance. Je vais maintenant poser les questions de preference restantes pour finaliser votre profil.",
+    cvUploadedNoFacts: "CV televerse. Je n'ai pas pu extraire automatiquement des champs structures - continuons a completer votre profil ensemble.",
+    uploadFailed: "Une erreur est survenue lors du televersement du CV. Veuillez reessayer.",
+    completeNoCv: "Parfait, les champs essentiels de votre profil sont remplis. Prochaine etape: televerser votre CV pour que je complete automatiquement l'experience et les sections restantes.",
+    placeholderDefault: "Ecrivez votre reponse ici",
+    placeholderComplete: "Profil termine. Vous pouvez encore saisir des modifications.",
+    offTrackNudge: "Cela ne semble pas repondre a la question. Restons sur le sujet:",
+    completionHelp: [
+      "Votre profil est maintenant rempli aussi completement que possible a partir de votre CV et de vos reponses.",
+      "Je peux aussi vous aider pour:",
+      "- ameliorer ou reecrire votre CV",
+      "- rediger ou adapter une lettre de motivation",
+      "- preparer des questions d'entretien et des reponses types",
+      "- evaluer les attentes salariales en Suisse",
+      "- identifier les lacunes de competences et les priorites d'apprentissage",
+      "- affiner votre positionnement de role et votre narrative profil",
+      "- expliquer les implications permis/relocation",
+      "- proposer des prochaines etapes concretes pour votre recherche d'emploi",
+      "Que souhaitez-vous faire ensuite ?"
+    ].join("\n")
+  }
+} as const;
+
+function localizeQuestion(locale: "en" | "de" | "fr", question: InteractiveQuestion): InteractiveQuestion {
+  if (locale === "en") {
+    return question;
+  }
+
+  const byField: Record<string, { backstory: string; prompt: string; placeholder?: string }> = {
+    employmentObjective: locale === "de"
+      ? { backstory: "Damit ich die naechsten Schritte auf Ihr Ziel ausrichten kann, klaeren wir zuerst Ihre Richtung.", prompt: "Was ist aktuell Ihr Hauptziel?" }
+      : { backstory: "Pour adapter la suite a votre objectif, alignons d'abord votre direction principale.", prompt: "Quel est votre objectif principal en ce moment ?" },
+    primaryRole: locale === "de"
+      ? { backstory: "So kann ich Beratung, CV-Wording und Interviewvorbereitung auf Ihre Zielrolle zuschneiden.", prompt: "Fuer welche Rolle sollen wir Ihr Profil zuerst optimieren?", placeholder: "Beispiel: Senior Frontend Developer" }
+      : { backstory: "Cela m'aide a adapter les conseils, le CV et la preparation d'entretien a votre role cible.", prompt: "Pour quel role devons-nous optimiser votre profil en premier ?", placeholder: "Exemple: Senior Frontend Developer" },
+    preferredLocation: locale === "de"
+      ? { backstory: "Ich habe aus dem CV uebernommen, was moeglich war. Jetzt finalisieren wir Ihre Matching-Praeferenzen.", prompt: "Wo moechten Sie idealerweise arbeiten?", placeholder: "Beispiel: Zuerich + hybrid oder remote in der Schweiz" }
+      : { backstory: "J'ai rempli ce que je pouvais depuis le CV. Finalisons maintenant vos preferences de matching.", prompt: "Ou souhaitez-vous idealement travailler ?", placeholder: "Exemple: Zurich + hybride, ou remote en Suisse" },
+    currentJobSituation: locale === "de"
+      ? { backstory: "Ihre aktuelle Situation bestimmt, ob wir Tempo, Verhandlung oder Vorbereitung priorisieren.", prompt: "Was beschreibt Ihre aktuelle Situation am besten?" }
+      : { backstory: "Votre situation actuelle determine si je dois prioriser vitesse, negociation ou preparation.", prompt: "Quelle option decrit le mieux votre situation actuelle ?" },
+    targetRoles: locale === "de"
+      ? { backstory: "Fuer ein vollstaendiges Profil brauche ich Ihre Zielrollen, nicht nur den aktuellen Titel.", prompt: "Welche Rollen soll Ihr Profil ansprechen?", placeholder: "Beispiel: Product Manager, Senior Product Manager" }
+      : { backstory: "Pour un profil complet, j'ai besoin de vos roles cibles, pas seulement votre titre actuel.", prompt: "Quels roles votre profil doit-il cibler ?", placeholder: "Exemple: Product Manager, Senior Product Manager" },
+    targetSeniority: locale === "de"
+      ? { backstory: "Senioritaet verhindert Fehlmatches zwischen Erfahrung und Rolle.", prompt: "Welche Senioritaetsstufe peilen Sie an?" }
+      : { backstory: "Le niveau de seniorite evite les decalages entre experience et role.", prompt: "Quel niveau de seniorite visez-vous ?" },
+    targetIndustries: locale === "de"
+      ? { backstory: "Branchenpraeferenzen helfen mir, passende Unternehmen und Beispiele zu priorisieren.", prompt: "Welche Branchen interessieren Sie am meisten?", placeholder: "Beispiel: SaaS, Fintech, Healthtech" }
+      : { backstory: "Les preferences de secteur m'aident a prioriser les bonnes entreprises et exemples.", prompt: "Quels secteurs vous interessent le plus ?", placeholder: "Exemple: SaaS, fintech, healthtech" },
+    preferredWorkModel: locale === "de"
+      ? { backstory: "Das Arbeitsmodell beeinflusst die Trefferqualitaet stark.", prompt: "Welches Arbeitsmodell bevorzugen Sie?" }
+      : { backstory: "Le mode de travail influence fortement la qualite du matching.", prompt: "Quel mode de travail preferez-vous ?" },
+    contractPreference: locale === "de"
+      ? { backstory: "Die Vertragsform filtert unpassende Rollen fruehzeitig aus.", prompt: "Welche Vertragsart bevorzugen Sie?" }
+      : { backstory: "Le type de contrat permet d'ecarter tot les roles non adaptes.", prompt: "Quel type de contrat preferez-vous ?" },
+    workRate: locale === "de"
+      ? { backstory: "Das gewuenschte Pensum ist in der Schweiz oft ein zentrales Filterkriterium.", prompt: "Welches Arbeitspensum streben Sie an?" }
+      : { backstory: "Le taux d'activite est souvent un filtre cle en Suisse.", prompt: "Quel taux d'activite ciblez-vous ?" },
+    salaryExpectation: locale === "de"
+      ? { backstory: "Die Gehaltsvorstellung hilft mir, realistische Rollen vorzuschlagen.", prompt: "Welche Gehaltsspanne streben Sie an (CHF brutto/Jahr)?" }
+      : { backstory: "L'attente salariale m'aide a proposer des roles realistes.", prompt: "Quelle fourchette salariale visez-vous (CHF brut/an) ?" },
+    workPermitStatus: locale === "de"
+      ? { backstory: "Der Bewilligungsstatus ist fuer die realistische Jobsuche in der Schweiz zentral.", prompt: "Wie ist Ihr Arbeitsbewilligungsstatus in der Schweiz?" }
+      : { backstory: "Le statut d'autorisation est essentiel pour une recherche realiste en Suisse.", prompt: "Quel est votre statut d'autorisation de travail en Suisse ?" },
+    visaSponsorship: locale === "de"
+      ? { backstory: "Sponsoring beeinflusst, welche Rollen sofort realistisch sind.", prompt: "Benoetigen Sie Visa-Sponsoring?" }
+      : { backstory: "Le sponsorship influence quels postes sont realistes immediatement.", prompt: "Avez-vous besoin d'un sponsorship visa ?" },
+    relocationWillingness: locale === "de"
+      ? { backstory: "Umzugsbereitschaft erweitert oder verengt die passenden Chancen.", prompt: "Wie offen sind Sie fuer einen Umzug?" }
+      : { backstory: "La mobilite geographique elargit ou reduit les opportunites pertinentes.", prompt: "Quel est votre niveau d'ouverture a la relocation ?" },
+    commuteRadius: locale === "de"
+      ? { backstory: "Pendelbereitschaft verbessert das Matching fuer On-site- und Hybrid-Rollen.", prompt: "Welcher Pendelradius ist fuer Sie akzeptabel?", placeholder: "Beispiel: Bis zu 45 Minuten" }
+      : { backstory: "La tolerance trajet ameliore le matching des roles sur site/hybrides.", prompt: "Quel rayon de trajet vous convient ?", placeholder: "Exemple: Jusqu'a 45 minutes" },
+    fullName: locale === "de"
+      ? { backstory: "Zum Abschluss gleiche ich Ihren Namen ab, damit Profil und Dokumente konsistent bleiben.", prompt: "Welchen vollstaendigen Namen sollen wir im Profil speichern?", placeholder: "Beispiel: Alexia Stoian" }
+      : { backstory: "Derniere verification d'identite pour garder profil et documents coherents.", prompt: "Quel nom complet devons-nous enregistrer dans votre profil ?", placeholder: "Exemple: Alexia Stoian" }
+  };
+
+  const localized = byField[question.field];
+  if (!localized) return question;
+
+  const translatedOptions = question.options?.map((option) => {
+    if (locale === "de") {
+      const labels: Record<string, string> = {
+        "Find a new job": "Neuen Job finden",
+        "Change career direction": "Berufsrichtung wechseln",
+        "Grow in current field": "Im aktuellen Bereich wachsen",
+        "Return to work": "Wiedereinstieg",
+        "Remote": "Remote",
+        "Hybrid": "Hybrid",
+        "On-site": "Vor Ort",
+        "Open": "Offen",
+        "No": "Nein",
+        "Yes": "Ja"
+      };
+      return { ...option, label: labels[option.value] ?? option.label };
+    }
+
+    const labels: Record<string, string> = {
+      "Find a new job": "Trouver un nouvel emploi",
+      "Change career direction": "Changer de voie",
+      "Grow in current field": "Progresser dans mon domaine",
+      "Return to work": "Retour a l'emploi",
+      "Remote": "Remote",
+      "Hybrid": "Hybride",
+      "On-site": "Sur site",
+      "Open": "Ouvert",
+      "No": "Non",
+      "Yes": "Oui"
+    };
+    return { ...option, label: labels[option.value] ?? option.label };
+  });
+
+  return {
+    ...question,
+    backstory: localized.backstory,
+    prompt: localized.prompt,
+    placeholder: localized.placeholder ?? question.placeholder,
+    options: translatedOptions
+  };
+}
 
 export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactElement {
+  const i18n = UI_STRINGS[_locale];
   const [message, setMessage] = useState("");
   const [customOptionDraft, setCustomOptionDraft] = useState("");
   const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -62,6 +242,11 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   const [hasUploadedCv, setHasUploadedCv] = useState(false);
   const didInitRef = useRef(false);
   const didRestoreRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToLatestMessage = useCallback((behavior: ScrollBehavior): void => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
 
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
     setHasUploadedCv(Boolean(data.hasCvUpload));
@@ -72,7 +257,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       setHistory((current) => [...current, { role: "assistant", text: introText }]);
     }
 
-    const nextQuestion = data.question;
+    const nextQuestion = data.question ? localizeQuestion(_locale, data.question) : null;
     if (nextQuestion) {
       setHistory((current) => [
         ...current,
@@ -92,12 +277,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         {
           role: "assistant",
           text: (data.hasCvUpload ?? hasUploadedCv)
-            ? COMPLETION_HELP_TEXT
-            : "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically."
+            ? i18n.completionHelp
+            : i18n.completeNoCv
         }
       ]);
     }
-  }, [hasUploadedCv]);
+  }, [_locale, hasUploadedCv, i18n.completeNoCv, i18n.completionHelp]);
 
   const loadInteractiveQuestion = useCallback(async (): Promise<void> => {
     setIsSending(true);
@@ -112,7 +297,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         const resumed = (await resumeResponse.json()) as InteractiveResponse;
         if (Array.isArray(resumed.history) && resumed.history.length > 0) {
           setHistory(resumed.history);
-          setCurrentQuestion(resumed.question);
+          setCurrentQuestion(resumed.question ? localizeQuestion(_locale, resumed.question) : null);
           setIsDone(resumed.done);
           setHasUploadedCv(Boolean(resumed.hasCvUpload));
           didRestoreRef.current = true;
@@ -126,21 +311,21 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!response.ok) {
-        setHistory((current) => [...current, { role: "assistant", text: "Assistant is temporarily unavailable. Please try again." }]);
+        setHistory((current) => [...current, { role: "assistant", text: i18n.assistantUnavailable }]);
         return;
       }
 
       const data = (await response.json()) as InteractiveResponse;
       applyInteractiveResponse(
         data,
-        "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away."
+        i18n.intro
       );
     } catch {
-      setHistory((current) => [...current, { role: "assistant", text: "Assistant is temporarily unavailable. Please try again." }]);
+      setHistory((current) => [...current, { role: "assistant", text: i18n.assistantUnavailable }]);
     } finally {
       setIsSending(false);
     }
-  }, [applyInteractiveResponse]);
+  }, [applyInteractiveResponse, i18n.assistantUnavailable, i18n.intro]);
 
   useEffect(() => {
     if (!didInitRef.current || !didRestoreRef.current) {
@@ -168,6 +353,11 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return;
     }
 
+    if (isClearlyOffTrackAnswer(trimmed, currentQuestion)) {
+      appendOffTrackNudge(trimmed, currentQuestion);
+      return;
+    }
+
     setIsSending(true);
     setHistory((current) => [...current, { role: "user", text: trimmed }]);
     setMessage("");
@@ -187,7 +377,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!response.ok) {
-        setHistory((current) => [...current, { role: "assistant", text: "I could not save that answer. Please try again." }]);
+        setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
         return;
       }
 
@@ -195,18 +385,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       if (data.blocked) {
         setHistory((current) => [
           ...current,
-          { role: "assistant", text: data.message ?? "I cannot share that. Let us continue with your profile." }
+          { role: "assistant", text: data.message ?? i18n.blockedFallback }
         ]);
         return;
       }
 
       applyInteractiveResponse(data);
     } catch {
-      setHistory((current) => [...current, { role: "assistant", text: "I could not save that answer. Please try again." }]);
+      setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
     } finally {
       setIsSending(false);
     }
-  }, [_locale, applyInteractiveResponse, currentQuestion, isSending]);
+  }, [_locale, applyInteractiveResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -227,7 +417,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!response.ok) {
-        setHistory((current) => [...current, { role: "assistant", text: "I could not answer that right now. Please try again." }]);
+        setHistory((current) => [...current, { role: "assistant", text: i18n.answerFailed }]);
         return;
       }
 
@@ -237,16 +427,16 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         setHistory((current) => [...current, { role: "assistant", text: answer }]);
       }
     } catch {
-      setHistory((current) => [...current, { role: "assistant", text: "I could not answer that right now. Please try again." }]);
+      setHistory((current) => [...current, { role: "assistant", text: i18n.answerFailed }]);
     } finally {
       setIsSending(false);
     }
-  }, [_locale, isSending]);
+  }, [_locale, i18n.answerFailed, isSending]);
 
   const handleCvUpload = useCallback(async (file: File): Promise<void> => {
     setIsUploading(true);
     setHistory((current) => [...current, { role: "user", text: `📄 ${file.name}` }]);
-    setHistory((current) => [...current, { role: "assistant", text: "Reading your CV… ⏳" }]);
+    setHistory((current) => [...current, { role: "assistant", text: i18n.readingCv }]);
 
     try {
       // Step 1: parse file to plain text server-side
@@ -258,7 +448,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         const err = (await parseRes.json()) as { detail?: string };
         setHistory((current) => [
           ...current,
-          { role: "assistant", text: err.detail ?? "I could not read this file. Please try a PDF or plain .txt file." }
+          { role: "assistant", text: err.detail ?? i18n.fileReadFailed }
         ]);
         return;
       }
@@ -278,7 +468,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!uploadRes.ok) {
-        setHistory((current) => [...current, { role: "assistant", text: "CV parsed but I could not save the extracted information. Please try again." }]);
+        setHistory((current) => [...current, { role: "assistant", text: i18n.cvSaveFailed }]);
         return;
       }
 
@@ -287,20 +477,20 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       const filled = Object.entries(seeds).filter(([, v]) => v && String(v).trim().length > 0).map(([k]) => k);
       setHasUploadedCv(true);
 
-      setHistory((current) => current.filter((m) => m.text !== "Reading your CV… ⏳"));
+      setHistory((current) => current.filter((m) => m.text !== i18n.readingCv));
 
       if (filled.length > 0) {
         setHistory((current) => [
           ...current,
           {
             role: "assistant",
-            text: "Your CV has been analyzed and your profile has been filled with the information I could confidently detect. I will now ask the remaining preference questions needed to complete your profile."
+            text: i18n.cvAnalyzed
           }
         ]);
       } else {
         setHistory((current) => [
           ...current,
-          { role: "assistant", text: "CV uploaded ✅ I could not extract structured fields automatically — let's continue filling in your profile together." }
+          { role: "assistant", text: i18n.cvUploadedNoFacts }
         ]);
       }
 
@@ -310,24 +500,178 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         if (nextData.done) {
           setCurrentQuestion(null);
           setIsDone(true);
-          setHistory((current) => [...current, { role: "assistant", text: COMPLETION_HELP_TEXT }]);
+          setHistory((current) => [...current, { role: "assistant", text: i18n.completionHelp }]);
         } else {
           applyInteractiveResponse(nextData);
         }
       }
     } catch {
-      setHistory((current) => [...current, { role: "assistant", text: "Something went wrong uploading your CV. Please try again." }]);
+      setHistory((current) => [...current, { role: "assistant", text: i18n.uploadFailed }]);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     }
-  }, [_locale, applyInteractiveResponse]);
+  }, [_locale, applyInteractiveResponse, i18n.completionHelp, i18n.cvAnalyzed, i18n.cvSaveFailed, i18n.cvUploadedNoFacts, i18n.fileReadFailed, i18n.readingCv, i18n.uploadFailed]);
+
+  function shouldTreatAsAdvisoryMessage(input: string, question: InteractiveQuestion | null): boolean {
+    if (!question) {
+      return true;
+    }
+
+    const trimmed = input.trim();
+    const normalized = trimmed.toLowerCase();
+    const normalizedNoPunct = normalized.replace(/[!?.,;:]/g, "");
+
+    const optionMatch = question.options?.some((option) => option.value.toLowerCase() === normalizedNoPunct);
+    if (optionMatch) {
+      return false;
+    }
+
+    const advisoryIntent = /(\?|\bhow\b|\bwhat\b|\bwhy\b|\bcan you\b|\bhelp me\b|\binterview\b|\bcv\b|\bresume\b|\bcover letter\b|\bsalary\b|\bcareer\b|\bjob search\b|\bskills?\b|\bmarket\b|\badvice\b|\btip\b|\bvorstellungsgespraech\b|\bgehalt\b|\blebenslauf\b|\bkarriere\b|\bbewerbung\b|\bentretien\b|\bsalaire\b|\bcarriere\b|\bcv\b|\bmotivation\b)/i;
+    if (advisoryIntent.test(normalized)) {
+      return true;
+    }
+
+    const shortLikelyAnswer = trimmed.split(/\s+/).length <= 10;
+    return !shortLikelyAnswer;
+  }
+
+  function normalizeForMatch(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function hasAnyKeyword(input: string, keywords: string[]): boolean {
+    return keywords.some((keyword) => input.includes(keyword));
+  }
+
+  function isRelevantCustomAnswer(input: string, question: InteractiveQuestion): boolean {
+    const normalized = normalizeForMatch(input);
+
+    const keywordByField: Record<string, string[]> = {
+      employmentObjective: ["job", "work", "career", "role", "position", "change", "return", "emploi", "carriere", "arbeit", "karriere", "jobwechsel"],
+      currentJobSituation: ["employed", "unemployed", "student", "freelance", "contract", "notice", "arbeit", "angestellt", "arbeitslos", "etudiant", "chomage"],
+      targetSeniority: ["junior", "mid", "senior", "lead", "principal", "manager", "entry", "level"],
+      preferredWorkModel: ["remote", "hybrid", "onsite", "on site", "office", "home"],
+      contractPreference: ["full time", "part time", "permanent", "contract", "freelance", "internship", "temporary"],
+      workPermitStatus: ["permit", "visa", "eu", "europe", "swiss", "citizen", "residence", "bewilligung"],
+      visaSponsorship: ["yes", "no", "sponsorship", "visa", "oui", "non", "ja", "nein"],
+      relocationWillingness: ["relocate", "move", "open", "yes", "no", "city", "country", "umzug", "demenager"],
+      salaryExpectation: ["chf", "salary", "range", "k", "year", "month", "gross", "brutto", "salaire"],
+      workRate: ["%", "percent", "full time", "part time", "pensum", "taux"]
+    };
+
+    const fieldKeywords = keywordByField[question.field];
+    if (!fieldKeywords || fieldKeywords.length === 0) {
+      return true;
+    }
+
+    return hasAnyKeyword(normalized, fieldKeywords);
+  }
+
+  function isClearlyOffTrackAnswer(input: string, question: InteractiveQuestion): boolean {
+    const trimmed = input.trim();
+    const normalized = trimmed.toLowerCase();
+    const normalizedMatch = normalizeForMatch(trimmed);
+
+    if (trimmed.length < 2) {
+      return true;
+    }
+
+    const onlySymbols = /^[^\p{L}\p{N}]+$/u.test(trimmed);
+    if (onlySymbols) {
+      return true;
+    }
+
+    const irrelevantPattern = /\b(asdf|qwerty|lorem|blah|blabla|idk|whatever|random|n\/a|none|skip|test|bullshit|fuck|shit)\b|^\?+$|^\.+$/i;
+    if (irrelevantPattern.test(normalized)) {
+      return true;
+    }
+
+    const repeatedSingleChar = /^(.)\1{4,}$/i;
+    if (repeatedSingleChar.test(trimmed.replace(/\s+/g, ""))) {
+      return true;
+    }
+
+    const normalizedOptionValues = question.options?.map((option) => normalizeForMatch(option.value)) ?? [];
+    const normalizedOptionLabels = question.options?.map((option) => normalizeForMatch(option.label)) ?? [];
+
+    if (normalizedOptionValues.length > 0) {
+      if (normalizedOptionValues.includes(normalizedMatch) || normalizedOptionLabels.includes(normalizedMatch)) {
+        return false;
+      }
+
+      const wordCount = normalizedMatch.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 2 || wordCount > 12) {
+        return true;
+      }
+
+      if (!isRelevantCustomAnswer(normalizedMatch, question)) {
+        return true;
+      }
+    }
+
+    if (question.field === "salaryExpectation") {
+      return !(/\d/.test(trimmed) || /chf|open|depends|negotiable|range|k/.test(normalized));
+    }
+
+    if (question.field === "workRate") {
+      return !(/\d+\s*%/.test(trimmed) || /full[- ]?time|part[- ]?time|flexible|open/.test(normalized));
+    }
+
+    if (question.field === "fullName") {
+      const tokens = trimmed.split(/\s+/).filter((part) => /[\p{L}]/u.test(part));
+      return tokens.length < 2;
+    }
+
+    if (question.field === "preferredLocation" || question.field === "commuteRadius") {
+      if (normalizedMatch.length < 3) {
+        return true;
+      }
+      return /^(idk|none|n a|test|random)$/.test(normalizedMatch);
+    }
+
+    if ((question.field === "targetRoles" || question.field === "primaryRole") && normalizedMatch.split(/\s+/).length < 2) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function buildOffTrackFollowUp(question: InteractiveQuestion): string {
+    if (question.options && question.options.length > 0) {
+      const suggested = question.options.slice(0, 4).map((option) => option.label).join(", ");
+      return `${question.prompt} (${suggested})`;
+    }
+
+    return question.prompt;
+  }
+
+  function appendOffTrackNudge(rawInput: string, question: InteractiveQuestion): void {
+    const trimmed = rawInput.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    setHistory((current) => [
+      ...current,
+      { role: "user", text: trimmed },
+      { role: "assistant", text: `${i18n.offTrackNudge} ${buildOffTrackFollowUp(question)}` }
+    ]);
+    setMessage("");
+    setCustomOptionDraft("");
+  }
 
   async function submitAnswer(): Promise<void> {
-    // Route to question answer or free chat depending on context
-    if (currentQuestion) {
+    // Route to profile-answer save or advisory assistant based on message intent.
+    if (currentQuestion && !shouldTreatAsAdvisoryMessage(message, currentQuestion)) {
       await submitAnswerValue(message);
     } else {
       await sendFreeMessage(message);
@@ -355,6 +699,14 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       didRestoreRef.current = true;
     }
   }, [history.length]);
+
+  useEffect(() => {
+    if (history.length === 0) {
+      return;
+    }
+
+    scrollToLatestMessage(history.length <= 1 ? "auto" : "smooth");
+  }, [history.length, scrollToLatestMessage]);
 
   return (
     <section className="img3-panel img3-panel--conversation">
@@ -401,6 +753,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
               ) : null}
             </div>
           ))}
+          <div ref={messagesEndRef} aria-hidden="true" />
         </div>
       </div>
 
@@ -437,8 +790,8 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
               currentQuestion?.placeholder
                 ? currentQuestion.placeholder
                 : isDone
-                  ? "Profile complete. You can still type changes anytime."
-                  : "Write your answer here"
+                  ? i18n.placeholderComplete
+                  : i18n.placeholderDefault
             }
           />
           <button type="button" className="img3-bottom-input__send" onClick={submitAnswer} disabled={message.trim().length === 0 || isSending || isUploading}>
@@ -448,7 +801,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
             </svg>
           </button>
         </div>
-        <p className="img3-conversation-bar__note">Press <strong>+</strong> to upload your CV · Every answer is saved instantly to your Profile.</p>
+        <p className="img3-conversation-bar__note">AI can make mistakes, so please double-check the output.</p>
       </div>
     </section>
   );
