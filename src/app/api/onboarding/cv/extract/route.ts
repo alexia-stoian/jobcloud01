@@ -15,7 +15,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
   }
 
-  const extracted = extractCvFacts(parsed.data.cvText);
+  const extracted = await extractCvFacts(parsed.data.cvText);
   return NextResponse.json({
     facts: extracted.facts,
     uncertainFacts: extracted.uncertainFacts,
