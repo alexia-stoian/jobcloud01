@@ -13,6 +13,7 @@ export async function upsertOnboardingCvExtraction(input: {
   try {
     console.log("[CV Extraction] Starting upsert for userId:", input.userId);
     console.log("[CV Extraction] Extracted facts:", JSON.stringify(extracted.facts, null, 2));
+    console.log("[CV Extraction] Extracted qualifications count:", extracted.facts.qualifications.length);
 
     // First, update the candidate profile with extracted data
     let profile = await db.candidateProfile.findUnique({
@@ -30,20 +31,50 @@ export async function upsertOnboardingCvExtraction(input: {
       });
     }
 
+    console.log("[CV Extraction] Profile ID:", profile.id);
+
     // Build update data from extracted facts - fill in ALL available data
     const profileUpdateData: Record<string, string | null> = {};
     
-    if (extracted.facts.fullName) profileUpdateData.fullName = extracted.facts.fullName;
-    if (extracted.facts.primaryRole) profileUpdateData.primaryRole = extracted.facts.primaryRole;
-    if (extracted.facts.currentJobSituation) profileUpdateData.currentJobSituation = extracted.facts.currentJobSituation;
-    if (extracted.facts.employmentObjective) profileUpdateData.employmentObjective = extracted.facts.employmentObjective;
-    if (extracted.facts.preferredLocation) profileUpdateData.preferredLocation = extracted.facts.preferredLocation;
-    if (extracted.facts.contractPreference) profileUpdateData.contractPreference = extracted.facts.contractPreference;
-    if (extracted.facts.workRate) profileUpdateData.workRate = extracted.facts.workRate;
-    if (extracted.facts.workPermitStatus) profileUpdateData.workPermitStatus = extracted.facts.workPermitStatus;
-    if (extracted.facts.salaryExpectation) profileUpdateData.salaryExpectation = extracted.facts.salaryExpectation;
+    if (extracted.facts.fullName) {
+      profileUpdateData.fullName = extracted.facts.fullName;
+      console.log("[CV Extraction] Setting fullName:", extracted.facts.fullName);
+    }
+    if (extracted.facts.primaryRole) {
+      profileUpdateData.primaryRole = extracted.facts.primaryRole;
+      console.log("[CV Extraction] Setting primaryRole:", extracted.facts.primaryRole);
+    }
+    if (extracted.facts.currentJobSituation) {
+      profileUpdateData.currentJobSituation = extracted.facts.currentJobSituation;
+      console.log("[CV Extraction] Setting currentJobSituation:", extracted.facts.currentJobSituation);
+    }
+    if (extracted.facts.employmentObjective) {
+      profileUpdateData.employmentObjective = extracted.facts.employmentObjective;
+      console.log("[CV Extraction] Setting employmentObjective:", extracted.facts.employmentObjective);
+    }
+    if (extracted.facts.preferredLocation) {
+      profileUpdateData.preferredLocation = extracted.facts.preferredLocation;
+      console.log("[CV Extraction] Setting preferredLocation:", extracted.facts.preferredLocation);
+    }
+    if (extracted.facts.contractPreference) {
+      profileUpdateData.contractPreference = extracted.facts.contractPreference;
+      console.log("[CV Extraction] Setting contractPreference:", extracted.facts.contractPreference);
+    }
+    if (extracted.facts.workRate) {
+      profileUpdateData.workRate = extracted.facts.workRate;
+      console.log("[CV Extraction] Setting workRate:", extracted.facts.workRate);
+    }
+    if (extracted.facts.workPermitStatus) {
+      profileUpdateData.workPermitStatus = extracted.facts.workPermitStatus;
+      console.log("[CV Extraction] Setting workPermitStatus:", extracted.facts.workPermitStatus);
+    }
+    if (extracted.facts.salaryExpectation) {
+      profileUpdateData.salaryExpectation = extracted.facts.salaryExpectation;
+      console.log("[CV Extraction] Setting salaryExpectation:", extracted.facts.salaryExpectation);
+    }
 
-    console.log("[CV Extraction] Profile update data:", profileUpdateData);
+    console.log("[CV Extraction] Profile update data keys:", Object.keys(profileUpdateData));
+    console.log("[CV Extraction] Profile update data:", JSON.stringify(profileUpdateData, null, 2));
 
     // Update profile with extracted data
     const updatedProfile = await db.candidateProfile.update({
@@ -52,16 +83,23 @@ export async function upsertOnboardingCvExtraction(input: {
       include: { qualifications: true }
     });
 
-    console.log("[CV Extraction] Profile updated successfully");
+    console.log("[CV Extraction] Profile updated successfully with data:", JSON.stringify({
+      fullName: updatedProfile.fullName,
+      primaryRole: updatedProfile.primaryRole,
+      currentJobSituation: updatedProfile.currentJobSituation,
+      employmentObjective: updatedProfile.employmentObjective,
+      preferredLocation: updatedProfile.preferredLocation
+    }, null, 2));
 
     // Delete old qualifications and add new ones from CV extraction
-    if (extracted.facts.qualifications.length > 0) {
+    if (extracted.facts.qualifications && extracted.facts.qualifications.length > 0) {
       console.log("[CV Extraction] Extracted qualifications count:", extracted.facts.qualifications.length);
       
       // Delete existing qualifications
-      await db.profileQualification.deleteMany({
+      const deleteResult = await db.profileQualification.deleteMany({
         where: { profileId: updatedProfile.id }
       });
+      console.log("[CV Extraction] Deleted old qualifications:", deleteResult.count);
 
       // Add new qualifications from CV
       const qualificationsData = extracted.facts.qualifications.map((qual) => ({
@@ -70,12 +108,15 @@ export async function upsertOnboardingCvExtraction(input: {
         value: qual.value
       }));
 
-      await db.profileQualification.createMany({
+      const createResult = await db.profileQualification.createMany({
         data: qualificationsData
       });
-
-      console.log("[CV Extraction] Qualifications saved to profile");
+      console.log("[CV Extraction] Created new qualifications:", createResult.count);
+    } else {
+      console.log("[CV Extraction] No qualifications to save");
     }
+
+    console.log("[CV Extraction] Profile update complete");
 
     // Now update/create onboarding session with CV metadata
     const session = await db.onboardingSession.upsert({
@@ -123,7 +164,8 @@ export async function upsertOnboardingCvExtraction(input: {
       qualificationsCount: extracted.facts.qualifications.length
     };
 
-    console.log("[CV Extraction] Profile seeds:", profileSeeds);
+    console.log("[CV Extraction] Profile seeds:", JSON.stringify(profileSeeds, null, 2));
+    console.log("[CV Extraction] Upsert complete - returning results");
 
     return {
       session,

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Extraction Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .input-section {
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .loading {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .result.error {
+            border-left-color: #dc3545;
+            background: #ffe6e6;
+        }
+        .result.success {
+            border-left-color: #28a745;
+            background: #e6ffe6;
+        }
+        .result h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .stat {
+            display: inline-block;
+            margin-right: 30px;
+            margin-bottom: 10px;
+        }
+        .stat strong {
+            display: block;
+            color: #007bff;
+            font-size: 24px;
+        }
+        .stat span {
+            color: #666;
+            font-size: 13px;
+        }
+        .section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 3px;
+            border-left: 3px solid #ddd;
+        }
+        .confidence {
+            float: right;
+            font-size: 12px;
+            color: #999;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 CV Extraction Test</h1>
+        
+        <div class="input-section">
+            <h2>Paste your CV text below:</h2>
+            <textarea id="cvText" placeholder="Paste CV text here...">JOHN DOE
+john.doe@example.com | (555) 123-4567 | New York, NY
+
+PROFESSIONAL SUMMARY
+Senior Full-Stack Developer with 8+ years of experience building scalable web applications.
+Expert in React, Node.js, and cloud infrastructure. Passionate about clean code and team collaboration.
+
+WORK EXPERIENCE
+
+Senior Software Engineer
+TechCorp Inc., San Francisco, CA | Jan 2022 - Present
+- Led development of microservices architecture handling 1M+ daily users
+- Mentored team of 5 junior developers, improving code quality by 40%
+- Implemented CI/CD pipeline reducing deployment time from 2 hours to 15 minutes
+- Tech Stack: TypeScript, React, Node.js, PostgreSQL, Kubernetes, AWS
+
+Full-Stack Developer  
+StartupXYZ, Remote | Jun 2020 - Dec 2021
+- Built and maintained customer-facing web applications in React
+- Designed RESTful APIs using Express.js and NestJS
+- Implemented real-time features using WebSockets
+- Tech Stack: JavaScript, React, Node.js, MongoDB, Redis, Docker
+
+Junior Developer
+WebStudio Inc., Boston, MA | Jul 2018 - May 2020
+- Developed front-end features using React and vanilla JavaScript
+- Contributed to backend services using Node.js
+- Participated in code reviews and team planning sessions
+- Tech Stack: React, JavaScript, Node.js, MySQL
+
+EDUCATION
+
+Master of Science in Computer Science
+MIT, Cambridge, MA | Graduated: May 2018
+GPA: 3.8/4.0 | Honors: Magna Cum Laude
+
+Bachelor of Science in Computer Science
+University of California, Berkeley, CA | Graduated: May 2016
+GPA: 3.9/4.0 | Honors: Summa Cum Laude
+
+TECHNICAL SKILLS
+Programming Languages: JavaScript, TypeScript, Python, Java, SQL
+Frontend: React, Vue.js, CSS3, HTML5, Redux, Next.js
+Backend: Node.js, Express, NestJS, Django, Spring Boot
+Databases: PostgreSQL, MongoDB, Redis, DynamoDB
+Cloud: AWS, Google Cloud, Azure, Docker, Kubernetes
+DevOps: CI/CD, GitHub Actions, Jenkins, Linux
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect - Professional (Issued: Jan 2023, Expires: Jan 2025)
+- Kubernetes Administrator (CKA) (Issued: Jun 2022)
+- AWS Certified Developer Associate (Issued: Aug 2021)
+
+LANGUAGES
+- English (Native)
+- Spanish (Fluent)
+- French (Intermediate)</textarea>
+            
+            <button onclick="testExtraction()">Test Extraction</button>
+            <div class="loading" id="loading" style="display:none;">⏳ Extracting... (this may take 20-30 seconds)</div>
+        </div>
+
+        <div id="resultContainer"></div>
+    </div>
+
+    <script>
+        async function testExtraction() {
+            const cvText = document.getElementById('cvText').value;
+            const loadingDiv = document.getElementById('loading');
+            const resultContainer = document.getElementById('resultContainer');
+
+            if (!cvText.trim()) {
+                resultContainer.innerHTML = '<div class="result error"><h2>❌ Error</h2><p>Please paste a CV first.</p></div>';
+                return;
+            }
+
+            loadingDiv.style.display = 'block';
+            resultContainer.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/onboarding/cv/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cvText })
+                });
+
+                loadingDiv.style.display = 'none';
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    resultContainer.innerHTML = `<div class="result error"><h2>❌ Extraction Failed</h2><p>${error.error}</p><pre>${JSON.stringify(error, null, 2)}</pre></div>`;
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    resultContainer.innerHTML = `<div class="result error"><h2>❌ Extraction Failed</h2><p>${data.error}</p></div>`;
+                    return;
+                }
+
+                renderResults(data);
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                resultContainer.innerHTML = `<div class="result error"><h2>❌ Error</h2><p>${error.message}</p></div>`;
+            }
+        }
+
+        function renderResults(data) {
+            const phase1 = data.phase1;
+            let html = '<div class="result success"><h2>✅ Extraction Successful!</h2>';
+
+            // Metadata
+            html += '<div class="section">';
+            html += `<strong>CV Length:</strong> ${data.metadata.cvLength} characters, ${data.metadata.cvLines} lines<br>`;
+            html += `<strong>Extraction Time:</strong> ${new Date(data.metadata.extractionTime).toLocaleString()}`;
+            html += '</div>';
+
+            // Profile Fields
+            html += '<div class="section"><h3>👤 Profile Fields</h3>';
+            const pf = phase1.profileFields;
+            html += `<div class="item"><strong>Name:</strong> ${pf.fullName || '—'}</div>`;
+            html += `<div class="item"><strong>Email:</strong> ${pf.email || '—'}</div>`;
+            html += `<div class="item"><strong>Phone:</strong> ${pf.phone || '—'}</div>`;
+            html += `<div class="item"><strong>Location:</strong> ${pf.location || '—'}</div>`;
+            html += `<div class="item"><strong>Preferred Location:</strong> ${pf.preferredLocation || '—'}</div>`;
+            html += `<div class="item"><strong>Job Situation:</strong> ${pf.currentJobSituation || '—'}</div>`;
+            html += `<div class="item"><strong>Employment Objective:</strong> ${pf.employmentObjective || '—'}</div>`;
+            html += `<div class="item"><strong>Contract Preference:</strong> ${pf.contractPreference || '—'}</div>`;
+            html += `<div class="item"><strong>Salary Expectation:</strong> ${pf.salaryExpectation || '—'}</div>`;
+            html += '</div>';
+
+            // Work Experience
+            html += `<div class="section"><h3>💼 Work Experience (${phase1.workExperience.count})</h3>`;
+            if (phase1.workExperience.count > 0) {
+                phase1.workExperience.items.forEach((job, i) => {
+                    html += `<div class="item">
+                        <strong>${job.title}</strong> at ${job.company}
+                        <span class="confidence">Confidence: ${(job.confidence * 100).toFixed(0)}%</span>
+                        <br><small>${job.startDate} to ${job.endDate || 'Present'}</small>
+                        <br><small>${job.achievementCount} achievements, ${job.technologyCount} technologies</small>
+                    </div>`;
+                });
+            } else {
+                html += '<p>No work experience found.</p>';
+            }
+            html += '</div>';
+
+            // Education
+            html += `<div class="section"><h3>🎓 Education (${phase1.education.count})</h3>`;
+            if (phase1.education.count > 0) {
+                phase1.education.items.forEach((edu, i) => {
+                    html += `<div class="item">
+                        <strong>${edu.degree || 'Degree'}</strong> in ${edu.field || 'Field'}
+                        <span class="confidence">Confidence: ${(edu.confidence * 100).toFixed(0)}%</span>
+                        <br><small>${edu.school} (Graduated: ${edu.graduationDate || 'N/A'})</small>
+                        <br><small>${edu.honors ? 'Honors: ' + edu.honors : ''}</small>
+                    </div>`;
+                });
+            } else {
+                html += '<p>No education found.</p>';
+            }
+            html += '</div>';
+
+            // Skills
+            html += `<div class="section"><h3>🔧 Skills (${phase1.skills.count})</h3>`;
+            html += '<div style="margin: 10px 0;">';
+            Object.entries(phase1.skills.byCategory).forEach(([cat, count]) => {
+                html += `<div class="stat"><strong>${count}</strong> <span>${cat}</span></div>`;
+            });
+            html += '</div>';
+            if (phase1.skills.samples.length > 0) {
+                html += '<p><strong>Sample Skills:</strong></p>';
+                phase1.skills.samples.slice(0, 15).forEach(skill => {
+                    html += `<div class="item">
+                        <strong>${skill.skill}</strong> (${skill.category})
+                        <span class="confidence">Confidence: ${(skill.confidence * 100).toFixed(0)}%</span>
+                        <br><small>Proficiency: ${skill.proficiency || 'N/A'} • ${skill.yearsExperience || 0} years</small>
+                    </div>`;
+                });
+            }
+            html += '</div>';
+
+            // Certifications
+            html += `<div class="section"><h3>📜 Certifications (${phase1.certifications.count})</h3>`;
+            if (phase1.certifications.count > 0) {
+                phase1.certifications.items.forEach((cert, i) => {
+                    html += `<div class="item">
+                        <strong>${cert.name}</strong> by ${cert.issuer || 'Unknown'}
+                        <span class="confidence">Confidence: ${(cert.confidence * 100).toFixed(0)}%</span>
+                        <br><small>${cert.issueDate || 'N/A'} - ${cert.expiryDate || 'No expiry'}</small>
+                    </div>`;
+                });
+            } else {
+                html += '<p>No certifications found.</p>';
+            }
+            html += '</div>';
+
+            html += '</div>';
+            document.getElementById('resultContainer').innerHTML = html;
+        }
+
+        // Auto-extract on page load if CV text is present
+        window.addEventListener('load', () => {
+            const cvText = document.getElementById('cvText').value;
+            if (cvText.length > 100) {
+                // Optionally auto-test on load
+            }
+        });
+    </script>
+</body>
+</html>

@@ -143,60 +143,29 @@ function analyzeConfidenceAndGaps(phase1: ExtractedCvPhase1): Record<string, str
  */
 export async function extractCvFacts(cvText: string): Promise<ExtractedCvResult> {
   console.log("[CV Extraction] Starting Phase 1 comprehensive extraction");
+  console.log("[CV Extraction] CV text length:", cvText.length);
 
-  try {
-    const phase1 = await extractCvPhase1(cvText);
+  const phase1 = await extractCvPhase1(cvText);
 
-    const facts = bridgePhase1ToLegacy(phase1);
-    const uncertainFacts = analyzeConfidenceAndGaps(phase1);
+  console.log("[CV Extraction] Phase 1 completed");
+  console.log("[CV Extraction] Work experience count:", phase1.workExperience.length);
+  console.log("[CV Extraction] Education count:", phase1.education.length);
+  console.log("[CV Extraction] Skills count:", phase1.skills.length);
+  console.log("[CV Extraction] Certifications count:", phase1.certifications.length);
 
-    console.log("[CV Extraction] Phase 1 extraction complete");
-    console.log("[CV Extraction] Total qualifications extracted:", facts.qualifications.length);
+  const facts = bridgePhase1ToLegacy(phase1);
+  const uncertainFacts = analyzeConfidenceAndGaps(phase1);
 
-    return {
-      facts,
-      uncertainFacts,
-      phase1
-    };
-  } catch (error) {
-    console.error("[CV Extraction] Error during Phase 1 extraction:", error);
-    // Return empty result on error
-    return {
-      facts: {
-        fullName: null,
-        primaryRole: null,
-        currentJobSituation: null,
-        employmentObjective: null,
-        preferredLocation: null,
-        contractPreference: null,
-        workRate: null,
-        workPermitStatus: null,
-        salaryExpectation: null,
-        qualifications: []
-      },
-      uncertainFacts: { error: "Extraction failed" },
-      phase1: {
-        fullName: null,
-        email: null,
-        phone: null,
-        location: null,
-        preferredLocation: null,
-        currentJobSituation: null,
-        employmentObjective: null,
-        summary: null,
-        workExperience: [],
-        education: [],
-        skills: [],
-        certifications: [],
-        contractPreference: null,
-        workRate: null,
-        workPermitStatus: null,
-        salaryExpectation: null,
-        rawText: cvText,
-        extractedAt: new Date().toISOString()
-      }
-    };
-  }
+  console.log("[CV Extraction] Bridge to legacy complete");
+  console.log("[CV Extraction] Full name extracted:", facts.fullName);
+  console.log("[CV Extraction] Primary role extracted:", facts.primaryRole);
+  console.log("[CV Extraction] Total qualifications extracted:", facts.qualifications.length);
+
+  return {
+    facts,
+    uncertainFacts,
+    phase1
+  };
 }
 
 export const cvUploadRequestSchema = z.object({
