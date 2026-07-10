@@ -131,6 +131,7 @@ export async function upsertOnboardingCvExtraction(input: {
         targetRole: extracted.facts.primaryRole,
         cvExtractedFacts: extracted.facts,
         cvUncertainFacts: extracted.uncertainFacts,
+        conversationHistory: [],
         pendingQuestions: [],
         skippedQuestionIds: [],
         confirmedQuestionIds: [],

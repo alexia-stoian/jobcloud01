@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 type LanguageRow = {
@@ -37,6 +37,30 @@ type CertificationRow = {
   year: string;
 };
 
+type StructuredQualificationPayload = {
+  school?: string | null;
+  location?: string | null;
+  degree?: string | null;
+  field?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  graduationDate?: string | null;
+  honors?: string | null;
+  name?: string | null;
+  issuer?: string | null;
+  date?: string | null;
+  expiryDate?: string | null;
+  credentialId?: string | null;
+  language?: string | null;
+  proficiency?: string | null;
+  yearsOfExperience?: number | null;
+  company?: string | null;
+  title?: string | null;
+  isCurrentRole?: boolean;
+  description?: string | null;
+  achievements?: string[];
+};
+
 type SectionKey =
   | "headline"
   | "personal"
@@ -71,13 +95,59 @@ type ProfileDraft = {
   workRate: string;
   workPermitStatus: string;
   salaryExpectation: string;
-  workAuthorization: string;
   visaSponsorship: string;
   relocationWillingness: string;
   commuteRadius: string;
 };
 
 const PROFILE_DRAFT_STORAGE_KEY = "jobscout24.profile-summary-draft.v1";
+
+function buildProfileDraftStorageKey(scopeId: string): string {
+  return `${PROFILE_DRAFT_STORAGE_KEY}:${scopeId}`;
+}
+
+function hasText(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseStructuredQualification(value: string): StructuredQualificationPayload | null {
+  try {
+    const parsed = JSON.parse(value) as StructuredQualificationPayload;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDateRange(startDate: string | null | undefined, endDate: string | null | undefined, isCurrentRole?: boolean): string {
+  const start = hasText(startDate) ? startDate : "";
+  const end = isCurrentRole ? "Present" : hasText(endDate) ? endDate : "";
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return start;
+  if (end) return end;
+  return "";
+}
+
+function hasMeaningfulWorkRows(rows: WorkExperienceRow[]): boolean {
+  return rows.some((row) => [row.jobTitle, row.company, row.location, row.period, row.details].some(hasText));
+}
+
+function hasMeaningfulEducationRows(rows: EducationRow[]): boolean {
+  return rows.some((row) => [row.degree, row.school, row.location, row.years].some(hasText));
+}
+
+function hasMeaningfulSkillRows(rows: SkillRow[]): boolean {
+  return rows.some((row) => [row.skill, row.proficiency, row.lastUsed].some(hasText));
+}
+
+function hasMeaningfulLanguageRows(rows: LanguageRow[]): boolean {
+  return rows.some((row) => [row.language, row.proficiencyStandard, row.level, row.usageContext].some(hasText));
+}
+
+function hasMeaningfulCertificationRows(rows: CertificationRow[]): boolean {
+  return rows.some((row) => [row.name, row.issuer, row.year].some(hasText));
+}
 
 /**
  * Parse qualifications by category and extract relevant data
@@ -86,6 +156,8 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
   const skills: SkillRow[] = [];
   const certifications: CertificationRow[] = [];
   const education: EducationRow[] = [];
+  const languages: LanguageRow[] = [];
+  const workExperience: WorkExperienceRow[] = [];
 
   for (const qual of qualifications) {
     if (qual.category === "skill") {
@@ -100,7 +172,35 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
       } else {
         skills.push({ skill: qual.value, proficiency: "", lastUsed: "" });
       }
+    } else if (qual.category === "language") {
+      const parsed = parseStructuredQualification(qual.value);
+      if (parsed && hasText(parsed.language)) {
+        languages.push({
+          language: parsed.language,
+          proficiencyStandard: "",
+          level: parsed.proficiency ?? "",
+          usageContext:
+            typeof parsed.yearsOfExperience === "number" ? `${parsed.yearsOfExperience} years of use` : ""
+        });
+      } else {
+        languages.push({
+          language: qual.value,
+          proficiencyStandard: "",
+          level: "",
+          usageContext: ""
+        });
+      }
     } else if (qual.category === "certification") {
+      const parsed = parseStructuredQualification(qual.value);
+      if (parsed && hasText(parsed.name)) {
+        certifications.push({
+          name: parsed.name,
+          issuer: parsed.issuer ?? "",
+          year: parsed.date ?? parsed.expiryDate ?? ""
+        });
+        continue;
+      }
+
       // Format: "AWS Certified - Amazon (2023)"
       const match = qual.value.match(/^(.+?)(?:\s*-\s*(.+?))?(?:\s*\((.+?)\))?$/);
       if (match) {
@@ -113,6 +213,19 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
         certifications.push({ name: qual.value, issuer: "", year: "" });
       }
     } else if (qual.category === "diploma") {
+      const parsed = parseStructuredQualification(qual.value);
+      if (parsed && hasText(parsed.school)) {
+        const degreeParts = [parsed.degree, parsed.field ? `in ${parsed.field}` : null].filter(hasText);
+        const dateText = formatDateRange(parsed.startDate, parsed.endDate) || (parsed.graduationDate ?? "");
+        education.push({
+          school: parsed.school,
+          degree: degreeParts.join(" "),
+          location: parsed.location ?? "",
+          years: parsed.honors ? [dateText, parsed.honors].filter(hasText).join(" · ") : dateText
+        });
+        continue;
+      }
+
       // Format: "MIT - Master of Science in Computer Science (2018)"
       const match = qual.value.match(/^(.+?)(?:\s*-\s*(.+?))?(?:\s*\((.+?)\))?$/);
       if (match) {
@@ -125,10 +238,22 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
       } else {
         education.push({ school: qual.value, degree: "", location: "", years: "" });
       }
+    } else if (qual.category === "experience") {
+      const parsed = parseStructuredQualification(qual.value);
+      if (parsed && hasText(parsed.title)) {
+        const detailParts = [parsed.description, ...(parsed.achievements ?? [])].filter(hasText);
+        workExperience.push({
+          jobTitle: parsed.title,
+          company: parsed.company ?? "",
+          location: parsed.location ?? "",
+          period: formatDateRange(parsed.startDate, parsed.endDate, parsed.isCurrentRole),
+          details: detailParts.join("\n")
+        });
+      }
     }
   }
 
-  return { skills, certifications, education };
+  return { skills, certifications, education, languages, workExperience };
 }
 
 type Props = {
@@ -138,23 +263,40 @@ type Props = {
     employmentObjective: string | null;
     primaryRole: string | null;
     preferredLocation: string | null;
+    targetRoles: string | null;
+    targetSeniority: string | null;
+    targetIndustries: string | null;
+    preferredWorkModel: string | null;
     contractPreference: string | null;
     workRate: string | null;
     workPermitStatus: string | null;
     salaryExpectation: string | null;
+    visaSponsorship: string | null;
+    relocationWillingness: string | null;
+    commuteRadius: string | null;
     locale: string;
+    editorDraft: Record<string, unknown> | null;
   };
   qualifications?: Array<{ category: string; value: string }>;
+  draftScopeId: string;
 };
 
-export function ProfileSummaryCard({ profile, qualifications = [] }: Props): React.ReactElement {
+export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId }: Props): React.ReactElement {
   const t = useTranslations("profile");
+  const profileDraftStorageKey = buildProfileDraftStorageKey(draftScopeId);
+  const didHydrateRef = useRef(false);
   const [initialFirstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
   const initialLastName = lastNameParts.join(" ");
   const [initialCity = "", initialCanton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
 
   // Parse extracted qualifications
-  const { skills: extractedSkills, certifications: extractedCerts, education: extractedEducation } = parseQualifications(qualifications);
+  const {
+    skills: extractedSkills,
+    certifications: extractedCerts,
+    education: extractedEducation,
+    languages: extractedLanguages,
+    workExperience: extractedWorkExperience
+  } = parseQualifications(qualifications);
 
   const [firstName, setFirstName] = useState<string>(initialFirstName);
   const [lastName, setLastName] = useState<string>(initialLastName);
@@ -164,18 +306,24 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
 
   const [profileHeadline, setProfileHeadline] = useState<string>("");
   const [valueProposition, setValueProposition] = useState<string>("");
-  const [languageRows, setLanguageRows] = useState<LanguageRow[]>([
-    { language: profile.locale.toUpperCase(), proficiencyStandard: "", level: "", usageContext: "" },
-  ]);
-  const [workExperienceRows, setWorkExperienceRows] = useState<WorkExperienceRow[]>([
-    {
-      jobTitle: profile.primaryRole ?? "",
-      company: "",
-      location: profile.preferredLocation ?? "",
-      period: "",
-      details: "",
-    },
-  ]);
+  const [languageRows, setLanguageRows] = useState<LanguageRow[]>(
+    extractedLanguages.length > 0
+      ? extractedLanguages
+      : [{ language: profile.locale.toUpperCase(), proficiencyStandard: "", level: "", usageContext: "" }]
+  );
+  const [workExperienceRows, setWorkExperienceRows] = useState<WorkExperienceRow[]>(
+    extractedWorkExperience.length > 0
+      ? extractedWorkExperience
+      : [
+          {
+            jobTitle: profile.primaryRole ?? "",
+            company: "",
+            location: profile.preferredLocation ?? "",
+            period: "",
+            details: ""
+          }
+        ]
+  );
   // Initialize education with extracted data, or empty if none
   const [educationRows, setEducationRows] = useState<EducationRow[]>(
     extractedEducation.length > 0 ? extractedEducation : [{ degree: "", school: "", location: "", years: "" }]
@@ -191,20 +339,19 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
   const [currentJobSituation, setCurrentJobSituation] = useState<string>(profile.currentJobSituation ?? "");
   const [employmentObjective, setEmploymentObjective] = useState<string>(profile.employmentObjective ?? "");
 
-  const [targetRoles, setTargetRoles] = useState<string>("");
-  const [targetSeniority, setTargetSeniority] = useState<string>("");
-  const [targetIndustries, setTargetIndustries] = useState<string>("");
-  const [preferredWorkModel, setPreferredWorkModel] = useState<string>("");
+  const [targetRoles, setTargetRoles] = useState<string>(profile.targetRoles ?? "");
+  const [targetSeniority, setTargetSeniority] = useState<string>(profile.targetSeniority ?? "");
+  const [targetIndustries, setTargetIndustries] = useState<string>(profile.targetIndustries ?? "");
+  const [preferredWorkModel, setPreferredWorkModel] = useState<string>(profile.preferredWorkModel ?? "");
 
   const [contractPreference, setContractPreference] = useState<string>(profile.contractPreference ?? "");
   const [workRate, setWorkRate] = useState<string>(profile.workRate ?? "");
   const [workPermitStatus, setWorkPermitStatus] = useState<string>(profile.workPermitStatus ?? "");
   const [salaryExpectation, setSalaryExpectation] = useState<string>(profile.salaryExpectation ?? "");
 
-  const [workAuthorization, setWorkAuthorization] = useState<string>("");
-  const [visaSponsorship, setVisaSponsorship] = useState<string>("");
-  const [relocationWillingness, setRelocationWillingness] = useState<string>("");
-  const [commuteRadius, setCommuteRadius] = useState<string>("");
+  const [visaSponsorship, setVisaSponsorship] = useState<string>(profile.visaSponsorship ?? "");
+  const [relocationWillingness, setRelocationWillingness] = useState<string>(profile.relocationWillingness ?? "");
+  const [commuteRadius, setCommuteRadius] = useState<string>(profile.commuteRadius ?? "");
 
   const [birthDate, setBirthDate] = useState<string>("");
   const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>({
@@ -298,12 +445,11 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
 
   useEffect(() => {
     try {
-      const rawDraft = window.localStorage.getItem(PROFILE_DRAFT_STORAGE_KEY);
-      if (!rawDraft) {
-        return;
-      }
+      const localDraftRaw = window.localStorage.getItem(profileDraftStorageKey);
+      const localDraft = localDraftRaw ? (JSON.parse(localDraftRaw) as Partial<ProfileDraft>) : {};
+      const serverDraft = (profile.editorDraft ?? {}) as Partial<ProfileDraft>;
+      const draft = { ...serverDraft, ...localDraft };
 
-      const draft = JSON.parse(rawDraft) as Partial<ProfileDraft>;
       if (typeof draft.profileHeadline === "string") setProfileHeadline(draft.profileHeadline);
       if (typeof draft.valueProposition === "string") setValueProposition(draft.valueProposition);
       if (typeof draft.firstName === "string") setFirstName(draft.firstName);
@@ -313,11 +459,11 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
       if (typeof draft.canton === "string") setCanton(draft.canton);
       if (typeof draft.birthDate === "string") setBirthDate(draft.birthDate);
 
-      if (Array.isArray(draft.workExperienceRows) && draft.workExperienceRows.length > 0) setWorkExperienceRows(draft.workExperienceRows);
-      if (Array.isArray(draft.educationRows) && draft.educationRows.length > 0) setEducationRows(draft.educationRows);
-      if (Array.isArray(draft.skillRows) && draft.skillRows.length > 0) setSkillRows(draft.skillRows);
-      if (Array.isArray(draft.languageRows) && draft.languageRows.length > 0) setLanguageRows(draft.languageRows);
-      if (Array.isArray(draft.certificationRows) && draft.certificationRows.length > 0) setCertificationRows(draft.certificationRows);
+      if (Array.isArray(draft.workExperienceRows) && hasMeaningfulWorkRows(draft.workExperienceRows)) setWorkExperienceRows(draft.workExperienceRows);
+      if (Array.isArray(draft.educationRows) && hasMeaningfulEducationRows(draft.educationRows)) setEducationRows(draft.educationRows);
+      if (Array.isArray(draft.skillRows) && hasMeaningfulSkillRows(draft.skillRows)) setSkillRows(draft.skillRows);
+      if (Array.isArray(draft.languageRows) && hasMeaningfulLanguageRows(draft.languageRows)) setLanguageRows(draft.languageRows);
+      if (Array.isArray(draft.certificationRows) && hasMeaningfulCertificationRows(draft.certificationRows)) setCertificationRows(draft.certificationRows);
 
       if (typeof draft.currentJobSituation === "string") setCurrentJobSituation(draft.currentJobSituation);
       if (typeof draft.employmentObjective === "string") setEmploymentObjective(draft.employmentObjective);
@@ -329,14 +475,15 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
       if (typeof draft.workRate === "string") setWorkRate(draft.workRate);
       if (typeof draft.workPermitStatus === "string") setWorkPermitStatus(draft.workPermitStatus);
       if (typeof draft.salaryExpectation === "string") setSalaryExpectation(draft.salaryExpectation);
-      if (typeof draft.workAuthorization === "string") setWorkAuthorization(draft.workAuthorization);
       if (typeof draft.visaSponsorship === "string") setVisaSponsorship(draft.visaSponsorship);
       if (typeof draft.relocationWillingness === "string") setRelocationWillingness(draft.relocationWillingness);
       if (typeof draft.commuteRadius === "string") setCommuteRadius(draft.commuteRadius);
+      didHydrateRef.current = true;
     } catch {
       // Ignore malformed local drafts and continue with defaults.
+      didHydrateRef.current = true;
     }
-  }, []);
+  }, [profile.editorDraft, profileDraftStorageKey]);
 
   useEffect(() => {
     const draft: ProfileDraft = {
@@ -363,13 +510,89 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
       workRate,
       workPermitStatus,
       salaryExpectation,
-      workAuthorization,
       visaSponsorship,
       relocationWillingness,
       commuteRadius,
     };
 
-    window.localStorage.setItem(PROFILE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    window.localStorage.setItem(profileDraftStorageKey, JSON.stringify(draft));
+  }, [
+    profileDraftStorageKey,
+    profileHeadline,
+    valueProposition,
+    firstName,
+    lastName,
+    phone,
+    city,
+    canton,
+    birthDate,
+    workExperienceRows,
+    educationRows,
+    skillRows,
+    languageRows,
+    certificationRows,
+    currentJobSituation,
+    employmentObjective,
+    targetRoles,
+    targetSeniority,
+    targetIndustries,
+    preferredWorkModel,
+    contractPreference,
+    workRate,
+    workPermitStatus,
+    salaryExpectation,
+    visaSponsorship,
+    relocationWillingness,
+    commuteRadius,
+  ]);
+
+  useEffect(() => {
+    if (!didHydrateRef.current) {
+      return;
+    }
+
+    const draft: ProfileDraft = {
+      profileHeadline,
+      valueProposition,
+      firstName,
+      lastName,
+      phone,
+      city,
+      canton,
+      birthDate,
+      workExperienceRows,
+      educationRows,
+      skillRows,
+      languageRows,
+      certificationRows,
+      currentJobSituation,
+      employmentObjective,
+      targetRoles,
+      targetSeniority,
+      targetIndustries,
+      preferredWorkModel,
+      contractPreference,
+      workRate,
+      workPermitStatus,
+      salaryExpectation,
+      visaSponsorship,
+      relocationWillingness,
+      commuteRadius
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      void fetch("/api/profile/summary", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(draft)
+      }).catch(() => {
+        // Keep local editing responsive even if background persistence fails.
+      });
+    }, 600);
+
+    return () => window.clearTimeout(timeoutId);
   }, [
     profileHeadline,
     valueProposition,
@@ -394,10 +617,9 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
     workRate,
     workPermitStatus,
     salaryExpectation,
-    workAuthorization,
     visaSponsorship,
     relocationWillingness,
-    commuteRadius,
+    commuteRadius
   ]);
 
   return (
@@ -892,15 +1114,6 @@ export function ProfileSummaryCard({ profile, qualifications = [] }: Props): Rea
             <label>
               {t("summarySalary")}
               <input type="text" value={salaryExpectation} onChange={(event) => setSalaryExpectation(event.target.value)} placeholder={t("summaryOptional")} />
-            </label>
-            <label>
-              Work authorization
-              <input
-                type="text"
-                value={workAuthorization}
-                onChange={(event) => setWorkAuthorization(event.target.value)}
-                placeholder="e.g. Swiss citizen, valid permit B"
-              />
             </label>
             <label>
               Visa sponsorship

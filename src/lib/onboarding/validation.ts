@@ -12,6 +12,19 @@ const questionSchema = z.object({
   reason: z.string().min(1).optional()
 });
 
+const conversationMessageSchema = z.object({
+  role: z.enum(["assistant", "user"]),
+  text: z.string().min(1),
+  options: z.array(
+    z.object({
+      value: z.string().min(1),
+      label: z.string().min(1),
+      description: z.string().min(1).optional()
+    })
+  ).optional(),
+  field: z.string().min(1).optional()
+});
+
 export const onboardingSessionSchema = z.object({
   userId: z.string().min(1),
   locale: localeSchema.default("en"),
@@ -21,6 +34,7 @@ export const onboardingSessionSchema = z.object({
   cvMimeType: z.string().min(1).nullable().default(null),
   cvExtractedFacts: factMapSchema,
   cvUncertainFacts: factMapSchema,
+  conversationHistory: z.array(conversationMessageSchema),
   pendingQuestions: z.array(questionSchema),
   skippedQuestionIds: z.array(z.string().min(1)),
   confirmedQuestionIds: z.array(z.string().min(1)),
@@ -37,6 +51,7 @@ export function createOnboardingDefaultState(userId: string, locale: "en" | "de"
     cvMimeType: null,
     cvExtractedFacts: {},
     cvUncertainFacts: {},
+    conversationHistory: [],
     pendingQuestions: [],
     skippedQuestionIds: [],
     confirmedQuestionIds: [],

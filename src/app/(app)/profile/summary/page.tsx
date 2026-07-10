@@ -56,6 +56,7 @@ export default async function ProfileSummaryPage(): Promise<React.ReactElement> 
         <ProfileSummaryCard 
           profile={summary.profile}
           qualifications={summary.qualifications}
+          draftScopeId={userId}
         />
       </main>
     </AppShellServer>

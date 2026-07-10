@@ -21,6 +21,7 @@ export function createDefaultOnboardingSessionState(input: {
     cvMimeType: null,
     cvExtractedFacts: {},
     cvUncertainFacts: {},
+    conversationHistory: [],
     pendingQuestions: [],
     skippedQuestionIds: [],
     confirmedQuestionIds: [],

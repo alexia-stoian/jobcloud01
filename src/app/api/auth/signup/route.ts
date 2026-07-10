@@ -66,11 +66,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           create: {
             locale: "en",
             missingCriticalFields: [
-              "fullName",
+              "currentJobSituation",
+              "employmentObjective",
               "preferredLocation",
-              "primaryRole",
-              "workPermitStatus"
+              "targetRoles",
+              "targetSeniority",
+              "targetIndustries",
+              "preferredWorkModel",
+              "contractPreference",
+              "workRate",
+              "workPermitStatus",
+              "salaryExpectation",
+              "visaSponsorship",
+              "relocationWillingness",
+              "commuteRadius"
             ]
+          }
+        },
+        onboardingSession: {
+          create: {
+            locale: "en",
+            currentStep: "cv_upload",
+            cvExtractedFacts: {},
+            cvUncertainFacts: {},
+            conversationHistory: [],
+            pendingQuestions: [],
+            skippedQuestionIds: [],
+            confirmedQuestionIds: []
           }
         },
         verifyTokens: {

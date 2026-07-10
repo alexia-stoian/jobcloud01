@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { computeCompletion } from "@/lib/profile/completion-gate";
-import { getInteractiveQuestionState } from "@/lib/onboarding/interactive";
+import { getInteractiveQuestionStateForMode } from "@/lib/onboarding/interactive";
 import { canConfirmOnboardingField } from "@/lib/onboarding/confirm-policy";
 
 type AnswerBody = {
@@ -40,6 +40,7 @@ async function ensureOnboardingSession(userId: string, locale: "en" | "de" | "fr
         userId,
         locale,
         currentStep: "questioning",
+        conversationHistory: [],
         pendingQuestions: [],
         skippedQuestionIds: [],
         confirmedQuestionIds: []
@@ -64,10 +65,17 @@ export async function GET(): Promise<NextResponse> {
       employmentObjective: true,
       primaryRole: true,
       preferredLocation: true,
+      targetRoles: true,
+      targetSeniority: true,
+      targetIndustries: true,
+      preferredWorkModel: true,
       contractPreference: true,
       workRate: true,
       workPermitStatus: true,
       salaryExpectation: true,
+      visaSponsorship: true,
+      relocationWillingness: true,
+      commuteRadius: true,
       locale: true,
       isMinimallyComplete: true,
       missingCriticalFields: true
@@ -77,21 +85,44 @@ export async function GET(): Promise<NextResponse> {
   const locale = (profile?.locale === "de" || profile?.locale === "fr" ? profile.locale : "en") as "en" | "de" | "fr";
   await ensureOnboardingSession(session.user.id, locale);
 
-  const state = getInteractiveQuestionState({
+  const onboarding = await db.onboardingSession.findUnique({
+    where: { userId: session.user.id },
+    select: {
+      cvFileName: true,
+      cvExtractedFacts: true
+    }
+  });
+
+  const hasCvUpload = Boolean(
+    onboarding?.cvFileName ||
+      (onboarding?.cvExtractedFacts && Object.keys(onboarding.cvExtractedFacts as Record<string, unknown>).length > 0)
+  );
+
+  const state = getInteractiveQuestionStateForMode({
     fullName: profile?.fullName,
     currentJobSituation: profile?.currentJobSituation,
     employmentObjective: profile?.employmentObjective,
     primaryRole: profile?.primaryRole,
     preferredLocation: profile?.preferredLocation,
+    targetRoles: profile?.targetRoles,
+    targetSeniority: profile?.targetSeniority,
+    targetIndustries: profile?.targetIndustries,
+    preferredWorkModel: profile?.preferredWorkModel,
     contractPreference: profile?.contractPreference,
     workRate: profile?.workRate,
     workPermitStatus: profile?.workPermitStatus,
-    salaryExpectation: profile?.salaryExpectation
+    salaryExpectation: profile?.salaryExpectation,
+    visaSponsorship: profile?.visaSponsorship,
+    relocationWillingness: profile?.relocationWillingness,
+    commuteRadius: profile?.commuteRadius
+  }, {
+    hasCvUpload
   });
 
   return NextResponse.json({
     question: state.question,
     done: state.done,
+    hasCvUpload,
     completedFields: state.completedFields,
     missingFields: state.missingFields,
     completion: {
@@ -149,10 +180,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       employmentObjective: true,
       primaryRole: true,
       preferredLocation: true,
+      targetRoles: true,
+      targetSeniority: true,
+      targetIndustries: true,
+      preferredWorkModel: true,
       contractPreference: true,
       workRate: true,
       workPermitStatus: true,
       salaryExpectation: true,
+      visaSponsorship: true,
+      relocationWillingness: true,
+      commuteRadius: true,
       locale: true,
       isMinimallyComplete: true,
       missingCriticalFields: true
@@ -161,11 +199,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await ensureOnboardingSession(session.user.id, (updatedProfile.locale === "de" || updatedProfile.locale === "fr" ? updatedProfile.locale : "en") as "en" | "de" | "fr");
 
+  const onboarding = await db.onboardingSession.findUnique({
+    where: { userId: session.user.id },
+    select: {
+      cvFileName: true,
+      cvExtractedFacts: true
+    }
+  });
+
+  const hasCvUpload = Boolean(
+    onboarding?.cvFileName ||
+      (onboarding?.cvExtractedFacts && Object.keys(onboarding.cvExtractedFacts as Record<string, unknown>).length > 0)
+  );
+
   try {
-    const onboarding = await db.onboardingSession.findUnique({ where: { userId: session.user.id } });
-    if (onboarding) {
-      const confirmedQuestionIds = Array.isArray(onboarding.confirmedQuestionIds)
-        ? onboarding.confirmedQuestionIds.filter((id): id is string => typeof id === "string")
+    const onboardingSession = await db.onboardingSession.findUnique({ where: { userId: session.user.id } });
+    if (onboardingSession) {
+      const confirmedQuestionIds = Array.isArray(onboardingSession.confirmedQuestionIds)
+        ? onboardingSession.confirmedQuestionIds.filter((id): id is string => typeof id === "string")
         : [];
 
       if (!confirmedQuestionIds.includes(field)) {
@@ -185,16 +236,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Interactive profile filling should still work without onboarding session persistence.
   }
 
-  const state = getInteractiveQuestionState({
+  const state = getInteractiveQuestionStateForMode({
     fullName: updatedProfile.fullName,
     currentJobSituation: updatedProfile.currentJobSituation,
     employmentObjective: updatedProfile.employmentObjective,
     primaryRole: updatedProfile.primaryRole,
     preferredLocation: updatedProfile.preferredLocation,
+    targetRoles: updatedProfile.targetRoles,
+    targetSeniority: updatedProfile.targetSeniority,
+    targetIndustries: updatedProfile.targetIndustries,
+    preferredWorkModel: updatedProfile.preferredWorkModel,
     contractPreference: updatedProfile.contractPreference,
     workRate: updatedProfile.workRate,
     workPermitStatus: updatedProfile.workPermitStatus,
-    salaryExpectation: updatedProfile.salaryExpectation
+    salaryExpectation: updatedProfile.salaryExpectation,
+    visaSponsorship: updatedProfile.visaSponsorship,
+    relocationWillingness: updatedProfile.relocationWillingness,
+    commuteRadius: updatedProfile.commuteRadius
+  }, {
+    hasCvUpload
   });
 
   return NextResponse.json({
@@ -205,6 +265,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     },
     question: state.question,
     done: state.done,
+    hasCvUpload,
     completedFields: state.completedFields,
     missingFields: state.missingFields,
     completion: {

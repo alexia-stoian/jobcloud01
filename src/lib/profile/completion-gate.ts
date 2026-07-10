@@ -1,11 +1,20 @@
 import type { CandidateProfile } from "@prisma/client";
 
 const CRITICAL_FIELDS: Array<keyof CandidateProfile> = [
-  "fullName",
+  "currentJobSituation",
+  "employmentObjective",
   "preferredLocation",
-  "primaryRole",
-  "locale",
-  "workPermitStatus"
+  "targetRoles",
+  "targetSeniority",
+  "targetIndustries",
+  "preferredWorkModel",
+  "contractPreference",
+  "workRate",
+  "workPermitStatus",
+  "salaryExpectation",
+  "visaSponsorship",
+  "relocationWillingness",
+  "commuteRadius"
 ];
 
 export function computeCompletion(profile: CandidateProfile): {

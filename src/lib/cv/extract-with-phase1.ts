@@ -16,7 +16,10 @@ export type ExtractedCvFacts = {
   workRate: string | null;
   workPermitStatus: string | null;
   salaryExpectation: string | null;
-  qualifications: Array<{ category: "skill" | "diploma" | "certification" | "qualification"; value: string }>;
+  qualifications: Array<{
+    category: "skill" | "language" | "diploma" | "certification" | "experience" | "qualification";
+    value: string;
+  }>;
 };
 
 export type ExtractedCvResult = {
@@ -34,10 +37,25 @@ function bridgePhase1ToLegacy(phase1: ExtractedCvPhase1): ExtractedCvFacts {
   const primaryRole = phase1.workExperience.length > 0 ? phase1.workExperience[0].title : null;
 
   // Convert all skills, certs, education to qualifications
-  const qualifications: Array<{ category: "skill" | "diploma" | "certification" | "qualification"; value: string }> = [];
+  const qualifications: Array<{
+    category: "skill" | "language" | "diploma" | "certification" | "experience" | "qualification";
+    value: string;
+  }> = [];
 
   // Add skills
   for (const skill of phase1.skills) {
+    if (skill.category === "language") {
+      qualifications.push({
+        category: "language",
+        value: JSON.stringify({
+          language: skill.name,
+          proficiency: skill.proficiency,
+          yearsOfExperience: skill.yearsOfExperience
+        })
+      });
+      continue;
+    }
+
     let value = skill.name;
     if (skill.proficiency) value += ` (${skill.proficiency})`;
     if (skill.yearsOfExperience !== null) value += ` - ${skill.yearsOfExperience} yrs`;
@@ -50,26 +68,48 @@ function bridgePhase1ToLegacy(phase1: ExtractedCvPhase1): ExtractedCvFacts {
 
   // Add certifications
   for (const cert of phase1.certifications) {
-    let value = cert.name;
-    if (cert.issuer) value += ` - ${cert.issuer}`;
-    if (cert.date) value += ` (${cert.date})`;
-
     qualifications.push({
       category: "certification",
-      value
+      value: JSON.stringify({
+        name: cert.name,
+        issuer: cert.issuer,
+        date: cert.date,
+        expiryDate: cert.expiryDate,
+        credentialId: cert.credentialId
+      })
     });
   }
 
   // Add education
   for (const edu of phase1.education) {
-    let value = edu.school;
-    if (edu.degree) value += ` - ${edu.degree}`;
-    if (edu.field) value += ` in ${edu.field}`;
-    if (edu.graduationDate) value += ` (${edu.graduationDate})`;
-
     qualifications.push({
       category: "diploma",
-      value
+      value: JSON.stringify({
+        school: edu.school,
+        location: edu.location,
+        degree: edu.degree,
+        field: edu.field,
+        startDate: edu.startDate,
+        endDate: edu.endDate,
+        graduationDate: edu.graduationDate,
+        honors: edu.honors
+      })
+    });
+  }
+
+  for (const work of phase1.workExperience) {
+    qualifications.push({
+      category: "experience",
+      value: JSON.stringify({
+        company: work.company,
+        title: work.title,
+        location: work.location,
+        startDate: work.startDate,
+        endDate: work.endDate,
+        isCurrentRole: work.isCurrentRole,
+        description: work.description,
+        achievements: work.achievements
+      })
     });
   }
 

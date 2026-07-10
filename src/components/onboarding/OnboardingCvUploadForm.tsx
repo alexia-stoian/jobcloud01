@@ -26,6 +26,8 @@ type InteractiveQuestion = {
 type InteractiveResponse = {
   question: InteractiveQuestion | null;
   done: boolean;
+  hasCvUpload?: boolean;
+  history?: ChatMessage[];
   completedFields: string[];
   missingFields: string[];
   blocked?: boolean;
@@ -36,6 +38,20 @@ type InteractiveResponse = {
   };
 };
 
+const COMPLETION_HELP_TEXT = [
+  "Your profile is now filled as completely as I can make it from your CV and your answers.",
+  "I can also help with:",
+  "- improve or rewrite your CV",
+  "- draft or tailor a cover letter",
+  "- prepare interview questions and sample answers",
+  "- benchmark salary expectations in Switzerland",
+  "- identify skill gaps and learning priorities",
+  "- refine your role positioning and profile story",
+  "- explain permit and relocation implications",
+  "- suggest concrete next steps for your job search",
+  "What would you like help with next?"
+].join("\n");
+
 export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactElement {
   const [message, setMessage] = useState("");
   const [customOptionDraft, setCustomOptionDraft] = useState("");
@@ -43,9 +59,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   const [isSending, setIsSending] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState<InteractiveQuestion | null>(null);
   const [isDone, setIsDone] = useState(false);
+  const [hasUploadedCv, setHasUploadedCv] = useState(false);
   const didInitRef = useRef(false);
+  const didRestoreRef = useRef(false);
 
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
+    setHasUploadedCv(Boolean(data.hasCvUpload));
     setCurrentQuestion(data.question);
     setIsDone(data.done);
 
@@ -72,16 +91,35 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         ...current,
         {
           role: "assistant",
-          text: "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically."
+          text: (data.hasCvUpload ?? hasUploadedCv)
+            ? COMPLETION_HELP_TEXT
+            : "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically."
         }
       ]);
     }
-  }, []);
+  }, [hasUploadedCv]);
 
   const loadInteractiveQuestion = useCallback(async (): Promise<void> => {
     setIsSending(true);
 
     try {
+      const resumeResponse = await fetch("/api/onboarding/resume", {
+        method: "GET",
+        cache: "no-store"
+      });
+
+      if (resumeResponse.ok) {
+        const resumed = (await resumeResponse.json()) as InteractiveResponse;
+        if (Array.isArray(resumed.history) && resumed.history.length > 0) {
+          setHistory(resumed.history);
+          setCurrentQuestion(resumed.question);
+          setIsDone(resumed.done);
+          setHasUploadedCv(Boolean(resumed.hasCvUpload));
+          didRestoreRef.current = true;
+          return;
+        }
+      }
+
       const response = await fetch("/api/onboarding/interactive", {
         method: "GET",
         cache: "no-store"
@@ -103,6 +141,22 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       setIsSending(false);
     }
   }, [applyInteractiveResponse]);
+
+  useEffect(() => {
+    if (!didInitRef.current || !didRestoreRef.current) {
+      return;
+    }
+
+    void fetch("/api/onboarding/history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ history })
+    }).catch(() => {
+      // Keep the local experience responsive even if background history sync fails.
+    });
+  }, [history]);
 
   const submitAnswerValue = useCallback(async (value: string): Promise<void> => {
     if (isSending || !currentQuestion) {
@@ -231,13 +285,17 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       const data = (await uploadRes.json()) as { profileSeeds?: Record<string, unknown>; facts?: Record<string, unknown> };
       const seeds = data.profileSeeds ?? data.facts ?? {};
       const filled = Object.entries(seeds).filter(([, v]) => v && String(v).trim().length > 0).map(([k]) => k);
+      setHasUploadedCv(true);
 
       setHistory((current) => current.filter((m) => m.text !== "Reading your CV… ⏳"));
 
       if (filled.length > 0) {
         setHistory((current) => [
           ...current,
-          { role: "assistant", text: `CV processed ✅ I extracted and saved: ${filled.join(", ")}. Let me continue with any remaining questions.` }
+          {
+            role: "assistant",
+            text: "Your CV has been analyzed and your profile has been filled with the information I could confidently detect. I will now ask the remaining preference questions needed to complete your profile."
+          }
         ]);
       } else {
         setHistory((current) => [
@@ -249,7 +307,13 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       const nextRes = await fetch("/api/onboarding/interactive", { method: "GET", cache: "no-store" });
       if (nextRes.ok) {
         const nextData = (await nextRes.json()) as InteractiveResponse;
-        applyInteractiveResponse(nextData);
+        if (nextData.done) {
+          setCurrentQuestion(null);
+          setIsDone(true);
+          setHistory((current) => [...current, { role: "assistant", text: COMPLETION_HELP_TEXT }]);
+        } else {
+          applyInteractiveResponse(nextData);
+        }
       }
     } catch {
       setHistory((current) => [...current, { role: "assistant", text: "Something went wrong uploading your CV. Please try again." }]);
@@ -285,6 +349,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     didInitRef.current = true;
     void loadInteractiveQuestion();
   }, [history.length, isSending, loadInteractiveQuestion]);
+
+  useEffect(() => {
+    if (history.length > 0) {
+      didRestoreRef.current = true;
+    }
+  }, [history.length]);
 
   return (
     <section className="img3-panel img3-panel--conversation">

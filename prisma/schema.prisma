@@ -95,10 +95,19 @@ model CandidateProfile {
   employmentObjective   String?
   primaryRole           String?
   preferredLocation     String?
+  targetRoles           String?
+  targetSeniority       String?
+  targetIndustries      String?
+  preferredWorkModel    String?
   contractPreference    String?
   workRate              String?
   workPermitStatus      String?
   salaryExpectation     String?
+  workAuthorization     String?
+  visaSponsorship       String?
+  relocationWillingness String?
+  commuteRadius         String?
+  editorDraft           Json     @default("{}")
   roleSuggestionsUsed   Boolean  @default(false)
   isMinimallyComplete   Boolean  @default(false)
   missingCriticalFields Json     @default("[]")
@@ -151,6 +160,7 @@ model OnboardingSession {
   cvMimeType            String?
   cvExtractedFacts      Json     @default("{}")
   cvUncertainFacts      Json     @default("{}")
+  conversationHistory   Json     @default("[]")
   pendingQuestions      Json     @default("[]")
   skippedQuestionIds    Json     @default("[]")
   confirmedQuestionIds  Json     @default("[]")

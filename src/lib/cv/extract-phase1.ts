@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 export type WorkExperience = {
   company: string | null;
   title: string;
+  location: string | null;
   startDate: string | null;
   endDate: string | null;
   isCurrentRole: boolean;
@@ -15,6 +16,7 @@ export type WorkExperience = {
 
 export type Education = {
   school: string;
+  location: string | null;
   degree: string | null;
   field: string | null;
   startDate: string | null;
@@ -176,6 +178,7 @@ Structure for each entry:
 {
   "company": "exact company name or 'Unknown Company'",
   "title": "job title",
+  "location": "job location if stated, or null",
   "startDate": "YYYY-MM or null",
   "endDate": "YYYY-MM or null (if current role)",
   "isCurrentRole": true/false,
@@ -190,6 +193,7 @@ EXAMPLE OUTPUT (for reference only):
   {
     "company": "Google",
     "title": "Senior Product Manager",
+    "location": "Zurich, Switzerland",
     "startDate": "2020-03",
     "endDate": null,
     "isCurrentRole": true,
@@ -201,6 +205,7 @@ EXAMPLE OUTPUT (for reference only):
   {
     "company": "Startup Inc",
     "title": "Product Manager",
+    "location": "Remote",
     "startDate": "2018-06",
     "endDate": "2020-02",
     "isCurrentRole": false,
@@ -236,6 +241,7 @@ CRITICAL INSTRUCTIONS:
 Structure for each entry:
 {
   "school": "exact institution name",
+  "location": "school/campus location if stated, or null",
   "degree": "degree abbreviation (BS, BA, MBA, MSc, BEng, etc) or null",
   "field": "field of study or major",
   "startDate": "YYYY-MM or null",
@@ -249,6 +255,7 @@ EXAMPLE OUTPUT:
 [
   {
     "school": "Stanford University",
+    "location": "Stanford, CA, USA",
     "degree": "BS",
     "field": "Computer Science",
     "startDate": "2016-09",
@@ -259,6 +266,7 @@ EXAMPLE OUTPUT:
   },
   {
     "school": "General Assembly",
+    "location": "Remote",
     "degree": null,
     "field": "Product Management Bootcamp",
     "startDate": "2022-01",

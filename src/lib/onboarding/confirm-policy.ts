@@ -6,10 +6,17 @@ const confirmableFields = new Set([
   "employmentObjective",
   "primaryRole",
   "preferredLocation",
+  "targetRoles",
+  "targetSeniority",
+  "targetIndustries",
+  "preferredWorkModel",
   "contractPreference",
   "workRate",
   "workPermitStatus",
-  "salaryExpectation"
+  "salaryExpectation",
+  "visaSponsorship",
+  "relocationWillingness",
+  "commuteRadius"
 ]);
 
 export function canConfirmOnboardingField(field: string): boolean {

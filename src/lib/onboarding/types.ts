@@ -26,6 +26,12 @@ export type OnboardingSessionState = {
   cvMimeType: string | null;
   cvExtractedFacts: OnboardingFactState;
   cvUncertainFacts: OnboardingFactState;
+  conversationHistory: Array<{
+    role: "assistant" | "user";
+    text: string;
+    options?: Array<{ value: string; label: string; description?: string }>;
+    field?: string;
+  }>;
   pendingQuestions: OnboardingQuestion[];
   skippedQuestionIds: string[];
   confirmedQuestionIds: string[];
