@@ -1,0 +1,20 @@
+{
+  "ecosystem": "npm",
+  "config": {
+    "exa_search": false,
+    "brave_search": true,
+    "firecrawl": false,
+    "tavily_search": false
+  },
+  "questions": [
+    { "text": "Standard stack for a multilingual AI-assisted job-search web app from scratch covering Next.js, React, TypeScript, deployment and i18n", "kind": "web" },
+    { "text": "Current official guidance for Next.js app router, React, and TypeScript versions for production web apps", "kind": "web" },
+    { "text": "Current official guidance for Auth.js vs Clerk vs Better Auth for account creation and session management in Next.js", "kind": "web" },
+    { "text": "Current official guidance for Prisma with PostgreSQL and pgvector for profile persistence and semantic memory", "kind": "web" },
+    { "text": "Current official guidance for CV upload and parsing stack in JavaScript using object storage, malware scanning, and document extraction", "kind": "web" },
+    { "text": "Current official guidance for AI chat stack in Next.js using Vercel AI SDK and OpenAI Responses API with structured outputs", "kind": "web" },
+    { "text": "Current official guidance for multilingual UX in Next.js with English German French and ICU formatting", "kind": "web" },
+    { "text": "Current official guidance for background jobs, queues, and observability in TypeScript web apps", "kind": "web" },
+    { "text": "Current official guidance for privacy, EU data residency, and admin operations for AI-assisted profile apps", "kind": "web" }
+  ]
+}

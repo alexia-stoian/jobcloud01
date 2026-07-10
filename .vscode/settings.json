@@ -1,0 +1,190 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "git remote": true,
+        "git clone": true,
+        "npx @opengsd/gsd-core@latest": true,
+        "Test-Path": true,
+        "ConvertTo-Json": true,
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools query commit \"docs: initialize project\" --files \\.planning/PROJECT\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; if \\(Test-Path \\$GsdTools\\) \\{ node \\$GsdTools query init\\.new-project \\}$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "New-Item": true,
+        "Out-Null": true,
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; if \\(-not \\(Test-Path \\$GsdTools\\)\\) \\{ throw 'gsd-tools\\.cjs not found' \\}; \\$configObject = \\[ordered\\]@\\{ mode = 'interactive'; granularity = 'standard'; parallelization = \\$true; commit_docs = \\$true; model_profile = 'adaptive'; workflow = \\[ordered\\]@\\{ research = \\$true; plan_check = \\$true; verifier = \\$true; nyquist_validation = \\$true \\}; plan_review = \\[ordered\\]@\\{ source_grounding = \\$true \\}; ship = \\[ordered\\]@\\{ pr_body_sections = @\\(\\[ordered\\]@\\{ heading = 'User Stories & Acceptance Criteria'; enabled = \\$true; source = 'REQUIREMENTS\\.md ## User Stories \\|\\| REQUIREMENTS\\.md ## Acceptance Criteria'; fallback = '- Acceptance criteria are covered by the linked requirements and verification evidence\\.' \\}, \\[ordered\\]@\\{ heading = 'Risks & Dependencies'; enabled = \\$true; source = 'PLAN\\.md ## Risks \\|\\| PLAN\\.md ## Dependencies'; fallback = '- No known high-risk rollout dependencies\\.' \\}, \\[ordered\\]@\\{ heading = 'Success Metrics & Release Criteria'; enabled = \\$false; source = 'REQUIREMENTS\\.md ## Definition of Done \\|\\| VERIFICATION\\.md ## Release Criteria'; fallback = '- Release when automated verification and required manual checks pass\\.' \\}, \\[ordered\\]@\\{ heading = 'Stakeholder Review & Approval'; enabled = \\$false; template = '- Product owner approval pending for \\{phase_name\\}\\.' \\}\\) \\} \\}; \\$configJson = \\$configObject \\| ConvertTo-Json -Compress -Depth 10; New-Item -ItemType Directory -Force '\\.planning' \\| Out-Null; node \\$GsdTools query config-new-project \\$configJson$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; \\$configObject = \\[ordered\\]@\\{ mode = 'interactive'; granularity = 'standard'; parallelization = \\$true; commit_docs = \\$true; model_profile = 'adaptive'; workflow = \\[ordered\\]@\\{ research = \\$true; plan_check = \\$true; verifier = \\$true; nyquist_validation = \\$true \\}; plan_review = \\[ordered\\]@\\{ source_grounding = \\$true \\}; ship = \\[ordered\\]@\\{ pr_body_sections = @\\(\\[ordered\\]@\\{ heading = 'User Stories & Acceptance Criteria'; enabled = \\$true; source = 'REQUIREMENTS\\.md ## User Stories \\|\\| REQUIREMENTS\\.md ## Acceptance Criteria'; fallback = '- Acceptance criteria are covered by the linked requirements and verification evidence\\.' \\}, \\[ordered\\]@\\{ heading = 'Risks & Dependencies'; enabled = \\$true; source = 'PLAN\\.md ## Risks \\|\\| PLAN\\.md ## Dependencies'; fallback = '- No known high-risk rollout dependencies\\.' \\}, \\[ordered\\]@\\{ heading = 'Success Metrics & Release Criteria'; enabled = \\$false; source = 'REQUIREMENTS\\.md ## Definition of Done \\|\\| VERIFICATION\\.md ## Release Criteria'; fallback = '- Release when automated verification and required manual checks pass\\.' \\}, \\[ordered\\]@\\{ heading = 'Stakeholder Review & Approval'; enabled = \\$false; template = '- Product owner approval pending for \\{phase_name\\}\\.' \\}\\) \\} \\}; \\$configJson = \\$configObject \\| ConvertTo-Json -Compress -Depth 10; node \\$GsdTools config-new-project \\$configJson$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$configObject = \\[ordered\\]@\\{ mode = 'interactive'; granularity = 'standard'; parallelization = \\$true \\}; \\$configJson = \\$configObject \\| ConvertTo-Json -Compress -Depth 5; node -e \"console\\.log\\(process\\.argv\\.slice\\(1\\)\\)\" \\$configJson$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "Start-Process": true,
+        "ConvertFrom-Json": true,
+        "git add": true,
+        "git commit": true,
+        "Set-Content": true,
+        "Write-Error": true,
+        "git rev-parse": true,
+        "Get-Command": true,
+        "gsd-tools": true,
+        "&": true,
+        "gsd_run": true,
+        "/^\\$root = git rev-parse --show-toplevel 2>\\$null; if \\(-not \\$root\\) \\{ \\$root = \\(Get-Location\\)\\.Path \\}\n\\$paths = @\\(\n  \"\\$root/gsd-core/bin/gsd-tools\\.cjs\",\n  \"\\$root/\\.claude/gsd-core/bin/gsd-tools\\.cjs\",\n  \"\\$root/\\.codex/gsd-core/bin/gsd-tools\\.cjs\",\n  \"\\$HOME/\\.claude/gsd-core/bin/gsd-tools\\.cjs\",\n  \"\\$HOME/\\.copilot/gsd-core/bin/gsd-tools\\.cjs\"\n\\)\n\\$tool = \\$paths \\| Where-Object \\{ Test-Path \\$_ \\} \\| Select-Object -First 1\nWrite-Output \"TOOL=\\$tool\"\nif \\(\\$tool\\) \\{ node \\$tool query research-plan --input \\.tmp-research-plan-input\\.json \\} elseif \\(Get-Command gsd-tools -ErrorAction SilentlyContinue\\) \\{ gsd-tools query research-plan --input \\.tmp-research-plan-input\\.json \\} else \\{ Write-Error 'gsd-tools not found'; exit 1 \\}$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$_GSD_SHIM_NAME='gsd-tools\\.cjs'; \\$_GSD_RUNTIME_ROOT='C:\\\\projects\\\\jobcloud01'; if \\(Test-Path \"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} elseif \\(Test-Path \"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} else \\{ throw 'gsd-tools\\.cjs not found' \\}; node \\$GSD_TOOLS query websearch \"Official guidance on GDPR and Swiss FADP considerations for AI systems processing CVs, job preferences, and profiling data in job search products\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query research-plan --input \"\\$env:TEMP\\\\research-plan-input\\.json\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$_GSD_SHIM_NAME='gsd-tools\\.cjs'; \\$_GSD_RUNTIME_ROOT='C:\\\\projects\\\\jobcloud01'; if \\(Test-Path \"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} elseif \\(Test-Path \"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} else \\{ throw 'gsd-tools\\.cjs not found' \\}; node \\$GSD_TOOLS query websearch \"Official guidance on accessibility pitfalls for multilingual conversational onboarding flows and AI assistants in web apps\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$_GSD_SHIM_NAME='gsd-tools\\.cjs'; \\$_GSD_RUNTIME_ROOT='C:\\\\projects\\\\jobcloud01'; if \\(Test-Path \"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$\\{_GSD_RUNTIME_ROOT\\}\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} elseif \\(Test-Path \"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\"\\) \\{ \\$GSD_TOOLS=\"\\$HOME\\\\\\.claude\\\\gsd-core\\\\bin\\\\\\$\\{_GSD_SHIM_NAME\\}\" \\} else \\{ throw 'gsd-tools\\.cjs not found' \\}; node \\$GSD_TOOLS query classify-confidence --provider exa$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query websearch \"Architecture patterns for multilingual AI-assisted job search applications with candidate profile memory, CV ingestion, and conversational onboarding\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query websearch \"Best practices for structuring account creation, profile storage, and AI memory boundaries in career guidance or job search copilots handling personal data\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query websearch \"Recommended system design for CV resume parsing pipelines, structured candidate profiles, and conversational follow-up question generation\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query websearch \"Architecture for recommendation and readiness flows in AI job coaching systems including interview prep and skill-gap guidance\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query classify-confidence --provider brave$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query research-store put f07aa4554bee4970bd70a455128010f4416a54746ab5c974bd9832dba2bb9ad3 --content \"The standard architecture for a multilingual AI job-search assistant is an application front end over identity, profile services, a conversational orchestrator, retrieval or memory access services, model gateways, and analytics\\. The key structural decision is to keep orchestration separate from storage and from user-facing delivery, so account creation, conversational intake, CV parsing, and personalized guidance can evolve independently while remaining governable for privacy and audit\\.\" --source curated --provider webfetch --confidence HIGH --kind web$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        ".planning/research": true,
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query commit \"docs: complete project research\" --files \\.planning/research/$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        ".planning/REQUIREMENTS.md": true,
+        "apply_patch": true,
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; \\$instructionFile = node \\$GsdTools project-instruction-file --runtime claude; if \\(\\$instructionFile -is \\[array\\]\\) \\{ \\$instructionFile = \\$instructionFile\\[-1\\] \\}; \\$instructionFile = \\$instructionFile\\.Trim\\(\\); node \\$GsdTools generate-claude-md --output \\$instructionFile; git add \\.planning/ROADMAP\\.md \\.planning/STATE\\.md \\.planning/REQUIREMENTS\\.md \\$instructionFile; git commit -m \"docs: create roadmap \\(4 phases\\)\"; Write-Output \"INSTRUCTION_FILE=\\$instructionFile\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools init plan-phase 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools config-get workflow\\.discuss_mode --default discuss$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools init phase-op 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools todo match-phase 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$GsdTools = Join-Path \\(Get-Location\\) '\\.github/gsd-core/bin/gsd-tools\\.cjs'; node \\$GsdTools loop render-hooks discuss:pre --raw$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query state\\.record-session --stopped-at \"Phase 1 context gathered\" --resume-file \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-CONTEXT\\.md\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query commit \"docs\\(01\\): capture phase context\" --files \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-CONTEXT\\.md\" \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-DISCUSSION-LOG\\.md\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query commit \"docs\\(state\\): record phase 1 context session\" --files \\.planning/STATE\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs --help$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query progress --help$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query task$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query phase$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query progress$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query init\\.plan-phase 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query phase\\.mvp-mode 1 --pick active$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query phases\\.list --pick summaries_total$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query phases\\.list$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query commit \"docs\\(01\\): add research and implementation plan\" --files \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-RESEARCH\\.md\" \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-PLAN\\.md\" \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-VERIFICATION\\.md\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query state\\.record-session --stopped-at \"Phase 1 plan created and verified\" --resume-file \"\\.planning/phases/01-account-language-and-candidate-profile-foundation/01-PLAN\\.md\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query commit \"docs\\(state\\): record phase 1 planning session\" --files \\.planning/STATE\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query init\\.execute-phase 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node \\.github/gsd-core/bin/gsd-tools\\.cjs query phase-plan-index 1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npm install": true,
+        "Copy-Item": true,
+        "npx prisma": true,
+        "ForEach-Object": true,
+        "npx playwright": true
+    }
+}

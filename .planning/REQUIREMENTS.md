@@ -102,25 +102,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| LOCL-01 | Phase 1 | Pending |
-| LOCL-02 | Phase 1 | Pending |
-| LOCL-03 | Phase 1 | Pending |
-| PROF-01 | Phase 1 | Pending |
-| PROF-02 | Phase 1 | Pending |
-| PROF-03 | Phase 1 | Pending |
-| PROF-04 | Phase 1 | Pending |
-| PROF-05 | Phase 1 | Pending |
-| PROF-06 | Phase 1 | Pending |
-| PROF-07 | Phase 1 | Pending |
-| PROF-08 | Phase 1 | Pending |
-| PROF-09 | Phase 1 | Pending |
-| PROF-10 | Phase 1 | Pending |
-| PROF-11 | Phase 1 | Pending |
-| PROF-12 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Completed |
+| AUTH-02 | Phase 1 | Completed |
+| AUTH-03 | Phase 1 | Completed |
+| AUTH-04 | Phase 1 | Completed |
+| LOCL-01 | Phase 1 | Completed |
+| LOCL-02 | Phase 1 | Completed |
+| LOCL-03 | Phase 1 | Completed |
+| PROF-01 | Phase 1 | Completed |
+| PROF-02 | Phase 1 | Completed |
+| PROF-03 | Phase 1 | Completed |
+| PROF-04 | Phase 1 | Completed |
+| PROF-05 | Phase 1 | Completed |
+| PROF-06 | Phase 1 | Completed |
+| PROF-07 | Phase 1 | Completed |
+| PROF-08 | Phase 1 | Completed |
+| PROF-09 | Phase 1 | Completed |
+| PROF-10 | Phase 1 | Completed |
+| PROF-11 | Phase 1 | Completed |
+| PROF-12 | Phase 1 | Completed |
 | CVIN-01 | Phase 2 | Pending |
 | CVIN-02 | Phase 2 | Pending |
 | CVIN-03 | Phase 2 | Pending |
@@ -135,16 +135,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AION-07 | Phase 2 | Pending |
 | AION-08 | Phase 2 | Pending |
 | AION-09 | Phase 2 | Pending |
-| MEMG-01 | Phase 3 | Pending |
-| MEMG-02 | Phase 3 | Pending |
-| MEMG-03 | Phase 3 | Pending |
-| MEMG-04 | Phase 3 | Pending |
-| MEMG-05 | Phase 4 | Pending |
-| MEMG-06 | Phase 4 | Pending |
-| MEMG-07 | Phase 4 | Pending |
-| MEMG-08 | Phase 4 | Pending |
-| MEMG-09 | Phase 4 | Pending |
-| MEMG-10 | Phase 3 | Pending |
+| MEMG-01 | Phase 3 | Completed |
+| MEMG-02 | Phase 3 | Completed |
+| MEMG-03 | Phase 3 | Completed |
+| MEMG-04 | Phase 3 | Completed |
+| MEMG-05 | Phase 4 | Completed |
+| MEMG-06 | Phase 4 | Completed |
+| MEMG-07 | Phase 4 | Completed |
+| MEMG-08 | Phase 4 | Completed |
+| MEMG-09 | Phase 4 | Completed |
+| MEMG-10 | Phase 3 | Completed |
 
 **Coverage:**
 - v1 requirements: 42 total
