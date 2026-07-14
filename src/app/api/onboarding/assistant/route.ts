@@ -197,6 +197,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // ===== STEP 2: GLOBAL - Check for target role in EVERY message across ALL phases =====
+    // This ensures we capture career goals as soon as they're stated, regardless of phase
+    const detectedGlobalTargetRole = detectTargetRoleFromMessage(userMessage);
+    if (detectedGlobalTargetRole && onboardingSession) {
+      console.log("[GLOBAL] Detected targetRole in message:", detectedGlobalTargetRole);
+      try {
+        const updatedSession = await db.onboardingSession.update({
+          where: { userId: session.user.id },
+          data: { targetRole: detectedGlobalTargetRole }
+        });
+        onboardingSession = updatedSession;
+        console.log("[GLOBAL] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
+        
+        if (profile) {
+          await db.candidateProfile.update({
+            where: { userId: session.user.id },
+            data: { targetRoles: detectedGlobalTargetRole }
+          });
+        }
+      } catch (error: unknown) {
+        console.error("[GLOBAL] ERROR updating targetRole:", error);
+      }
+    }
+
     // ===== STEP 2: Route based on current phase =====
     let answer: string;
     let newState = state;
@@ -211,24 +235,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Check if user is stating a target role (career goal)
       const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
       
+      // Debug: Log current state
+      console.log("[Profile Collection] Current onboardingSession?.targetRole before update:", onboardingSession?.targetRole);
+      console.log("[Profile Collection] Detected targetRole:", detectedTargetRole);
+      console.log("[Profile Collection] onboardingSession exists:", !!onboardingSession);
+      
       // If target role is detected, update it directly in the onboarding session
       if (detectedTargetRole && onboardingSession) {
-        console.log("[Profile Collection] Detected targetRole:", detectedTargetRole);
+        console.log("[Profile Collection] About to update targetRole for user:", session.user.id);
         
-        // Update onboarding session directly
-        const updatedSession = await db.onboardingSession.update({
-          where: { userId: session.user.id },
-          data: { targetRole: detectedTargetRole }
-        });
-        onboardingSession = updatedSession;
-        console.log("[Profile Collection] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
-        
-        // Also update profile's targetRoles field for consistency
-        if (profile) {
-          await db.candidateProfile.update({
-            where: { id: profile.id },
-            data: { targetRoles: detectedTargetRole }
+        try {
+          // Update onboarding session directly
+          const updatedSession = await db.onboardingSession.update({
+            where: { userId: session.user.id },
+            data: { targetRole: detectedTargetRole }
           });
+          onboardingSession = updatedSession;
+          console.log("[Profile Collection] SUCCESS: Updated onboardingSession.targetRole to:", updatedSession.targetRole);
+          console.log("[Profile Collection] Updated session ID:", updatedSession.id);
+          
+          // Also update profile's targetRoles field for consistency
+          if (profile) {
+            await db.candidateProfile.update({
+              where: { id: profile.id },
+              data: { targetRoles: detectedTargetRole }
+            });
+            console.log("[Profile Collection] Also updated profile.targetRoles");
+          }
+        } catch (error: unknown) {
+          console.error("[Profile Collection] ERROR during targetRole update:", error);
         }
       } else if (!onboardingSession?.targetRole && userMessage.length > 10) {
         // If target role is still not set after CV upload, ask for it
@@ -260,9 +295,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         profileMemory: profile ? buildDurableProfileMemory({
           profile,
           qualifications: profile.qualifications,
-          onboardingSession: profile.onboardingSession
+          onboardingSession: onboardingSession  // Use the separately-loaded session, not profile.onboardingSession
         }) : undefined,
-        onboardingSession: profile?.onboardingSession
+        onboardingSession: onboardingSession  // Also pass the correct session object
       });
       
       // Check if user has provided their name - if so, mark profile as started
