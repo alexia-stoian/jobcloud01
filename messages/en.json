@@ -207,5 +207,74 @@
       "salary": "Salary guidance 💰",
       "readiness": "Profile readiness 🔍"
     }
+  },
+  "mockInterview": {
+    "pageTitle": "Mock Interview Engine",
+    "pageSubtitle": "Practice interviews with AI to prepare for real opportunities",
+    "chooseType": "Choose Interview Type",
+    "targetRole": "Target Role",
+    "targetRolePlaceholder": "e.g., Senior Software Engineer",
+    "targetRoleHint": "The role you're interviewing for",
+    "startButton": "Start Interview Session",
+    "startingButton": "Starting Interview…",
+    "interviewTypes": {
+      "behavioral": {
+        "label": "Behavioral Interview",
+        "description": "STAR method questions"
+      },
+      "technical": {
+        "label": "Technical Interview",
+        "description": "Coding and system design"
+      },
+      "caseStudy": {
+        "label": "Case Study Interview",
+        "description": "Problem solving scenarios"
+      },
+      "culturalFit": {
+        "label": "Cultural Fit Interview",
+        "description": "Values and collaboration"
+      }
+    },
+    "validationError": "Please select interview type and enter target role",
+    "startError": "Failed to start interview"
+  },
+  "skillDevelopment": {
+    "pageTitle": "Skill Development Path",
+    "pageSubtitle": "Close your skill gaps with curated learning resources",
+    "progressTitle": "Learning Progress",
+    "resourcesCompleted": "resources completed",
+    "overallProgress": "Overall progress",
+    "identifiedGaps": "Identified Gaps",
+    "recommendedResources": "Recommended Resources",
+    "startLearning": "Start Learning",
+    "noResources": "No resources found for this skill",
+    "loading": "Loading learning resources…",
+    "skillPriority": "priority",
+    "resourceType": "Type",
+    "resourceDifficulty": "Difficulty",
+    "resourceCost": "Cost",
+    "resourceSource": "Source",
+    "resourceDuration": "Duration"
+  },
+  "readiness": {
+    "pageTitle": "Role Readiness Analysis",
+    "pageSubtitle": "See how ready you are for different roles and what you need to work on",
+    "bestMatch": "Best Match",
+    "ready": "Ready",
+    "averageReadiness": "Average Readiness",
+    "rolesAnalyzed": "Roles Analyzed",
+    "highDemandPositions": "High-demand positions",
+    "scoreBreakdown": "Score Breakdown",
+    "strengths": "✅ Strengths",
+    "areasToImprove": "📈 Areas to Improve",
+    "timeToReady": "Time to Ready",
+    "dimensions": {
+      "experience": "Experience",
+      "skills": "Skills",
+      "education": "Education",
+      "workPermit": "Work Permit",
+      "location": "Location"
+    },
+    "loading": "Calculating your readiness scores…"
   }
 }
