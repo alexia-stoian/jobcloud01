@@ -212,26 +212,74 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ) {
         // Wave 4: Interview Preparation Service
         const localeInstruction = getLocaleInstruction(locale);
-        const interviewPrompt = `You are a professional interview coach helping job seekers prepare for interviews. 
+        
+        // Check if user provided a job posting (usually long text with role/company info)
+        const isJobPosting = userMessage.length > 200 && (
+          userMessage.toLowerCase().includes("responsibility") ||
+          userMessage.toLowerCase().includes("requirement") ||
+          userMessage.toLowerCase().includes("experience") ||
+          userMessage.toLowerCase().includes("skill") ||
+          userMessage.toLowerCase().includes("bachelor") ||
+          userMessage.toLowerCase().includes("manager") ||
+          userMessage.toLowerCase().includes("engineer")
+        );
+
+        let systemPromptForInterview: string;
+        let processedMessage: string;
+
+        if (isJobPosting) {
+          // Job posting was provided - extract key info and generate targeted questions
+          systemPromptForInterview = `You are an expert interview coach. The user has provided a job posting or role description.
+
+YOUR TASK:
+1. Extract the 3-5 most critical skills/experiences needed for this role
+2. Create 3 targeted interview questions that will help them prepare for this specific role
+3. For each question, explain why it's important for this role
+4. Start by acknowledging what role they're interviewing for
+5. Then ask the first question and wait for their answer
+
+Format your response:
+- Start with: "Great! I can see you're targeting [ROLE] at [COMPANY if mentioned]. Here's what I'll focus on:"
+- List the key competencies: "Key areas to prep: 1) [competency], 2) [competency], etc."
+- Then ask: "Let's start with question 1: [specific question based on job posting]"
+- Wait for their answer before asking the next question
+
+${localeInstruction}`;
+          
+          // The message itself is the job posting - Claude will analyze it
+          processedMessage = userMessage;
+        } else {
+          // General interview prep (no specific job posting)
+          systemPromptForInterview = `You are a professional interview coach helping job seekers prepare for interviews.
 
 Your role:
-- Ask practice interview questions relevant to the user's target role
+- Ask practice interview questions relevant to the user's target role based on their profile
 - Provide constructive feedback on answers using the STAR method (Situation, Task, Action, Result)
 - Give tips on how to improve responses
 - Help users feel confident and prepared
+
+If the user hasn't yet started answering:
+1. First acknowledge their target role (from profile)
+2. List 3 competencies to focus on
+3. Ask the first practice question
+4. Wait for their answer
 
 When the user answers a question, provide:
 1. Positive feedback on what they did well
 2. Constructive suggestions for improvement
 3. An example of a stronger answer
-4. Ready for the next question
-
-If the user hasn't shared their target role or job details, ask for that first before starting interview practice.
+4. Then ask the next question or offer to move to mock interview mode
 
 ${localeInstruction}`;
+
+          // If they have profile info about target role, use it
+          const targetRole = profile?.primaryRole ?? "the target role";
+          processedMessage = `Help me prepare for interviews for ${targetRole} positions. ${userMessage}`;
+        }
+
         answer = await callAnthropicAssistant({
-          userMessage,
-          systemPrompt: interviewPrompt,
+          userMessage: processedMessage,
+          systemPrompt: systemPromptForInterview,
           anthropicApiKey,
           anthropicModel,
           profileMemory: profile ? buildDurableProfileMemory({
@@ -309,12 +357,16 @@ async function callAnthropicAssistant({
   profileMemory?: ReturnType<typeof buildDurableProfileMemory>;
 }): Promise<string> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), 30000); // Increased timeout for large inputs
 
   try {
     const fullSystemPrompt = profileMemory
       ? `${systemPrompt}\n\n${buildMemoryPromptFragment(profileMemory)}`
       : systemPrompt;
+
+    // Determine max tokens based on content size
+    // Large job postings need more tokens for comprehensive responses
+    const maxTokens = userMessage.length > 1000 ? 2048 : 1024;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -325,7 +377,7 @@ async function callAnthropicAssistant({
       },
       body: JSON.stringify({
         model: anthropicModel,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         system: fullSystemPrompt.trim(),
         messages: [{ role: "user", content: userMessage }]
       }),
@@ -336,7 +388,13 @@ async function callAnthropicAssistant({
     const data = (await response.json()) as AnthropicResponse;
 
     if (!response.ok) {
-      throw new Error(`Anthropic error ${response.status}: ${data.error?.message ?? "unknown error"}`);
+      const errorMessage = data.error?.message ?? `HTTP ${response.status}`;
+      console.error(`Anthropic API error: ${errorMessage}`, {
+        status: response.status,
+        messageLength: userMessage.length,
+        systemPromptLength: fullSystemPrompt.length
+      });
+      throw new Error(`Anthropic error ${response.status}: ${errorMessage}`);
     }
 
     const answer = data.content?.find((part) => part.type === "text")?.text?.trim();
