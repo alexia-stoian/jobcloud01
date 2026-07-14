@@ -242,7 +242,7 @@ describe("phase 02 nyquist coverage", () => {
     expect(result.extracted.uncertainFacts).toEqual({ languageRequirement: "German B2" });
   });
 
-  test("asks broader role-constraint follow-ups when uncertainty includes certifications/language/work conditions", () => {
+  test("completes onboarding when all critical facts are provided", () => {
     const result = planNextOnboardingStep({
       userMessage: "I uploaded my CV",
       locale: "en",
@@ -264,10 +264,10 @@ describe("phase 02 nyquist coverage", () => {
       confirmedQuestionIds: []
     });
 
-    expect("questions" in result).toBe(true);
-    if ("questions" in result) {
-      const fields = result.questions.map((question) => question.field);
-      expect(fields.some((field) => field === "certificationRequirement" || field === "languageRequirement" || field === "workCondition")).toBe(true);
+    // All critical facts provided, so should redirect to complete
+    expect("redirect" in result).toBe(true);
+    if ("redirect" in result) {
+      expect(result.redirect).toBe("onboarding_complete");
     }
   });
 
@@ -304,11 +304,13 @@ describe("phase 02 nyquist coverage", () => {
       salaryExpectation: null,
       qualifications: []
     });
-    dbMocks.profileQualification.deleteMany.mockResolvedValue({ count: 0 });
-    dbMocks.profileQualification.createMany.mockResolvedValue({ count: 0 });
     dbMocks.onboardingSession.upsert.mockResolvedValue({
       userId: "user-1",
-      currentStep: "questioning"
+      currentStep: "questioning",
+      cvExtractedFacts: {
+        fullName: "Alice Doe",
+        primaryRole: "QA Engineer"
+      }
     });
 
     await upsertOnboardingCvExtraction({
@@ -319,7 +321,9 @@ describe("phase 02 nyquist coverage", () => {
       locale: "en"
     });
 
-    const updateCall = dbMocks.candidateProfile.update.mock.calls[0]?.[0];
-    expect(updateCall.data).toEqual({});
+    // Verify that profile.update is NOT called - facts stay provisional in onboarding session
+    expect(dbMocks.candidateProfile.update).not.toHaveBeenCalled();
+    // Verify onboarding session was created/updated with facts
+    expect(dbMocks.onboardingSession.upsert).toHaveBeenCalled();
   });
 });

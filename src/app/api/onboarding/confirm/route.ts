@@ -37,14 +37,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   });
 
-  const confirmedQuestionIds = Array.isArray(onboarding.confirmedQuestionIds)
-    ? onboarding.confirmedQuestionIds.filter((questionId): questionId is string => typeof questionId === "string")
+  // Build the confirmed question IDs - avoid duplicates
+  const existingConfirmed = Array.isArray(onboarding.confirmedQuestionIds)
+    ? onboarding.confirmedQuestionIds.filter((id): id is string => typeof id === "string")
     : [];
-  if (body.questionId) {
-    confirmedQuestionIds.push(body.questionId);
-  }
+  
+  const confirmedQuestionIds = body.questionId && !existingConfirmed.includes(body.questionId)
+    ? [...existingConfirmed, body.questionId]
+    : existingConfirmed;
+
+  // Filter out the confirmed question from pending questions
   const pendingQuestions = Array.isArray(onboarding.pendingQuestions)
-    ? onboarding.pendingQuestions.filter((question): question is string => typeof question === "string")
+    ? (onboarding.pendingQuestions as Array<{ id?: string }>).filter((q) => q?.id !== body.questionId)
     : [];
 
   await db.onboardingSession.update({
