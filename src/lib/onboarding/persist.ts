@@ -13,9 +13,10 @@ export async function upsertOnboardingCvExtraction(input: {
   try {
     console.log("[CV Extraction] Starting upsert for userId:", input.userId);
     console.log("[CV Extraction] Extracted facts:", JSON.stringify(extracted.facts, null, 2));
-    console.log("[CV Extraction] Extracted qualifications count:", extracted.facts.qualifications.length);
+    console.log("[CV Extraction] Uncertain facts:", JSON.stringify(extracted.uncertainFacts, null, 2));
 
-    // First, update the candidate profile with extracted data
+    // Get or create the candidate profile
+    // IMPORTANT: We do NOT write extracted facts to the profile yet - only to onboarding session
     let profile = await db.candidateProfile.findUnique({
       where: { userId: input.userId },
       select: { id: true }
@@ -33,97 +34,13 @@ export async function upsertOnboardingCvExtraction(input: {
 
     console.log("[CV Extraction] Profile ID:", profile.id);
 
-    // Build update data from extracted facts - fill in ALL available data
-    const profileUpdateData: Record<string, string | null> = {};
-    
-    if (extracted.facts.fullName) {
-      profileUpdateData.fullName = extracted.facts.fullName;
-      console.log("[CV Extraction] Setting fullName:", extracted.facts.fullName);
-    }
-    if (extracted.facts.primaryRole) {
-      profileUpdateData.primaryRole = extracted.facts.primaryRole;
-      console.log("[CV Extraction] Setting primaryRole:", extracted.facts.primaryRole);
-    }
-    if (extracted.facts.currentJobSituation) {
-      profileUpdateData.currentJobSituation = extracted.facts.currentJobSituation;
-      console.log("[CV Extraction] Setting currentJobSituation:", extracted.facts.currentJobSituation);
-    }
-    if (extracted.facts.employmentObjective) {
-      profileUpdateData.employmentObjective = extracted.facts.employmentObjective;
-      console.log("[CV Extraction] Setting employmentObjective:", extracted.facts.employmentObjective);
-    }
-    if (extracted.facts.preferredLocation) {
-      profileUpdateData.preferredLocation = extracted.facts.preferredLocation;
-      console.log("[CV Extraction] Setting preferredLocation:", extracted.facts.preferredLocation);
-    }
-    if (extracted.facts.contractPreference) {
-      profileUpdateData.contractPreference = extracted.facts.contractPreference;
-      console.log("[CV Extraction] Setting contractPreference:", extracted.facts.contractPreference);
-    }
-    if (extracted.facts.workRate) {
-      profileUpdateData.workRate = extracted.facts.workRate;
-      console.log("[CV Extraction] Setting workRate:", extracted.facts.workRate);
-    }
-    if (extracted.facts.workPermitStatus) {
-      profileUpdateData.workPermitStatus = extracted.facts.workPermitStatus;
-      console.log("[CV Extraction] Setting workPermitStatus:", extracted.facts.workPermitStatus);
-    }
-    if (extracted.facts.salaryExpectation) {
-      profileUpdateData.salaryExpectation = extracted.facts.salaryExpectation;
-      console.log("[CV Extraction] Setting salaryExpectation:", extracted.facts.salaryExpectation);
-    }
-
-    console.log("[CV Extraction] Profile update data keys:", Object.keys(profileUpdateData));
-    console.log("[CV Extraction] Profile update data:", JSON.stringify(profileUpdateData, null, 2));
-
-    // Update profile with extracted data
-    const updatedProfile = await db.candidateProfile.update({
-      where: { userId: input.userId },
-      data: profileUpdateData,
-      include: { qualifications: true }
-    });
-
-    console.log("[CV Extraction] Profile updated successfully with data:", JSON.stringify({
-      fullName: updatedProfile.fullName,
-      primaryRole: updatedProfile.primaryRole,
-      currentJobSituation: updatedProfile.currentJobSituation,
-      employmentObjective: updatedProfile.employmentObjective,
-      preferredLocation: updatedProfile.preferredLocation
-    }, null, 2));
-
-    // Delete old qualifications and add new ones from CV extraction
-    if (extracted.facts.qualifications && extracted.facts.qualifications.length > 0) {
-      console.log("[CV Extraction] Extracted qualifications count:", extracted.facts.qualifications.length);
-      
-      // Delete existing qualifications
-      const deleteResult = await db.profileQualification.deleteMany({
-        where: { profileId: updatedProfile.id }
-      });
-      console.log("[CV Extraction] Deleted old qualifications:", deleteResult.count);
-
-      // Add new qualifications from CV
-      const qualificationsData = extracted.facts.qualifications.map((qual) => ({
-        profileId: updatedProfile.id,
-        category: qual.category,
-        value: qual.value
-      }));
-
-      const createResult = await db.profileQualification.createMany({
-        data: qualificationsData
-      });
-      console.log("[CV Extraction] Created new qualifications:", createResult.count);
-    } else {
-      console.log("[CV Extraction] No qualifications to save");
-    }
-
-    console.log("[CV Extraction] Profile update complete");
-
-    // Now update/create onboarding session with CV metadata
+    // Update/create onboarding session with CV metadata
+    // Extracted facts stay ONLY in OnboardingSession until confirmed
     const session = await db.onboardingSession.upsert({
       where: { userId: input.userId },
       create: {
         userId: input.userId,
-        profileId: updatedProfile.id,
+        profileId: profile.id,
         locale: input.locale,
         currentStep: "questioning",
         cvFileName: input.fileName ?? null,
@@ -138,7 +55,6 @@ export async function upsertOnboardingCvExtraction(input: {
         lastInteractedAt: new Date()
       },
       update: {
-        profileId: updatedProfile.id,
         locale: input.locale,
         currentStep: "questioning",
         cvFileName: input.fileName ?? null,
@@ -152,20 +68,21 @@ export async function upsertOnboardingCvExtraction(input: {
 
     console.log("[CV Extraction] Session upsert succeeded");
 
+    // Return seeds from extracted facts (not from profile - facts stay provisional)
     const profileSeeds = {
-      fullName: updatedProfile.fullName,
-      primaryRole: updatedProfile.primaryRole,
-      preferredLocation: updatedProfile.preferredLocation,
-      currentJobSituation: updatedProfile.currentJobSituation,
-      employmentObjective: updatedProfile.employmentObjective,
-      contractPreference: updatedProfile.contractPreference,
-      workRate: updatedProfile.workRate,
-      workPermitStatus: updatedProfile.workPermitStatus,
-      salaryExpectation: updatedProfile.salaryExpectation,
-      qualificationsCount: extracted.facts.qualifications.length
+      fullName: extracted.facts.fullName ?? null,
+      primaryRole: extracted.facts.primaryRole ?? null,
+      preferredLocation: extracted.facts.preferredLocation ?? null,
+      currentJobSituation: extracted.facts.currentJobSituation ?? null,
+      employmentObjective: extracted.facts.employmentObjective ?? null,
+      contractPreference: extracted.facts.contractPreference ?? null,
+      workRate: extracted.facts.workRate ?? null,
+      workPermitStatus: extracted.facts.workPermitStatus ?? null,
+      salaryExpectation: extracted.facts.salaryExpectation ?? null,
+      qualificationsCount: extracted.facts.qualifications?.length ?? 0
     };
 
-    console.log("[CV Extraction] Profile seeds:", JSON.stringify(profileSeeds, null, 2));
+    console.log("[CV Extraction] Profile seeds (from extracted facts only):", JSON.stringify(profileSeeds, null, 2));
     console.log("[CV Extraction] Upsert complete - returning results");
 
     return {
