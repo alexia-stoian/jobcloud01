@@ -211,20 +211,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Check if user is stating a target role (career goal)
       const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
       
-      // If target role is detected or not yet set, update it
-      if (detectedTargetRole && profile?.onboardingSession) {
-        profile = await db.candidateProfile.update({
-          where: { id: profile.id },
-          data: {
-            onboardingSession: {
-              update: {
-                targetRole: detectedTargetRole
-              }
-            }
-          },
-          include: { qualifications: true, onboardingSession: true }
+      // If target role is detected, update it directly in the onboarding session
+      if (detectedTargetRole && onboardingSession) {
+        console.log("[Profile Collection] Detected targetRole:", detectedTargetRole);
+        
+        // Update onboarding session directly
+        const updatedSession = await db.onboardingSession.update({
+          where: { userId: session.user.id },
+          data: { targetRole: detectedTargetRole }
         });
-        console.log("[Target Role Detection] Updated targetRole to:", detectedTargetRole);
+        onboardingSession = updatedSession;
+        console.log("[Profile Collection] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
+        
+        // Also update profile's targetRoles field for consistency
+        if (profile) {
+          await db.candidateProfile.update({
+            where: { id: profile.id },
+            data: { targetRoles: detectedTargetRole }
+          });
+        }
       } else if (!onboardingSession?.targetRole && userMessage.length > 10) {
         // If target role is still not set after CV upload, ask for it
         if (onboardingSession?.cvExtractedFacts && Object.keys(onboardingSession.cvExtractedFacts).length > 0) {
