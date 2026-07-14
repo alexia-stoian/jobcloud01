@@ -20,11 +20,21 @@ export function detectTargetRoleFromMessage(message: string): string | null {
 
   // Keywords that indicate the user is stating their target/desired role
   const intentPatterns = [
-    /(?:want|like|aim|goal|target|pursue|transition|become|apply for|interested in|looking for).*?(?:role|position|job|work).*?(?:as|in)?\s+([a-z\s&\-]+?)(?:\.|,|$)/i,
-    /(?:want to|would like to|aim to|goal is to|target is|pursuing).*?(?:work|role|position)?\s+(?:as|in)?\s+([a-z\s&\-]+?)(?:\.|,|$)/i,
+    // "I want to become a Solutions Architect" / "I'd like to become a PM"
+    /(?:want to|would like to|like to|aim to|hoping to|plan to|trying to|looking to|going to)\s+become\s+(?:a\s+|an\s+)?([a-z][a-z\s&\-]+?)(?:\.|,|!|\?|$)/i,
+    // "I want to be a Solutions Architect"
+    /(?:want to|would like to|like to|aim to|hoping to)\s+be\s+(?:a\s+|an\s+)?([a-z][a-z\s&\-]+?)(?:\.|,|!|\?|$)/i,
+    // "become a Solutions Architect" (without "want to")
+    /\bbecome\s+(?:a\s+|an\s+)?([a-z][a-z\s&\-]{3,}?)(?:\s+(?:role|position))?\s*(?:\.|,|!|\?|$)/i,
+    // "I'm targeting / pursuing Solutions Architect role"
+    /(?:targeting|pursuing|transition(?:ing)? to|transitioning into)\s+(?:a\s+|an\s+)?([a-z][a-z\s&\-]+?)\s+(?:role|position|job)s?/i,
+    // Original patterns for role/position variants
+    /(?:want|like|aim|goal|target|pursue|apply for|interested in|looking for).*?(?:role|position|job|work).*?(?:as|in)?\s+([a-z\s&\-]+?)(?:\.|,|$)/i,
     /(?:seeking|looking for).*?(?:role|position)(?:\s+(?:in|as))?\s+([a-z\s&\-]+?)(?:\.|,|$)/i,
     /career goal[:\s]+([a-z\s&\-]+?)(?:\.|,|$)/i,
     /(?:target|desired) (?:role|position|job)[:\s]+([a-z\s&\-]+?)(?:\.|,|$)/i,
+    // "my goal is to work as a Solutions Architect"
+    /(?:goal is to|aim is to).*?(?:work|work as|become|be)\s+(?:a\s+|an\s+)?([a-z][a-z\s&\-]+?)(?:\.|,|!|\?|$)/i,
   ];
 
   for (const pattern of intentPatterns) {

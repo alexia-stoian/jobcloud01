@@ -39,7 +39,7 @@ export function buildDurableProfileMemory(input: {
       currentJobSituation: input.profile.currentJobSituation,
       employmentObjective: input.profile.employmentObjective,
       primaryRole: input.profile.primaryRole,
-      targetRole: input.profile.targetRoles || input.onboardingSession?.targetRole,  // Include target role from profile or onboarding session
+      targetRole: (input.profile.targetRoles || input.onboardingSession?.targetRole) ?? null,  // Include target role from profile or onboarding session
       preferredLocation: input.profile.preferredLocation,
       contractPreference: input.profile.contractPreference,
       workRate: input.profile.workRate,

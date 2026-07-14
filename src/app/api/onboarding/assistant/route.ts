@@ -166,9 +166,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
           onboardingSession = newSession;
           console.log("[Existing User] Created missing onboarding session for:", session.user.id);
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Session might already exist but wasn't found - try to update it and fetch
-          if (err.code === 'P2002') {
+          if ((err as { code?: string }).code === 'P2002') {
             const existing = await db.onboardingSession.findUnique({
               where: { userId: session.user.id }
             });
@@ -215,6 +215,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             where: { userId: session.user.id },
             data: { targetRoles: detectedGlobalTargetRole }
           });
+          // CRITICAL: Reload profile after update so in-memory object is fresh
+          profile = await db.candidateProfile.findUnique({
+            where: { userId: session.user.id },
+            include: { qualifications: true }
+          }) || profile;
+          console.log("[GLOBAL] Reloaded profile.targetRoles:", profile.targetRoles);
         }
       } catch (error: unknown) {
         console.error("[GLOBAL] ERROR updating targetRole:", error);
@@ -375,9 +381,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           profileMemory: profile ? buildDurableProfileMemory({
             profile,
             qualifications: profile.qualifications,
-            onboardingSession: profile.onboardingSession
+            onboardingSession: onboardingSession  // Use the separately-loaded session, not profile.onboardingSession
           }) : undefined,
-          onboardingSession: profile?.onboardingSession
+          onboardingSession: onboardingSession  // Also use the correct session object
         });
         newState = state;
       } else if (
@@ -555,12 +561,24 @@ ${localeInstruction}`;
       });
     }
 
-    // ===== STEP 3: Persist locale preference (state is transient per session) =====
-    if (profile && profile.locale !== locale) {
-      await db.candidateProfile.update({
-        where: { id: profile.id },
-        data: { locale }
-      });
+    // ===== STEP 3: Persist state changes and locale preference =====
+    if (profile) {
+      // Save updated assistant state if it changed
+      if (newState && newState !== state) {
+        console.log("[State Persistence] Saving newState:", newState.currentPhase);
+        await db.candidateProfile.update({
+          where: { id: profile.id },
+          data: { assistantState: JSON.parse(JSON.stringify(newState)) }
+        });
+      }
+      
+      // Update locale if needed
+      if (profile.locale !== locale) {
+        await db.candidateProfile.update({
+          where: { id: profile.id },
+          data: { locale }
+        });
+      }
     }
 
     return NextResponse.json({ answer });
@@ -598,7 +616,8 @@ async function callAnthropicAssistant({
 
     // Determine max tokens based on content size
     // Large job postings need more tokens for comprehensive responses
-    const maxTokens = userMessage.length > 1000 ? 2048 : 1024;
+    // Use a high token limit to avoid truncating cover letters, mock interviews, and detailed responses
+    const maxTokens = 4096;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
