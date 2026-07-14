@@ -216,6 +216,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         userMessage.toLowerCase().includes("im ready") ||
         userMessage.toLowerCase().includes("i'm ready") ||
         userMessage.toLowerCase().includes("start the") ||
+        userMessage.toLowerCase().includes("just start") ||
         userMessage.toLowerCase().includes("go ahead")
       ) {
         // Wave 4: Interview Preparation Service
@@ -228,6 +229,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           userMessage.toLowerCase().includes("im ready") ||
           userMessage.toLowerCase().includes("i'm ready") ||
           userMessage.toLowerCase().includes("start the") ||
+          userMessage.toLowerCase().includes("just start") ||
           userMessage.toLowerCase().includes("go ahead")
         ) && userMessage.length < 100; // Short message = likely a readiness signal
         const localeInstruction = getLocaleInstruction(locale);
