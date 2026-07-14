@@ -212,6 +212,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
     } else if (state.currentPhase === "services") {
+      // ===== CHECK FOR TARGET ROLE IN EVERY MESSAGE =====
+      // This ensures that even if user mentions a career goal in the services phase,
+      // we capture it (e.g., "give me PM interview questions")
+      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
+      if (detectedTargetRole && profile?.onboardingSession) {
+        profile = await db.candidateProfile.update({
+          where: { id: profile.id },
+          data: {
+            onboardingSession: {
+              update: {
+                targetRole: detectedTargetRole
+              }
+            }
+          },
+          include: { qualifications: true, onboardingSession: true }
+        });
+        console.log("[Target Role Detection] Services phase updated targetRole to:", detectedTargetRole);
+      }
+      
       // Check for off-topic queries first (Wave 5)
       const offTopicDetection = detectOffTopic(userMessage);
       if (offTopicDetection.isOffTopic) {
