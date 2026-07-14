@@ -108,6 +108,7 @@ model CandidateProfile {
   relocationWillingness String?
   commuteRadius         String?
   editorDraft           Json     @default("{}")
+  assistantState        Json     @default("{}")
   roleSuggestionsUsed   Boolean  @default(false)
   isMinimallyComplete   Boolean  @default(false)
   missingCriticalFields Json     @default("[]")
