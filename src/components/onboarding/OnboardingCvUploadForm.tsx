@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 type Props = {
   locale: "en" | "de" | "fr";
@@ -714,7 +715,13 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         <div className="img3-chat__right img3-chat__right--conversation">
           {history.map((entry, index) => (
             <div key={`${entry.role}-${index}-${entry.text}`} className={`img3-bubble ${entry.role === "user" ? "img3-bubble--user" : "img3-bubble--assistant"}`}>
-              <p className="img3-bubble__text img3-bubble__text--multiline">{entry.text}</p>
+              <div className="img3-bubble__text img3-bubble__text--multiline">
+                {entry.role === "assistant" ? (
+                  <ReactMarkdown>{entry.text}</ReactMarkdown>
+                ) : (
+                  <p>{entry.text}</p>
+                )}
+              </div>
               {entry.role === "assistant" && entry.options && entry.options.length > 0 && entry.field === currentQuestion?.field ? (
                 <div className="img3-options" role="group" aria-label={`Options for ${entry.field}`}>
                   {entry.options.map((option) => (

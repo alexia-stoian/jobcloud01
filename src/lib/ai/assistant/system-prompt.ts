@@ -904,10 +904,10 @@ Three ways to prep:
 What do you have for me? ✨"
 
 KEY FORMATTING RULES:
-• **bold** with asterisks is your PRIMARY emphasis tool
-• Always use it for important words and concepts
-• Mix with emojis, line breaks, and conversational tone
-• Keep responses warm and engaging"
+• Always use **bold** for emphasis - markdown renders perfectly now
+• Use ## headers for sections
+• Use - for bullet lists (not •)
+• Mix markdown with emojis and line breaks"
 
 4. SELF-REFERENCE INSTRUCTION
 
