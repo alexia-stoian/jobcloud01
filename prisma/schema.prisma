@@ -35,6 +35,7 @@ model User {
   resetTokens      PasswordResetToken[]
   authAuditEvent   AuthAuditEvent[]
   interviewSessions InterviewSession[]
+  completedResources CompletedResource[]
 }
 
 model Account {
@@ -227,4 +228,24 @@ model InterviewQuestion {
 
   @@index([sessionId])
   @@unique([sessionId, questionNum])
+}
+
+model CompletedResource {
+  id          String   @id @default(cuid())
+  userId      String
+  resourceId  String   // References resource from SKILL_RESOURCES database
+  skill       String   // Skill tag (e.g., "Python", "SQL")
+  resourceTitle String
+  completedAt DateTime @default(now())
+  rating      Int?     // 1-5 user rating
+  feedback    String?
+  timeSpent   Int?     // minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@index([userId, skill])
+  @@index([userId, completedAt])
 }
