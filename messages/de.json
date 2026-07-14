@@ -136,6 +136,7 @@
     "eyebrow": "Onboarding",
     "title": "Setzen Sie Ihr Onboarding fort",
     "lead": "Beantworten Sie ein paar kurze Fragen und wir bauen Ihr Profil Schritt fuer Schritt auf.",
+    "intro": "Schoen, Sie kennenzulernen 🙂 Ich begleite Sie Schritt fuer Schritt und speichere jede bestaetigte Antwort direkt in Ihrem Profil.",
     "cvLabel": "Profildetails",
     "cvPlaceholder": "Schreiben Sie hier Ihre Angaben...",
     "uploadCta": "Weiter",
@@ -143,6 +144,68 @@
     "uploadSuccess": "CV hochgeladen und Onboarding-Status aktualisiert.",
     "uploadFailed": "Der CV konnte gerade nicht verarbeitet werden.",
     "resultTitle": "Extrahierte Fakten",
-    "uncertainTitle": "Unklare Fakten"
+    "uncertainTitle": "Unklare Fakten",
+    "assistantUnavailable": "Der Assistent ist voruebergehend nicht verfuegbar. Bitte versuchen Sie es erneut.",
+    "saveFailed": "Ich konnte diese Antwort nicht speichern. Bitte versuchen Sie es erneut.",
+    "blockedFallback": "Dabei kann ich nicht helfen. Wir machen mit Ihrem Profil weiter.",
+    "answerFailed": "Ich konnte darauf gerade nicht antworten. Bitte versuchen Sie es erneut.",
+    "readingCv": "Ihr CV wird gelesen...",
+    "fileReadFailed": "Ich konnte diese Datei nicht lesen. Bitte versuchen Sie eine PDF- oder .txt-Datei.",
+    "cvSaveFailed": "CV gelesen, aber ich konnte die extrahierten Informationen nicht speichern. Bitte erneut versuchen.",
+    "cvAnalyzed": "Ihr CV wurde analysiert und Ihr Profil mit den sicher erkannten Informationen befuellt. Jetzt stelle ich die restlichen Praeferenzfragen, um Ihr Profil zu vervollstaendigen.",
+    "cvUploadedNoFacts": "CV hochgeladen. Ich konnte keine strukturierten Felder automatisch extrahieren - wir fuellen Ihr Profil gemeinsam weiter aus.",
+    "completeNoCv": "Super, Ihre Kern-Profildaten sind jetzt ausgefuellt. Naechster Schritt: Laden Sie Ihren CV hoch, damit ich Erfahrung und weitere Bereiche automatisch uebernehmen kann.",
+    "placeholderDefault": "Schreiben Sie Ihre Antwort hier",
+    "placeholderComplete": "Profil ist abgeschlossen. Sie koennen weiterhin Aenderungen eingeben.",
+    "offTrackNudge": "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
+    "questions": {
+      "fullName": {
+        "prompt": "Welchen Namen sollen wir in Ihrem Profil speichern?",
+        "reason": "Notwendig zur Identifizierung des Kandidatenprofils."
+      },
+      "primaryRole": {
+        "prompt": "Sollen wir Ihre Zielrolle auf {targetRole} setzen?",
+        "reason": "Bestaetigt die Rolle, auf die sich das restliche Onboarding konzentrieren soll."
+      },
+      "preferredLocation": {
+        "prompt": "Welchen Ort zielt Ihre naechste Stelle an?",
+        "reason": "Standort ist ein zentrales Matching-Signal."
+      },
+      "workPermitStatus": {
+        "prompt": "Wie ist Ihr Arbeitsbewilligungsstatus in der Schweiz?",
+        "reason": "Der Bewilligungsstatus beeinflusst die Stelleneignung."
+      },
+      "contractPreference": {
+        "prompt": "Bevorzugen Sie dauerhafte oder befristete Vertraege?",
+        "reason": "Dies hilft, das Matching zu verfeinern."
+      }
+    },
+    "redirects": {
+      "scopeGuard": "Dabei kann ich nicht helfen. Wir machen mit Ihrem Profil weiter.",
+      "scopeGuardReason": "Die Nachricht liegt ausserhalb des Onboarding-Umfangs.",
+      "complete": "Keine ungeloesten Fragen mehr.",
+      "completeReason": "Ihr Profil ist abgeschlossen und bereit."
+    },
+    "errors": {
+      "unauthorized": "Nicht authentifiziert. Bitte melden Sie sich an.",
+      "invalidPayload": "Ungueltige Anfrage. Bitte ueberpruefen Sie Ihre Eingabe.",
+      "notStarted": "Onboarding nicht gestartet. Bitte laden Sie zuerst einen CV hoch.",
+      "notFound": "Sitzung nicht gefunden."
+    }
+  },
+  "guidance": {
+    "pageTitle": "Karriereführer",
+    "pageSubtitle": "Personalisiertes Coaching basierend auf Ihrem gespeicherten Profil 🎯",
+    "loading": "Analysieren Sie Ihr Profil und generieren Sie personalisierte Anleitung…",
+    "errorIncomplete": "Wir können die Anleitung jetzt nicht laden. Stellen Sie sicher, dass Ihr Profil mindestens eine Zielrolle und einen Standort enthält, und versuchen Sie es erneut.",
+    "retryButton": "Erneut versuchen",
+    "metaTimeLabel": "Generiert",
+    "sections": {
+      "nextSteps": "Ihre nächsten Schritte 🎯",
+      "interviewPrep": "Vorbereitung auf das Interview 💬",
+      "skillGaps": "Fähigkeiten zum Stärken 📈",
+      "salary": "Gehaltsberatung 💰",
+      "readiness": "Profilbereitschaft 🔍"
+    }
   }
 }

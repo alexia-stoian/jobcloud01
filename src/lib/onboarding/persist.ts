@@ -128,7 +128,7 @@ export async function upsertOnboardingCvExtraction(input: {
         currentStep: "questioning",
         cvFileName: input.fileName ?? null,
         cvMimeType: input.mimeType ?? null,
-        targetRole: extracted.facts.primaryRole,
+        targetRole: null,
         cvExtractedFacts: extracted.facts,
         cvUncertainFacts: extracted.uncertainFacts,
         conversationHistory: [],
@@ -143,7 +143,6 @@ export async function upsertOnboardingCvExtraction(input: {
         currentStep: "questioning",
         cvFileName: input.fileName ?? null,
         cvMimeType: input.mimeType ?? null,
-        targetRole: extracted.facts.primaryRole,
         cvExtractedFacts: extracted.facts,
         cvUncertainFacts: extracted.uncertainFacts,
         lastInteractedAt: new Date()

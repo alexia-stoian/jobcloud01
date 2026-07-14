@@ -27,13 +27,15 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  profile        CandidateProfile?
+  accounts         Account[]
+  sessions         Session[]
+  profile          CandidateProfile?
   onboardingSession OnboardingSession?
-  verifyTokens   VerificationToken[] @relation("verify_token_user")
-  resetTokens    PasswordResetToken[]
-  authAuditEvent AuthAuditEvent[]
+  verifyTokens     VerificationToken[] @relation("verify_token_user")
+  resetTokens      PasswordResetToken[]
+  authAuditEvent   AuthAuditEvent[]
+  interviewSessions InterviewSession[]
+  completedResources CompletedResource[]
 }
 
 model Account {
@@ -108,6 +110,7 @@ model CandidateProfile {
   relocationWillingness String?
   commuteRadius         String?
   editorDraft           Json     @default("{}")
+  assistantState        Json     @default("{}")
   roleSuggestionsUsed   Boolean  @default(false)
   isMinimallyComplete   Boolean  @default(false)
   missingCriticalFields Json     @default("[]")
@@ -184,4 +187,65 @@ model AuthAuditEvent {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([action, createdAt])
+}
+
+model InterviewSession {
+  id              String   @id @default(cuid())
+  userId          String
+  interviewType   String   // "behavioral" | "technical" | "case-study" | "cultural-fit"
+  targetRole      String?
+  locale          String   @default("en")
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  overallScore    Int?     // 0-100
+  strengths       Json     @default("[]")
+  improvements    Json     @default("[]")
+  recommendations Json     @default("[]")
+  userRating      Int?     // 1-5 user's rating
+  userFeedback    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions InterviewQuestion[]
+
+  @@index([userId, createdAt])
+  @@index([userId, interviewType])
+}
+
+model InterviewQuestion {
+  id          String   @id @default(cuid())
+  sessionId   String
+  questionNum Int      // 1-7 for question order
+  question    String
+  userAnswer  String?
+  feedback    String?
+  score       Int?     // 0-100
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@unique([sessionId, questionNum])
+}
+
+model CompletedResource {
+  id          String   @id @default(cuid())
+  userId      String
+  resourceId  String   // References resource from SKILL_RESOURCES database
+  skill       String   // Skill tag (e.g., "Python", "SQL")
+  resourceTitle String
+  completedAt DateTime @default(now())
+  rating      Int?     // 1-5 user rating
+  feedback    String?
+  timeSpent   Int?     // minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@index([userId, skill])
+  @@index([userId, completedAt])
 }

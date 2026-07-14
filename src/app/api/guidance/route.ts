@@ -3,6 +3,7 @@ import { auth } from "@/auth/config";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
+import { computeCompletion } from "@/lib/profile/completion-gate";
 
 type AnthropicTextContent = {
   type: "text";
@@ -95,9 +96,32 @@ async function callAnthropic(prompt: string, locale: string): Promise<string | n
     });
 
     const data = (await response.json()) as AnthropicResponse;
-    if (!response.ok) return null;
-    return data.content?.find((p) => p.type === "text")?.text?.trim() ?? null;
-  } catch {
+    if (!response.ok) {
+      // Log error but don't throw - return null for graceful fallback
+      console.error("Anthropic API error:", data.error?.message);
+      return null;
+    }
+    
+    const responseText = data.content?.find((p) => p.type === "text")?.text?.trim() ?? null;
+    
+    // Validate response is valid JSON
+    if (responseText) {
+      try {
+        JSON.parse(responseText);
+        return responseText;
+      } catch {
+        // Response is not valid JSON, return null for graceful fallback
+        console.error("Anthropic response is not valid JSON");
+        return null;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    // Log timeout or fetch errors but don't throw
+    if (error instanceof Error) {
+      console.error("Anthropic fetch error:", error.message);
+    }
     return null;
   } finally {
     clearTimeout(timeout);
@@ -130,6 +154,15 @@ export async function GET(): Promise<NextResponse> {
 
   if (!profile) {
     return NextResponse.json({ error: "profile_not_found" }, { status: 404 });
+  }
+
+  const completion = computeCompletion(profile);
+  if (!completion.isMinimallyComplete) {
+    return NextResponse.json({
+      error: "profile_incomplete",
+      missingFields: completion.missingCriticalFields,
+      message: "Please complete your profile with target role and location before requesting guidance."
+    }, { status: 400 });
   }
 
   const memory = buildDurableProfileMemory({

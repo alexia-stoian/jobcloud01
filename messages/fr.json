@@ -136,6 +136,7 @@
     "eyebrow": "Onboarding",
     "title": "Poursuivez votre onboarding",
     "lead": "Repondez a quelques questions rapides et nous preparerons votre profil etape par etape.",
+    "intro": "Ravi de vous rencontrer 🙂 Je vous guide etape par etape et j'enregistre chaque reponse confirmee directement dans votre profil.",
     "cvLabel": "Details du profil",
     "cvPlaceholder": "Ecrivez vos informations ici...",
     "uploadCta": "Continuer",
@@ -143,6 +144,68 @@
     "uploadSuccess": "CV importe et etat d'onboarding mis a jour.",
     "uploadFailed": "Impossible de traiter le CV pour le moment.",
     "resultTitle": "Faits extraits",
-    "uncertainTitle": "Faits incertains"
+    "uncertainTitle": "Faits incertains",
+    "assistantUnavailable": "L'assistant est temporairement indisponible. Veuillez reessayer.",
+    "saveFailed": "Je n'ai pas pu enregistrer cette reponse. Veuillez reessayer.",
+    "blockedFallback": "Je ne peux pas aider sur ce point. Continuons avec votre profil.",
+    "answerFailed": "Je ne peux pas repondre a cela pour le moment. Veuillez reessayer.",
+    "readingCv": "Lecture de votre CV...",
+    "fileReadFailed": "Je n'ai pas pu lire ce fichier. Essayez un PDF ou un fichier .txt.",
+    "cvSaveFailed": "CV analyse, mais je n'ai pas pu enregistrer les informations extraites. Veuillez reessayer.",
+    "cvAnalyzed": "Votre CV a ete analyse et votre profil a ete complete avec les informations detectees avec confiance. Je vais maintenant poser les questions de preference restantes pour finaliser votre profil.",
+    "cvUploadedNoFacts": "CV televerse. Je n'ai pas pu extraire automatiquement des champs structures - continuons a completer votre profil ensemble.",
+    "completeNoCv": "Parfait, les champs essentiels de votre profil sont remplis. Prochaine etape: televerser votre CV pour que je complete automatiquement l'experience et les sections restantes.",
+    "placeholderDefault": "Ecrivez votre reponse ici",
+    "placeholderComplete": "Profil termine. Vous pouvez encore saisir des modifications.",
+    "offTrackNudge": "Cela ne semble pas repondre a la question. Restons sur le sujet:",
+    "questions": {
+      "fullName": {
+        "prompt": "Quel nom devons-nous enregistrer dans votre profil ?",
+        "reason": "Necessaire pour identifier le profil du candidat."
+      },
+      "primaryRole": {
+        "prompt": "Devons-nous definir votre role cible a {targetRole} ?",
+        "reason": "Confirme le role sur lequel le reste de l'onboarding doit se concentrer."
+      },
+      "preferredLocation": {
+        "prompt": "Quel lieu visez-vous pour votre prochain poste ?",
+        "reason": "Le lieu est un signal de correspondance essentiel."
+      },
+      "workPermitStatus": {
+        "prompt": "Quel est votre statut d'autorisation de travail en Suisse ?",
+        "reason": "Le statut d'autorisation affecte l'admissibilite au poste."
+      },
+      "contractPreference": {
+        "prompt": "Preferez-vous un travail permanent ou a duree determinee ?",
+        "reason": "Cela aide a affiner la correspondance."
+      }
+    },
+    "redirects": {
+      "scopeGuard": "Je ne peux pas aider sur ce point. Continuons avec votre profil.",
+      "scopeGuardReason": "Le message est en dehors du champ d'application de l'onboarding.",
+      "complete": "Aucune question non resolue restante.",
+      "completeReason": "Votre profil est termine et pret."
+    },
+    "errors": {
+      "unauthorized": "Non authentifie. Veuillez vous connecter.",
+      "invalidPayload": "Demande invalide. Veuillez verifier votre saisie.",
+      "notStarted": "Onboarding non commence. Veuillez d'abord telecharger un CV.",
+      "notFound": "Session non trouvee."
+    }
+  },
+  "guidance": {
+    "pageTitle": "Guide de carrière",
+    "pageSubtitle": "Coaching personnalisé basé sur votre profil enregistré 🎯",
+    "loading": "Analyse de votre profil et génération de conseils personnalisés…",
+    "errorIncomplete": "Nous ne pouvons pas charger les conseils en ce moment. Assurez-vous que votre profil contient au moins un rôle cible et un lieu, puis réessayez.",
+    "retryButton": "Réessayer",
+    "metaTimeLabel": "Généré",
+    "sections": {
+      "nextSteps": "Vos prochaines étapes 🎯",
+      "interviewPrep": "Préparation à l'entrevue 💬",
+      "skillGaps": "Compétences à renforcer 📈",
+      "salary": "Conseils salariaux 💰",
+      "readiness": "Disponibilité du profil 🔍"
+    }
   }
 }
