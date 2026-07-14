@@ -208,9 +208,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         userMessage.toLowerCase().includes("interview") ||
         userMessage.toLowerCase().includes("mock") ||
         userMessage.toLowerCase().includes("practice") ||
-        userMessage.toLowerCase().includes("question")
+        userMessage.toLowerCase().includes("question") ||
+        userMessage.toLowerCase().includes("ready") ||
+        userMessage.toLowerCase().includes("let's go") ||
+        userMessage.toLowerCase().includes("let's start") ||
+        userMessage.toLowerCase().includes("begin") ||
+        userMessage.toLowerCase().includes("im ready") ||
+        userMessage.toLowerCase().includes("i'm ready") ||
+        userMessage.toLowerCase().includes("start the") ||
+        userMessage.toLowerCase().includes("go ahead")
       ) {
         // Wave 4: Interview Preparation Service
+        // Check if this looks like a readiness signal for an already-planned interview
+        const isReadinessSignal = (
+          userMessage.toLowerCase().includes("ready") ||
+          userMessage.toLowerCase().includes("let's go") ||
+          userMessage.toLowerCase().includes("let's start") ||
+          userMessage.toLowerCase().includes("begin") ||
+          userMessage.toLowerCase().includes("im ready") ||
+          userMessage.toLowerCase().includes("i'm ready") ||
+          userMessage.toLowerCase().includes("start the") ||
+          userMessage.toLowerCase().includes("go ahead")
+        ) && userMessage.length < 100; // Short message = likely a readiness signal
         const localeInstruction = getLocaleInstruction(locale);
         
         // Check if user provided a job posting (usually long text with role/company info)
@@ -227,7 +246,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         let systemPromptForInterview: string;
         let processedMessage: string;
 
-        if (isJobPosting) {
+        if (isReadinessSignal) {
+          // User is signaling they're ready - start the mock interview immediately
+          systemPromptForInterview = `You are a professional interview coach conducting a realistic mock interview.
+
+CRITICAL: The user has indicated they are READY TO START. Do NOT ask what they want to do. Do NOT recap services. START THE INTERVIEW IMMEDIATELY.
+
+YOUR TASK RIGHT NOW:
+1. Use the user's profile information (target role, location, background, skills) that you have access to
+2. Start the mock interview in PROFESSIONAL HIRING MANAGER MODE 👔
+3. Ask the FIRST INTERVIEW QUESTION based on their target role
+4. Use a formal, realistic tone - minimal emojis
+5. Wait for their answer
+
+INTERVIEW FLOW:
+- Question 1: "Tell me about yourself and why you're interested in this role"
+- For each answer they give: provide feedback (strengths, improvements, examples)
+- Ask 10-12 total questions covering behavioral, technical, and closing
+- After all questions: provide comprehensive feedback and action plan
+
+IMPORTANT: Skip all the setup/selection screens. Just START with the first question now.
+
+${localeInstruction}`;
+
+          // Process the message to indicate they're ready
+          processedMessage = `The user has indicated they are ready to begin the mock interview. Start immediately with the first interview question based on their target role. Do not ask what they want to do. Interview them on their target role.`;
+        } else if (isJobPosting) {
           // Job posting was provided - extract key info and generate targeted questions
           systemPromptForInterview = `You are an expert interview coach. The user has provided a job posting or role description.
 
