@@ -106,6 +106,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     });
 
+    console.log("[API Request] User:", session.user.id);
+    console.log("[API Request] Profile exists:", !!existingProfile);
+    console.log("[API Request] OnboardingSession exists:", !!existingProfile?.onboardingSession);
+    console.log("[API Request] OnboardingSession targetRole:", existingProfile?.onboardingSession?.targetRole);
+    console.log("[API Request] Full OnboardingSession:", JSON.stringify(existingProfile?.onboardingSession, null, 2));
+
     let profile = existingProfile;
     let state: AssistantState;
 
@@ -122,6 +128,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       profile = newProfile as typeof existingProfile;
       state = initialState;
+
+      // CRITICAL: Create onboarding session if it doesn't exist
+      if (!profile.onboardingSession) {
+        const newSession = await db.onboardingSession.create({
+          data: {
+            userId: session.user.id,
+            locale,
+            currentStep: "cv_upload"
+          }
+        });
+        // Reload profile to include the new session
+        profile = await db.candidateProfile.findUnique({
+          where: { userId: session.user.id },
+          include: { qualifications: true, onboardingSession: true }
+        });
+        console.log("[Profile Creation] Created new onboarding session for user:", session.user.id);
+      }
     } else {
       // Existing user - load state from DB
       state = (profile.assistantState as unknown as AssistantState) || createInitialAssistantState();
@@ -217,13 +240,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // we capture it (e.g., "give me PM interview questions")
       const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
       if (detectedTargetRole && profile?.onboardingSession) {
-        // Update the onboarding session with the new target role
-        await db.onboardingSession.update({
+        console.log("[Service Phase] Detected targetRole:", detectedTargetRole);
+        
+        // Step 1: Update onboarding session directly
+        const updatedSession = await db.onboardingSession.update({
           where: { userId: session.user.id },
           data: { targetRole: detectedTargetRole }
         });
+        console.log("[Service Phase] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
         
-        // CRITICAL: Reload profile to get the updated targetRole
+        // Step 2: Update profile's targetRoles field too
+        await db.candidateProfile.update({
+          where: { userId: session.user.id },
+          data: { targetRoles: detectedTargetRole }
+        });
+        
+        // Step 3: Reload the entire profile to get fresh data
         profile = await db.candidateProfile.findUnique({
           where: { userId: session.user.id },
           include: {
@@ -231,9 +263,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             onboardingSession: true
           }
         });
-        
-        console.log("[Target Role Detection] Services phase updated targetRole to:", detectedTargetRole);
-        console.log("[Target Role Detection] Profile reloaded, new targetRole:", profile?.onboardingSession?.targetRole);
+        console.log("[Service Phase] Reloaded profile, session.targetRole now:", profile?.onboardingSession?.targetRole);
       }
       
       // Check for off-topic queries first (Wave 5)
