@@ -277,14 +277,11 @@ ${localeInstruction}`;
       });
     }
 
-    // ===== STEP 3: Persist updated state to DB =====
-    if (profile) {
+    // ===== STEP 3: Persist locale preference (state is transient per session) =====
+    if (profile && profile.locale !== locale) {
       await db.candidateProfile.update({
         where: { id: profile.id },
-        data: {
-          assistantState: JSON.parse(JSON.stringify(newState)),
-          locale
-        }
+        data: { locale }
       });
     }
 
