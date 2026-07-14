@@ -101,18 +101,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const existingProfile = await db.candidateProfile.findUnique({
       where: { userId: session.user.id },
       include: {
-        qualifications: true,
-        onboardingSession: true
+        qualifications: true
       }
     });
 
+    // Load onboarding session separately (can't rely on include if profileId is null)
+    let existingOnboardingSession = null;
+    if (existingProfile) {
+      existingOnboardingSession = await db.onboardingSession.findUnique({
+        where: { userId: session.user.id }
+      }).catch(() => null);
+    }
+
     console.log("[API Request] User:", session.user.id);
     console.log("[API Request] Profile exists:", !!existingProfile);
-    console.log("[API Request] OnboardingSession exists:", !!existingProfile?.onboardingSession);
-    console.log("[API Request] OnboardingSession targetRole:", existingProfile?.onboardingSession?.targetRole);
-    console.log("[API Request] Full OnboardingSession:", JSON.stringify(existingProfile?.onboardingSession, null, 2));
+    console.log("[API Request] OnboardingSession exists:", !!existingOnboardingSession);
+    console.log("[API Request] OnboardingSession targetRole:", existingOnboardingSession?.targetRole);
 
     let profile = existingProfile;
+    let onboardingSession = existingOnboardingSession;
     let state: AssistantState;
 
     if (!profile) {
@@ -124,36 +131,68 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           locale,
           assistantState: JSON.parse(JSON.stringify(initialState))
         },
-        include: { qualifications: true, onboardingSession: true }
+        include: { qualifications: true }
       });
       profile = newProfile as typeof existingProfile;
       state = initialState;
 
-      // CRITICAL: Create onboarding session if it doesn't exist
-      if (!profile.onboardingSession) {
+      // CRITICAL: Create onboarding session linked to profile
+      if (profile && !onboardingSession) {
         const newSession = await db.onboardingSession.create({
           data: {
             userId: session.user.id,
+            profileId: profile.id,  // LINK TO PROFILE!
             locale,
             currentStep: "cv_upload"
           }
         });
-        // Reload profile to include the new session
-        profile = await db.candidateProfile.findUnique({
-          where: { userId: session.user.id },
-          include: { qualifications: true, onboardingSession: true }
-        });
-        console.log("[Profile Creation] Created new onboarding session for user:", session.user.id);
+        onboardingSession = newSession;
+        console.log("[Profile Creation] Created new onboarding session for user:", session.user.id, "linked to profile:", profile.id);
       }
     } else {
       // Existing user - load state from DB
       state = (profile.assistantState as unknown as AssistantState) || createInitialAssistantState();
+      
+      // Ensure onboarding session exists
+      if (!onboardingSession) {
+        try {
+          const newSession = await db.onboardingSession.create({
+            data: {
+              userId: session.user.id,
+              profileId: profile.id,
+              locale,
+              currentStep: "cv_upload"
+            }
+          });
+          onboardingSession = newSession;
+          console.log("[Existing User] Created missing onboarding session for:", session.user.id);
+        } catch (err: any) {
+          // Session might already exist but wasn't found - try to update it and fetch
+          if (err.code === 'P2002') {
+            const existing = await db.onboardingSession.findUnique({
+              where: { userId: session.user.id }
+            });
+            if (existing) {
+              onboardingSession = existing;
+              // Link to profile if not already linked
+              if (!existing.profileId && profile) {
+                onboardingSession = await db.onboardingSession.update({
+                  where: { userId: session.user.id },
+                  data: { profileId: profile.id }
+                });
+              }
+              console.log("[Existing User] Found and linked existing onboarding session to profile");
+            }
+          }
+        }
+      }
+      
       // Update locale if different
-      if (profile.locale !== locale) {
+      if (profile && profile.locale !== locale) {
         profile = await db.candidateProfile.update({
           where: { id: profile.id },
           data: { locale },
-          include: { qualifications: true, onboardingSession: true }
+          include: { qualifications: true }
         });
       }
     }
@@ -186,9 +225,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           include: { qualifications: true, onboardingSession: true }
         });
         console.log("[Target Role Detection] Updated targetRole to:", detectedTargetRole);
-      } else if (!profile?.onboardingSession?.targetRole && userMessage.length > 10) {
+      } else if (!onboardingSession?.targetRole && userMessage.length > 10) {
         // If target role is still not set after CV upload, ask for it
-        if (profile?.onboardingSession?.cvExtractedFacts && Object.keys(profile.onboardingSession.cvExtractedFacts).length > 0) {
+        if (onboardingSession?.cvExtractedFacts && Object.keys(onboardingSession.cvExtractedFacts).length > 0) {
           // CV was already extracted, ask what they want to become
           answer = getTargetRoleQuestion(locale);
           newState = state; // Stay in profile-collection until they specify
@@ -239,7 +278,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // This ensures that even if user mentions a career goal in the services phase,
       // we capture it (e.g., "give me PM interview questions")
       const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
-      if (detectedTargetRole && profile?.onboardingSession) {
+      if (detectedTargetRole && onboardingSession) {
         console.log("[Service Phase] Detected targetRole:", detectedTargetRole);
         
         // Step 1: Update onboarding session directly
@@ -248,22 +287,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           data: { targetRole: detectedTargetRole }
         });
         console.log("[Service Phase] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
+        onboardingSession = updatedSession;
         
         // Step 2: Update profile's targetRoles field too
-        await db.candidateProfile.update({
-          where: { userId: session.user.id },
-          data: { targetRoles: detectedTargetRole }
-        });
+        if (profile) {
+          await db.candidateProfile.update({
+            where: { userId: session.user.id },
+            data: { targetRoles: detectedTargetRole }
+          });
+        }
         
-        // Step 3: Reload the entire profile to get fresh data
-        profile = await db.candidateProfile.findUnique({
-          where: { userId: session.user.id },
-          include: {
-            qualifications: true,
-            onboardingSession: true
-          }
-        });
-        console.log("[Service Phase] Reloaded profile, session.targetRole now:", profile?.onboardingSession?.targetRole);
+        console.log("[Service Phase] Updated session.targetRole now:", onboardingSession.targetRole);
       }
       
       // Check for off-topic queries first (Wave 5)
@@ -422,8 +456,8 @@ ${localeInstruction}`;
 
           // Use targetRole from onboarding session (user's stated goal)
           // Fallback to primaryRole from CV if target is not yet explicitly set
-          const targetRole = profile?.onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
-          console.log("[Interview Prep] Profile targetRole from DB:", profile?.onboardingSession?.targetRole);
+          const targetRole = onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
+          console.log("[Interview Prep] Profile targetRole from DB:", onboardingSession?.targetRole);
           console.log("[Interview Prep] Profile primaryRole from CV:", profile?.primaryRole);
           console.log("[Interview Prep] Using targetRole:", targetRole);
           
@@ -438,9 +472,9 @@ ${localeInstruction}`;
           profileMemory: profile ? buildDurableProfileMemory({
             profile,
             qualifications: profile.qualifications,
-            onboardingSession: profile.onboardingSession
+            onboardingSession
           }) : undefined,
-          onboardingSession: profile?.onboardingSession
+          onboardingSession
         });
         newState = state;
       } else {
@@ -456,9 +490,9 @@ ${localeInstruction}`;
           profileMemory: profile ? buildDurableProfileMemory({
             profile,
             qualifications: profile.qualifications,
-            onboardingSession: profile.onboardingSession
+            onboardingSession
           }) : undefined,
-          onboardingSession: profile?.onboardingSession
+          onboardingSession
         });
         newState = state;
       }
@@ -475,9 +509,9 @@ ${localeInstruction}`;
         profileMemory: profile ? buildDurableProfileMemory({
           profile,
           qualifications: profile.qualifications,
-          onboardingSession: profile.onboardingSession
+          onboardingSession
         }) : undefined,
-        onboardingSession: profile?.onboardingSession
+        onboardingSession
       });
     }
 
