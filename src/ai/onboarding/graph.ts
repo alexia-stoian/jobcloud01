@@ -1,36 +1,70 @@
 import type { OnboardingGraphState } from "@/ai/onboarding/state";
 import { isOnboardingInScope, isHighImpactField } from "@/lib/onboarding/guards";
 import type { OnboardingQuestion, OnboardingQuestionPlan } from "@/lib/onboarding/types";
+import type { SupportedLocale } from "@/i18n/config";
+import { getQuestionPrompt, getQuestionReason } from "@/lib/onboarding/localization";
 
-function pickMissingQuestions(state: OnboardingGraphState): OnboardingQuestion[] {
+function pickMissingQuestions(state: OnboardingGraphState, locale: SupportedLocale): OnboardingQuestion[] {
   const questions: OnboardingQuestion[] = [];
   const facts = state.extractedFacts;
   const uncertain = state.uncertainFacts;
 
   if (!facts.fullName) {
-    questions.push({ id: "fullName", field: "fullName", text: "What name should we use on your profile?", required: true, reason: "Needed to identify the candidate profile." });
+    questions.push({ 
+      id: "fullName", 
+      field: "fullName", 
+      text: getQuestionPrompt(locale, "fullName"), 
+      required: true, 
+      reason: getQuestionReason(locale, "fullName") 
+    });
   }
 
   if (!facts.primaryRole && state.targetRole) {
-    questions.push({ id: "primaryRole", field: "primaryRole", text: `Should we set your target role to ${state.targetRole}?`, required: true, reason: "Confirms the role the rest of onboarding should optimize for." });
+    questions.push({ 
+      id: "primaryRole", 
+      field: "primaryRole", 
+      text: getQuestionPrompt(locale, "primaryRole", { targetRole: state.targetRole }), 
+      required: true, 
+      reason: getQuestionReason(locale, "primaryRole") 
+    });
   }
 
   if (!facts.preferredLocation) {
-    questions.push({ id: "preferredLocation", field: "preferredLocation", text: "Which location are you targeting for your next role?", required: true, reason: "Location is a core matching signal." });
+    questions.push({ 
+      id: "preferredLocation", 
+      field: "preferredLocation", 
+      text: getQuestionPrompt(locale, "preferredLocation"), 
+      required: true, 
+      reason: getQuestionReason(locale, "preferredLocation") 
+    });
   }
 
   if (!facts.workPermitStatus && uncertain.workPermitStatus) {
-    questions.push({ id: "workPermitStatus", field: "workPermitStatus", text: "What is your work permit status in Switzerland?", required: true, reason: "Permit status affects job eligibility." });
+    questions.push({ 
+      id: "workPermitStatus", 
+      field: "workPermitStatus", 
+      text: getQuestionPrompt(locale, "workPermitStatus"), 
+      required: true, 
+      reason: getQuestionReason(locale, "workPermitStatus") 
+    });
   }
 
   if (!facts.contractPreference) {
-    questions.push({ id: "contractPreference", field: "contractPreference", text: "Do you prefer permanent or fixed-term work?", required: false, reason: "This helps refine matching." });
+    questions.push({ 
+      id: "contractPreference", 
+      field: "contractPreference", 
+      text: getQuestionPrompt(locale, "contractPreference"), 
+      required: false, 
+      reason: getQuestionReason(locale, "contractPreference") 
+    });
   }
 
   return questions.slice(0, 4);
 }
 
 export function planNextOnboardingStep(state: OnboardingGraphState): OnboardingQuestionPlan | { redirect: string; reason: string } {
+  const locale = state.locale as SupportedLocale;
+  
   if (!isOnboardingInScope(state.userMessage)) {
     return {
       redirect: "onboarding_scope_guard",
@@ -38,7 +72,7 @@ export function planNextOnboardingStep(state: OnboardingGraphState): OnboardingQ
     };
   }
 
-  const questions = pickMissingQuestions(state).filter((question) => !state.skippedQuestionIds.includes(question.id));
+  const questions = pickMissingQuestions(state, locale).filter((question) => !state.skippedQuestionIds.includes(question.id));
   const primaryFocus = questions[0]?.reason ?? "Keep onboarding moving with the next unresolved profile item.";
 
   if (questions.length === 0) {

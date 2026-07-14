@@ -136,6 +136,7 @@
     "eyebrow": "Onboarding",
     "title": "Continue your onboarding",
     "lead": "Answer a few quick questions and we will prepare your profile step by step.",
+    "intro": "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away.",
     "cvLabel": "Profile details",
     "cvPlaceholder": "Write your details here...",
     "uploadCta": "Continue",
@@ -143,6 +144,53 @@
     "uploadSuccess": "CV uploaded and onboarding state updated.",
     "uploadFailed": "Unable to process the CV right now.",
     "resultTitle": "Extracted facts",
-    "uncertainTitle": "Uncertain facts"
+    "uncertainTitle": "Uncertain facts",
+    "assistantUnavailable": "Assistant is temporarily unavailable. Please try again.",
+    "saveFailed": "I could not save that answer. Please try again.",
+    "blockedFallback": "I cannot share that. Let us continue with your profile.",
+    "answerFailed": "I could not answer that right now. Please try again.",
+    "readingCv": "Reading your CV...",
+    "fileReadFailed": "I could not read this file. Please try a PDF or plain .txt file.",
+    "cvSaveFailed": "CV parsed but I could not save the extracted information. Please try again.",
+    "cvAnalyzed": "Your CV has been analyzed and your profile has been filled with the information I could confidently detect. I will now ask the remaining preference questions needed to complete your profile.",
+    "cvUploadedNoFacts": "CV uploaded. I could not extract structured fields automatically - let us continue filling in your profile together.",
+    "completeNoCv": "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically.",
+    "placeholderDefault": "Write your answer here",
+    "placeholderComplete": "Profile complete. You can still type changes anytime.",
+    "offTrackNudge": "That does not look like an answer to this question. Let us stay on track:",
+    "questions": {
+      "fullName": {
+        "prompt": "What name should we use on your profile?",
+        "reason": "Needed to identify the candidate profile."
+      },
+      "primaryRole": {
+        "prompt": "Should we set your target role to {targetRole}?",
+        "reason": "Confirms the role the rest of onboarding should optimize for."
+      },
+      "preferredLocation": {
+        "prompt": "Which location are you targeting for your next role?",
+        "reason": "Location is a core matching signal."
+      },
+      "workPermitStatus": {
+        "prompt": "What is your work permit status in Switzerland?",
+        "reason": "Permit status affects job eligibility."
+      },
+      "contractPreference": {
+        "prompt": "Do you prefer permanent or fixed-term work?",
+        "reason": "This helps refine matching."
+      }
+    },
+    "redirects": {
+      "scopeGuard": "I cannot help with that. Let us continue with your profile.",
+      "scopeGuardReason": "The message is outside job-search onboarding scope.",
+      "complete": "No unresolved questions remain.",
+      "completeReason": "Your profile is complete and ready."
+    },
+    "errors": {
+      "unauthorized": "Not authenticated. Please log in.",
+      "invalidPayload": "Invalid request. Please check your input.",
+      "notStarted": "Onboarding not started. Please upload a CV first.",
+      "notFound": "Session not found."
+    }
   }
 }
