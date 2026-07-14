@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
+import { detectTargetRoleFromMessage, getTargetRoleQuestion } from "@/lib/onboarding/detect-target-role";
 import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
@@ -26,12 +27,21 @@ type AnthropicResponse = {
   error?: { message?: string };
 };
 
-function buildMemoryPromptFragment(memory: ReturnType<typeof buildDurableProfileMemory>): string {
+function buildMemoryPromptFragment(
+  memory: ReturnType<typeof buildDurableProfileMemory>,
+  onboardingSession?: { targetRole?: string | null } | null
+): string {
   const qualList = memory.qualifications.map((q) => `${q.category}: ${q.value}`).join(", ") || "none listed";
+  
+  // Use targetRole from onboarding session if available (user's stated goal)
+  // Fallback to primaryRole if target is not yet set (user's current role from CV)
+  const targetRole = onboardingSession?.targetRole ?? memory.profile.primaryRole ?? "not yet specified";
+  
   return [
     "The user has the following confirmed profile — use it to personalise every answer:",
     `Goal: ${memory.profile.employmentObjective ?? "unknown"}.`,
-    `Target role: ${memory.profile.primaryRole ?? "unknown"}.`,
+    `Target role (what they want to become): ${targetRole}.`,
+    `Current/Primary role (from CV): ${memory.profile.primaryRole ?? "not listed on CV"}.`,
     `Location: ${memory.profile.preferredLocation ?? "unknown"}.`,
     `Current situation: ${memory.profile.currentJobSituation ?? "unknown"}.`,
     `Contract preference: ${memory.profile.contractPreference ?? "unknown"}.`,
@@ -39,6 +49,7 @@ function buildMemoryPromptFragment(memory: ReturnType<typeof buildDurableProfile
     `Permit status: ${memory.profile.workPermitStatus ?? "unknown"}.`,
     `Salary expectation: ${memory.profile.salaryExpectation ?? "unknown"}.`,
     `Qualifications: ${qualList}.`,
+    "CRITICAL: When the user tells you their desired role/career goal, REMEMBER IT and use that as their target, not their CV role.",
     "Do not re-ask for information already confirmed above. Use it directly when giving advice."
   ].join(" ");
 }
@@ -135,6 +146,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Transition out of greeting phase
       newState = transitionPhase(state, greeting.nextPhase);
     } else if (state.currentPhase === "profile-collection") {
+      // Check if user is stating a target role (career goal)
+      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
+      
+      // If target role is detected or not yet set, update it
+      if (detectedTargetRole && profile?.onboardingSession) {
+        profile = await db.candidateProfile.update({
+          where: { id: profile.id },
+          data: {
+            onboardingSession: {
+              update: {
+                targetRole: detectedTargetRole
+              }
+            }
+          },
+          include: { qualifications: true, onboardingSession: true }
+        });
+        console.log("[Target Role Detection] Updated targetRole to:", detectedTargetRole);
+      } else if (!profile?.onboardingSession?.targetRole && userMessage.length > 10) {
+        // If target role is still not set after CV upload, ask for it
+        if (profile?.onboardingSession?.cvExtractedFacts && Object.keys(profile.onboardingSession.cvExtractedFacts).length > 0) {
+          // CV was already extracted, ask what they want to become
+          answer = getTargetRoleQuestion(locale);
+          newState = state; // Stay in profile-collection until they specify
+          
+          // Save state and return
+          if (profile && state) {
+            await db.candidateProfile.update({
+              where: { id: profile.id },
+              data: { assistantState: JSON.parse(JSON.stringify(newState)) }
+            });
+          }
+          return NextResponse.json({ answer });
+        }
+      }
+      
       // Handle profile collection with Claude
       const systemPrompt = getSystemPrompt("profile", mode);
       const localeInstruction = getLocaleInstruction(locale);
@@ -148,7 +194,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           profile,
           qualifications: profile.qualifications,
           onboardingSession: profile.onboardingSession
-        }) : undefined
+        }) : undefined,
+        onboardingSession: profile?.onboardingSession
       });
       
       // Check if user has provided their name - if so, mark profile as started
@@ -201,7 +248,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             profile,
             qualifications: profile.qualifications,
             onboardingSession: profile.onboardingSession
-          }) : undefined
+          }) : undefined,
+          onboardingSession: profile?.onboardingSession
         });
         newState = state;
       } else if (
@@ -318,8 +366,9 @@ When the user answers a question, provide:
 
 ${localeInstruction}`;
 
-          // If they have profile info about target role, use it
-          const targetRole = profile?.primaryRole ?? "the target role";
+          // Use targetRole from onboarding session (user's stated goal)
+          // Fallback to primaryRole from CV if target is not yet explicitly set
+          const targetRole = profile?.onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
           processedMessage = `Help me prepare for interviews for ${targetRole} positions. ${userMessage}`;
         }
 
@@ -332,7 +381,8 @@ ${localeInstruction}`;
             profile,
             qualifications: profile.qualifications,
             onboardingSession: profile.onboardingSession
-          }) : undefined
+          }) : undefined,
+          onboardingSession: profile?.onboardingSession
         });
         newState = state;
       } else {
@@ -349,7 +399,8 @@ ${localeInstruction}`;
             profile,
             qualifications: profile.qualifications,
             onboardingSession: profile.onboardingSession
-          }) : undefined
+          }) : undefined,
+          onboardingSession: profile?.onboardingSession
         });
         newState = state;
       }
@@ -367,7 +418,8 @@ ${localeInstruction}`;
           profile,
           qualifications: profile.qualifications,
           onboardingSession: profile.onboardingSession
-        }) : undefined
+        }) : undefined,
+        onboardingSession: profile?.onboardingSession
       });
     }
 
@@ -394,20 +446,22 @@ async function callAnthropicAssistant({
   systemPrompt,
   anthropicApiKey,
   anthropicModel,
-  profileMemory
+  profileMemory,
+  onboardingSession
 }: {
   userMessage: string;
   systemPrompt: string;
   anthropicApiKey: string;
   anthropicModel: string;
   profileMemory?: ReturnType<typeof buildDurableProfileMemory>;
+  onboardingSession?: { targetRole?: string | null } | null;
 }): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000); // Increased timeout for large inputs
 
   try {
     const fullSystemPrompt = profileMemory
-      ? `${systemPrompt}\n\n${buildMemoryPromptFragment(profileMemory)}`
+      ? `${systemPrompt}\n\n${buildMemoryPromptFragment(profileMemory, onboardingSession)}`
       : systemPrompt;
 
     // Determine max tokens based on content size
