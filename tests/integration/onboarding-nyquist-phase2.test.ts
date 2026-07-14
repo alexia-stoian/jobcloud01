@@ -143,11 +143,15 @@ describe("phase 02 nyquist coverage", () => {
       salaryExpectation: null,
       qualifications: []
     });
-    dbMocks.profileQualification.deleteMany.mockResolvedValue({ count: 0 });
-    dbMocks.profileQualification.createMany.mockResolvedValue({ count: 1 });
     dbMocks.onboardingSession.upsert.mockResolvedValue({
       userId: "user-1",
-      currentStep: "questioning"
+      currentStep: "questioning",
+      cvExtractedFacts: {
+        fullName: "Alice Doe",
+        primaryRole: "QA Engineer",
+        qualifications: [{ category: "skill", value: "Playwright" }]
+      },
+      cvUncertainFacts: { workPermitStatus: "unclear" }
     });
 
     const result = await upsertOnboardingCvExtraction({
@@ -159,10 +163,12 @@ describe("phase 02 nyquist coverage", () => {
     });
 
     expect(result.extracted.uncertainFacts).toEqual({ workPermitStatus: "unclear" });
-    expect(dbMocks.profileQualification.createMany).toHaveBeenCalledWith({
-      data: [{ profileId: "profile-1", category: "skill", value: "Playwright" }]
-    });
+    // Qualifications should NOT be persisted to profile immediately
+    expect(dbMocks.profileQualification.createMany).not.toHaveBeenCalled();
+    // But should be available in onboarding session
     expect(dbMocks.onboardingSession.upsert).toHaveBeenCalled();
+    const upsertCall = dbMocks.onboardingSession.upsert.mock.calls[0];
+    expect(upsertCall[0].create?.cvExtractedFacts?.qualifications).toBeTruthy();
   });
 
   test("persists CV detail fidelity across scalar profile seeds and multi-category qualifications", async () => {
@@ -189,24 +195,21 @@ describe("phase 02 nyquist coverage", () => {
     });
 
     dbMocks.candidateProfile.findUnique.mockResolvedValue({ id: "profile-1" });
-    dbMocks.candidateProfile.update.mockResolvedValue({
-      id: "profile-1",
-      fullName: "Alice Doe",
-      primaryRole: "QA Engineer",
-      currentJobSituation: "Employed, open to opportunities",
-      employmentObjective: "Find a new job",
-      preferredLocation: "Zurich",
-      contractPreference: "Permanent",
-      workRate: "100%",
-      workPermitStatus: "C Permit",
-      salaryExpectation: "100k-120k CHF",
-      qualifications: []
-    });
-    dbMocks.profileQualification.deleteMany.mockResolvedValue({ count: 0 });
-    dbMocks.profileQualification.createMany.mockResolvedValue({ count: 3 });
     dbMocks.onboardingSession.upsert.mockResolvedValue({
       userId: "user-1",
-      currentStep: "questioning"
+      currentStep: "questioning",
+      cvExtractedFacts: {
+        fullName: "Alice Doe",
+        primaryRole: "QA Engineer",
+        preferredLocation: "Zurich",
+        workPermitStatus: "C Permit",
+        salaryExpectation: "100k-120k CHF",
+        qualifications: [
+          { category: "skill", value: "Playwright" },
+          { category: "framework", value: "Vitest" },
+          { category: "education", value: "BSc Computer Science" }
+        ]
+      }
     });
 
     const result = await upsertOnboardingCvExtraction({
@@ -217,14 +220,11 @@ describe("phase 02 nyquist coverage", () => {
       locale: "en"
     });
 
-    expect(dbMocks.profileQualification.createMany).toHaveBeenCalledWith({
-      data: [
-        { profileId: "profile-1", category: "skill", value: "Playwright" },
-        { profileId: "profile-1", category: "framework", value: "Vitest" },
-        { profileId: "profile-1", category: "education", value: "BSc Computer Science" }
-      ]
-    });
-
+    // Qualifications should NOT be persisted to profile immediately
+    expect(dbMocks.profileQualification.createMany).not.toHaveBeenCalled();
+    // Profile should NOT be updated with extracted facts
+    expect(dbMocks.candidateProfile.update).not.toHaveBeenCalled();
+    
     const upsertCall = dbMocks.onboardingSession.upsert.mock.calls[0]?.[0];
     expect(upsertCall.create.cvExtractedFacts).toMatchObject({
       fullName: "Alice Doe",
@@ -233,6 +233,12 @@ describe("phase 02 nyquist coverage", () => {
       workPermitStatus: "C Permit",
       salaryExpectation: "100k-120k CHF"
     });
+    // Verify qualifications are in extracted facts
+    expect(upsertCall.create.cvExtractedFacts.qualifications).toEqual([
+      { category: "skill", value: "Playwright" },
+      { category: "framework", value: "Vitest" },
+      { category: "education", value: "BSc Computer Science" }
+    ]);
     expect(result.extracted.uncertainFacts).toEqual({ languageRequirement: "German B2" });
   });
 

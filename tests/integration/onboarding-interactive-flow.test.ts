@@ -2,24 +2,23 @@ import { describe, expect, test } from "vitest";
 import { getInteractiveQuestionStateForMode } from "@/lib/onboarding/interactive";
 
 describe("onboarding interactive flow", () => {
-  test("starts with name for pre-CV users", () => {
+  test("starts with employment objective (goal) for pre-CV users", () => {
     const state = getInteractiveQuestionStateForMode({}, { hasCvUpload: false });
-    expect(state.question?.field).toBe("fullName");
+    expect(state.question?.field).toBe("employmentObjective");
   });
 
-  test("asks current role after name", () => {
-    const state = getInteractiveQuestionStateForMode({ fullName: "Alex" }, { hasCvUpload: false });
+  test("asks primary role after employment objective is answered", () => {
+    const state = getInteractiveQuestionStateForMode({ employmentObjective: "Find a new job" }, { hasCvUpload: false });
     expect(state.question?.field).toBe("primaryRole");
   });
 
-  test("includes not sure yet option on option-based questions", () => {
-    const state = getInteractiveQuestionStateForMode({ fullName: "Alex" }, { hasCvUpload: false });
-    const labels = state.question?.options?.map((option) => option.value) ?? [];
-    expect(labels).toContain("Not sure yet");
+  test("pre-CV questions support custom answers", () => {
+    const state = getInteractiveQuestionStateForMode({ employmentObjective: "Find a new job" }, { hasCvUpload: false });
+    expect(state.question?.allowCustom).toBe(true);
   });
 
-  test("post-CV flow starts with preferences", () => {
+  test("post-CV flow starts with preferred location", () => {
     const state = getInteractiveQuestionStateForMode({}, { hasCvUpload: true });
-    expect(state.question?.field).toBe("salaryExpectation");
+    expect(state.question?.field).toBe("preferredLocation");
   });
 });
