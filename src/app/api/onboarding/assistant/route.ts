@@ -4,9 +4,11 @@ import { env } from "@/lib/env";
 import { db } from "@/lib/db";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
-import { routeGreeting, generateProfileCollectionPrompt } from "@/lib/ai/assistant/greetings";
+import { routeGreeting } from "@/lib/ai/assistant/greetings";
 import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected } from "@/types/assistant-state";
+import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
+import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
 
 type AssistantRequestBody = {
   message?: string;
@@ -99,14 +101,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!profile) {
       // First time user - create profile with initial state
       const initialState = createInitialAssistantState();
-      profile = await db.candidateProfile.create({
+      const newProfile = await db.candidateProfile.create({
         data: {
           userId: session.user.id,
           locale,
-          assistantState: initialState as unknown as any
+          assistantState: JSON.parse(JSON.stringify(initialState))
         },
         include: { qualifications: true, onboardingSession: true }
       });
+      profile = newProfile as typeof existingProfile;
       state = initialState;
     } else {
       // Existing user - load state from DB
@@ -162,23 +165,86 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
     } else if (state.currentPhase === "services") {
-      // Handle services with Claude
-      const systemPrompt = getSystemPrompt("services", mode);
-      const localeInstruction = getLocaleInstruction(locale);
-      
-      answer = await callAnthropicAssistant({
-        userMessage,
-        systemPrompt: `${systemPrompt}\n\n${localeInstruction}`,
-        anthropicApiKey,
-        anthropicModel,
-        profileMemory: profile ? buildDurableProfileMemory({
-          profile,
-          qualifications: profile.qualifications,
-          onboardingSession: profile.onboardingSession
-        }) : undefined
-      });
+      // Check for off-topic queries first (Wave 5)
+      const offTopicDetection = detectOffTopic(userMessage);
+      if (offTopicDetection.isOffTopic) {
+        answer = generateOffTopicRedirect(offTopicDetection.category);
+        newState = state; // Don't change state for off-topic
+      } else if (isCoverLetterRequest(userMessage)) {
+        // Wave 2: Cover Letter Service
+        const result = await handleCoverLetterRequest(
+          userMessage,
+          profile!,
+          state,
+          undefined, // cvData could be loaded from profile if available
+          anthropicApiKey,
+          anthropicModel
+        );
+        answer = result.answer;
+        newState = result.newState;
+      } else if (
+        userMessage.toLowerCase().includes("cv") ||
+        userMessage.toLowerCase().includes("resume") ||
+        userMessage.toLowerCase().includes("improve") ||
+        userMessage.toLowerCase().includes("enhancement")
+      ) {
+        // Wave 3: CV Enhancement Service
+        // For now, use Claude directly, but structure for local analysis
+        const systemPrompt = getSystemPrompt("services", mode);
+        const localeInstruction = getLocaleInstruction(locale);
+        answer = await callAnthropicAssistant({
+          userMessage,
+          systemPrompt: `${systemPrompt}\n\nThe user is asking for CV improvement advice. Provide specific, actionable suggestions.\n\n${localeInstruction}`,
+          anthropicApiKey,
+          anthropicModel,
+          profileMemory: profile ? buildDurableProfileMemory({
+            profile,
+            qualifications: profile.qualifications,
+            onboardingSession: profile.onboardingSession
+          }) : undefined
+        });
+        newState = state;
+      } else if (
+        userMessage.toLowerCase().includes("interview") ||
+        userMessage.toLowerCase().includes("mock") ||
+        userMessage.toLowerCase().includes("practice") ||
+        userMessage.toLowerCase().includes("question")
+      ) {
+        // Wave 4: Interview Preparation Service
+        const systemPrompt = getSystemPrompt("services", mode);
+        const localeInstruction = getLocaleInstruction(locale);
+        answer = await callAnthropicAssistant({
+          userMessage,
+          systemPrompt: `${systemPrompt}\n\nThe user is asking for interview preparation help. Provide practice questions, feedback, or mock interview guidance.\n\n${localeInstruction}`,
+          anthropicApiKey,
+          anthropicModel,
+          profileMemory: profile ? buildDurableProfileMemory({
+            profile,
+            qualifications: profile.qualifications,
+            onboardingSession: profile.onboardingSession
+          }) : undefined
+        });
+        newState = state;
+      } else {
+        // Default: General career coaching
+        const systemPrompt = getSystemPrompt("services", mode);
+        const localeInstruction = getLocaleInstruction(locale);
+        
+        answer = await callAnthropicAssistant({
+          userMessage,
+          systemPrompt: `${systemPrompt}\n\n${localeInstruction}`,
+          anthropicApiKey,
+          anthropicModel,
+          profileMemory: profile ? buildDurableProfileMemory({
+            profile,
+            qualifications: profile.qualifications,
+            onboardingSession: profile.onboardingSession
+          }) : undefined
+        });
+        newState = state;
+      }
     } else {
-      // Default to services
+      // Default to services phase fallback
       const systemPrompt = getSystemPrompt("services", mode);
       const localeInstruction = getLocaleInstruction(locale);
       
@@ -200,7 +266,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await db.candidateProfile.update({
         where: { id: profile.id },
         data: {
-          assistantState: newState as unknown as any,
+          assistantState: JSON.parse(JSON.stringify(newState)),
           locale
         }
       });

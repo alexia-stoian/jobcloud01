@@ -10,8 +10,17 @@
  */
 
 import type { CandidateProfile } from "@prisma/client";
-import type { ExtractedCV } from "@/lib/cv/types";
-import Anthropic from "@anthropic-ai/sdk";
+import type { ExtractedCvFacts } from "@/lib/cv/extract";
+
+type AnthropicTextContent = {
+  type: "text";
+  text: string;
+};
+
+type AnthropicResponse = {
+  content?: AnthropicTextContent[];
+  error?: { message?: string };
+};
 
 export interface JobInfo {
   title: string;
@@ -24,7 +33,7 @@ export interface JobInfo {
 export interface CoverLetterRequest {
   jobInfo: JobInfo;
   userProfile: CandidateProfile;
-  cvData?: ExtractedCV;
+  cvData?: ExtractedCvFacts;
   refinementMode?: "expand" | "summarize" | "rewrite";
   targetWordCount?: number;
   currentDraft?: string;
@@ -149,33 +158,44 @@ export function inferRefinementMode(
 }
 
 /**
- * Generate cover letter with Anthropic API
+ * Generate cover letter with Anthropic API using fetch
  */
 export async function generateCoverLetter(
   request: CoverLetterRequest,
   anthropicApiKey: string,
   anthropicModel: string
 ): Promise<CoverLetterResponse> {
-  const client = new Anthropic({ apiKey: anthropicApiKey });
-
   // Build the prompt for cover letter generation
   const prompt = buildCoverLetterPrompt(request);
 
-  const response = await client.messages.create({
-    model: anthropicModel,
-    max_tokens: 1024,
-    messages: [
-      {
-        role: "user",
-        content: prompt
-      }
-    ]
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicApiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: anthropicModel,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    })
   });
 
-  // Extract the generated letter
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Anthropic");
+  if (!response.ok) {
+    throw new Error(`Anthropic API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as AnthropicResponse;
+  const content = data.content?.[0];
+
+  if (!content || content.type !== "text") {
+    throw new Error("Unexpected response format from Anthropic");
   }
 
   const letter = content.text;
@@ -221,7 +241,13 @@ function buildCoverLetterPrompt(request: CoverLetterRequest): string {
 
   if (cvData) {
     prompt += `CANDIDATE EXPERIENCE:\n`;
-    prompt += `${cvData.rawText || JSON.stringify(cvData)}\n\n`;
+    prompt += `Name: ${cvData.fullName || "Not provided"}\n`;
+    prompt += `Primary Role: ${cvData.primaryRole || "Not specified"}\n`;
+    prompt += `Current Situation: ${cvData.currentJobSituation || "Not specified"}\n`;
+    if (cvData.qualifications && cvData.qualifications.length > 0) {
+      prompt += `Qualifications: ${cvData.qualifications.map((q) => q.value).join(", ")}\n`;
+    }
+    prompt += `\n`;
   }
 
   if (refinementMode && currentDraft) {
@@ -255,7 +281,7 @@ function buildCoverLetterPrompt(request: CoverLetterRequest): string {
 function parseEmphasis(request: CoverLetterRequest, generatedLetter: string): string[] {
   const emphasis: string[] = [];
 
-  const { jobInfo, userProfile, cvData } = request;
+  const { jobInfo, userProfile } = request;
 
   // Look for skills/experience mentioned in the letter
   if (userProfile.primaryRole && generatedLetter.includes(userProfile.primaryRole)) {

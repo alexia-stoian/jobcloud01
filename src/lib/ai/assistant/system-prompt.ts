@@ -661,7 +661,7 @@ Now let's help this person land their dream job! 🚀🎯`;
  * @returns Full system prompt, potentially modified for mode
  */
 export function getSystemPrompt(
-  userPhase: "greeting" | "profile" | "cv-extraction" | "services" = "greeting",
+  _userPhase: "greeting" | "profile" | "cv-extraction" | "services" = "greeting",
   mode?: "normal" | "interviewer"
 ): string {
   let prompt = ASSISTANT_SYSTEM_PROMPT;
