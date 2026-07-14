@@ -192,5 +192,20 @@
       "notStarted": "Onboarding non commence. Veuillez d'abord telecharger un CV.",
       "notFound": "Session non trouvee."
     }
+  },
+  "guidance": {
+    "pageTitle": "Guide de carrière",
+    "pageSubtitle": "Coaching personnalisé basé sur votre profil enregistré 🎯",
+    "loading": "Analyse de votre profil et génération de conseils personnalisés…",
+    "errorIncomplete": "Nous ne pouvons pas charger les conseils en ce moment. Assurez-vous que votre profil contient au moins un rôle cible et un lieu, puis réessayez.",
+    "retryButton": "Réessayer",
+    "metaTimeLabel": "Généré",
+    "sections": {
+      "nextSteps": "Vos prochaines étapes 🎯",
+      "interviewPrep": "Préparation à l'entrevue 💬",
+      "skillGaps": "Compétences à renforcer 📈",
+      "salary": "Conseils salariaux 💰",
+      "readiness": "Disponibilité du profil 🔍"
+    }
   }
 }

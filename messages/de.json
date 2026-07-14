@@ -192,5 +192,20 @@
       "notStarted": "Onboarding nicht gestartet. Bitte laden Sie zuerst einen CV hoch.",
       "notFound": "Sitzung nicht gefunden."
     }
+  },
+  "guidance": {
+    "pageTitle": "Karriereführer",
+    "pageSubtitle": "Personalisiertes Coaching basierend auf Ihrem gespeicherten Profil 🎯",
+    "loading": "Analysieren Sie Ihr Profil und generieren Sie personalisierte Anleitung…",
+    "errorIncomplete": "Wir können die Anleitung jetzt nicht laden. Stellen Sie sicher, dass Ihr Profil mindestens eine Zielrolle und einen Standort enthält, und versuchen Sie es erneut.",
+    "retryButton": "Erneut versuchen",
+    "metaTimeLabel": "Generiert",
+    "sections": {
+      "nextSteps": "Ihre nächsten Schritte 🎯",
+      "interviewPrep": "Vorbereitung auf das Interview 💬",
+      "skillGaps": "Fähigkeiten zum Stärken 📈",
+      "salary": "Gehaltsberatung 💰",
+      "readiness": "Profilbereitschaft 🔍"
+    }
   }
 }

@@ -192,5 +192,20 @@
       "notStarted": "Onboarding not started. Please upload a CV first.",
       "notFound": "Session not found."
     }
+  },
+  "guidance": {
+    "pageTitle": "Career Guide",
+    "pageSubtitle": "Personalised coaching based on your saved profile 🎯",
+    "loading": "Analysing your profile and generating personalised guidance…",
+    "errorIncomplete": "Could not load guidance right now. Make sure your profile has at least a target role and location filled in, then try again.",
+    "retryButton": "Try again",
+    "metaTimeLabel": "Generated",
+    "sections": {
+      "nextSteps": "Your next steps 🎯",
+      "interviewPrep": "Interview preparation 💬",
+      "skillGaps": "Skills to strengthen 📈",
+      "salary": "Salary guidance 💰",
+      "readiness": "Profile readiness 🔍"
+    }
   }
 }
