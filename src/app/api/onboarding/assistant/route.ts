@@ -217,18 +217,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // we capture it (e.g., "give me PM interview questions")
       const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
       if (detectedTargetRole && profile?.onboardingSession) {
-        profile = await db.candidateProfile.update({
-          where: { id: profile.id },
-          data: {
-            onboardingSession: {
-              update: {
-                targetRole: detectedTargetRole
-              }
-            }
-          },
-          include: { qualifications: true, onboardingSession: true }
+        // Update the onboarding session with the new target role
+        await db.onboardingSession.update({
+          where: { userId: session.user.id },
+          data: { targetRole: detectedTargetRole }
         });
+        
+        // CRITICAL: Reload profile to get the updated targetRole
+        profile = await db.candidateProfile.findUnique({
+          where: { userId: session.user.id },
+          include: {
+            qualifications: true,
+            onboardingSession: true
+          }
+        });
+        
         console.log("[Target Role Detection] Services phase updated targetRole to:", detectedTargetRole);
+        console.log("[Target Role Detection] Profile reloaded, new targetRole:", profile?.onboardingSession?.targetRole);
       }
       
       // Check for off-topic queries first (Wave 5)
@@ -388,6 +393,10 @@ ${localeInstruction}`;
           // Use targetRole from onboarding session (user's stated goal)
           // Fallback to primaryRole from CV if target is not yet explicitly set
           const targetRole = profile?.onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
+          console.log("[Interview Prep] Profile targetRole from DB:", profile?.onboardingSession?.targetRole);
+          console.log("[Interview Prep] Profile primaryRole from CV:", profile?.primaryRole);
+          console.log("[Interview Prep] Using targetRole:", targetRole);
+          
           processedMessage = `Help me prepare for interviews for ${targetRole} positions. ${userMessage}`;
         }
 
