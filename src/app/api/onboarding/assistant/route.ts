@@ -211,11 +211,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         userMessage.toLowerCase().includes("question")
       ) {
         // Wave 4: Interview Preparation Service
-        const systemPrompt = getSystemPrompt("services", mode);
         const localeInstruction = getLocaleInstruction(locale);
+        const interviewPrompt = `You are a professional interview coach helping job seekers prepare for interviews. 
+
+Your role:
+- Ask practice interview questions relevant to the user's target role
+- Provide constructive feedback on answers using the STAR method (Situation, Task, Action, Result)
+- Give tips on how to improve responses
+- Help users feel confident and prepared
+
+When the user answers a question, provide:
+1. Positive feedback on what they did well
+2. Constructive suggestions for improvement
+3. An example of a stronger answer
+4. Ready for the next question
+
+If the user hasn't shared their target role or job details, ask for that first before starting interview practice.
+
+${localeInstruction}`;
         answer = await callAnthropicAssistant({
           userMessage,
-          systemPrompt: `${systemPrompt}\n\nThe user is asking for interview preparation help. Provide practice questions, feedback, or mock interview guidance.\n\n${localeInstruction}`,
+          systemPrompt: interviewPrompt,
           anthropicApiKey,
           anthropicModel,
           profileMemory: profile ? buildDurableProfileMemory({
