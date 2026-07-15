@@ -11,6 +11,7 @@ import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
+import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
 
 type AssistantRequestBody = {
   message?: string;
@@ -602,7 +603,41 @@ ${localeInstruction}`;
       });
     }
 
-    // ===== STEP 3: Persist state changes and locale preference =====
+    // ===== STEP 3: Auto-save interview Q&A if detected =====
+    if (state.currentPhase === "services" && state.services?.interviewPrep?.currentMode === "practice") {
+      // Try to detect if user answered an interview question
+      // Note: We need previous message to detect this properly
+      // For now, detect based on interview keywords and store opportunistically
+      const isLikelyInterviewAnswer = (
+        (userMessage.length > 50) && 
+        !userMessage.toLowerCase().startsWith("show me") &&
+        !userMessage.toLowerCase().startsWith("remind") &&
+        state.services?.interviewPrep?.practiceHistory?.length > 0
+      );
+
+      if (isLikelyInterviewAnswer && state.services?.interviewPrep?.practiceHistory?.length > 0) {
+        try {
+          // Get the last question from practice history
+          const lastEntry = state.services.interviewPrep.practiceHistory[
+            state.services.interviewPrep.practiceHistory.length - 1
+          ];
+          
+          if (lastEntry && !lastEntry.userAnswer) {
+            // Store this answer to artifacts
+            await storeInterviewQA(session.user.id, {
+              question: lastEntry.question,
+              answer: userMessage,
+              sessionId: state.services.interviewPrep.mockInterviewState?.startedAt
+            });
+          }
+        } catch (error) {
+          console.error("Failed to auto-save interview Q&A:", error);
+          // Don't fail the request - artifact storage is optional
+        }
+      }
+    }
+
+    // ===== STEP 4: Persist state changes and locale preference =====
     if (profile) {
       // Save updated assistant state if it changed
       if (newState && newState !== state) {
