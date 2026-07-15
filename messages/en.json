@@ -154,7 +154,7 @@
     "cvSaveFailed": "CV parsed but I could not save the extracted information. Please try again.",
     "cvAnalyzed": "Your CV has been analyzed and your profile has been filled with the information I could confidently detect. I will now ask the remaining preference questions needed to complete your profile.",
     "cvUploadedNoFacts": "CV uploaded. I could not extract structured fields automatically - let us continue filling in your profile together.",
-    "completeNoCv": "Great, your core profile fields are now filled. Next step: upload your CV so I can extract experience details and fill remaining profile sections automatically.",
+    "completeNoCv": "Excellent! 🎉 Your core profile is taking shape! Next, let's upload your CV so I can automatically extract your experience and fill in the remaining details. This saves you tons of time! ⚡",
     "placeholderDefault": "Write your answer here",
     "placeholderComplete": "Profile complete. You can still type changes anytime.",
     "offTrackNudge": "That does not look like an answer to this question. Let us stay on track:",

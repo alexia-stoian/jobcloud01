@@ -154,7 +154,7 @@
     "cvSaveFailed": "CV analyse, mais je n'ai pas pu enregistrer les informations extraites. Veuillez reessayer.",
     "cvAnalyzed": "Votre CV a ete analyse et votre profil a ete complete avec les informations detectees avec confiance. Je vais maintenant poser les questions de preference restantes pour finaliser votre profil.",
     "cvUploadedNoFacts": "CV televerse. Je n'ai pas pu extraire automatiquement des champs structures - continuons a completer votre profil ensemble.",
-    "completeNoCv": "Parfait, les champs essentiels de votre profil sont remplis. Prochaine etape: televerser votre CV pour que je complete automatiquement l'experience et les sections restantes.",
+    "completeNoCv": "Excellent! 🎉 Votre profil de base prend forme! Ensuite, televersons votre CV pour que j'extraie automatiquement votre experience et remplisse les details restants. Cela vous fait gagner du temps! ⚡",
     "placeholderDefault": "Ecrivez votre reponse ici",
     "placeholderComplete": "Profil termine. Vous pouvez encore saisir des modifications.",
     "offTrackNudge": "Cela ne semble pas repondre a la question. Restons sur le sujet:",
