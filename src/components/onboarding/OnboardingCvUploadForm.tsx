@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import RecruiterSignalsPanel from "./RecruiterSignalsPanel";
 
 type Props = {
   locale: "en" | "de" | "fr";
@@ -792,6 +793,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
             </div>
           ))}
           <div ref={messagesEndRef} aria-hidden="true" />
+          <RecruiterSignalsPanel refreshKey={history.length} />
         </div>
       </div>
 

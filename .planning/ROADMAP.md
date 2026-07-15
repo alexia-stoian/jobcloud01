@@ -11,7 +11,6 @@
 - [x] **Phase 2: CV-Aware Guided Onboarding** - Users can upload a CV and complete AI-led onboarding that asks role-relevant follow-up questions without locking in unconfirmed facts.
 - [x] **Phase 3: Durable Memory And Readiness** - Users get a reliable long-lived profile memory that reuses prior answers and shows what is complete versus what still needs clarification.
 - [x] **Phase 4: Personalized Job Guidance And Coaching** - Users receive profile-grounded next steps, interview preparation, salary guidance, and skill-improvement coaching.
-
 ## Phase Details
 
 ### Phase 1: Account, Language, And Candidate Profile Foundation
@@ -124,6 +123,27 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 6. Basic Artifact Memory | 0/1 | Not started | - |
+
+### Phase 7: Recruiter Signals Inference (Invisible)
+**Goal**: Recruiters (dev/admin layer only) get evidence-backed, continuously-updated confidence scores for 11 recruiter-relevant candidate signals, inferred invisibly from natural conversation, forced-choice questions, CV cross-referencing, and mock interviews — without the job seeker ever knowing signals are being measured.
+**Mode:** mvp
+**Depends on**: Phase 6 (artifact memory / DB + persistence layer), Phase 4 (mock interview, services), Phase 2 (onboarding + CV extraction)
+**Requirements**: SIGNAL-INFER-01, SIGNAL-CONFIDENCE-02, SIGNAL-EVIDENCE-03, SIGNAL-PERSIST-04, SIGNAL-NONDISCLOSURE-05, SIGNAL-ADMIN-UI-06, SIGNAL-QUESTION-DISCIPLINE-07
+**Success Criteria** (what must be TRUE):
+1. The system infers all 11 signals (4 motivation, 3 behavioral/fit, 4 skill/trajectory) with a 0–100% confidence score each, recalculated after every user input.
+2. Every score change is backed by explicit evidence (verbatim quotes / observed behaviors) and stored with contradiction flags and update history — fully auditable, never a blind guess.
+3. Signals persist to the candidate's profile DB and are reloaded/refined across sessions (not restarted), including cross-session consistency checks.
+4. Data is gathered through the 7 mechanisms (multi-signal questions, forced-choice prompts, CV contradiction detection, consistency checks, confidence-gap-driven targeting, passive response-style analysis, mock-interview mining) blended naturally into existing flows.
+5. Strict question discipline: every question either advances a real service need OR strategically targets a specific low-confidence signal while doubling as a genuinely helpful career question — no random/filler questions.
+6. Strict non-disclosure: the job seeker is never told signals exist, are measured, or influence anything; signals are never surfaced or reflected back in the user-facing conversation.
+7. A live "Recruiter Signals" panel (dev/admin/recruiter ONLY, right side of the onboarding conversation) shows each signal's live confidence bar, inferred value, and contradiction flags — not visible to the job seeker.
+8. All existing functionality (onboarding, CV extraction, cover letters, interview prep, coaching, artifact memory) remains unchanged.
+**Plans**: TBD
+**UI hint**: yes (dev/admin-only panel)
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 7. Recruiter Signals Inference | 0/1 | Not started | - |
 
 ---
 *Last updated: 2026-07-15 after Phase 5 merge, now starting Phase 6 (focused artifact memory)*

@@ -5,6 +5,7 @@ import { computeCompletion } from "@/lib/profile/completion-gate";
 import { getInteractiveQuestionStateForMode } from "@/lib/onboarding/interactive";
 import { canConfirmOnboardingField } from "@/lib/onboarding/confirm-policy";
 import { createInitialAssistantState } from "@/types/assistant-state";
+import { runInferenceSafely } from "@/lib/ai/signals/hook";
 
 type AnswerBody = {
   field?: string;
@@ -268,6 +269,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     commuteRadius: updatedProfile.commuteRadius
   }, {
     hasCvUpload
+  });
+
+  void runInferenceSafely({
+    userId: session.user.id,
+    newInput: `${field}: ${value}`,
+    source: "interactive_answer",
+    cvFacts: onboarding?.cvExtractedFacts
   });
 
   return NextResponse.json({

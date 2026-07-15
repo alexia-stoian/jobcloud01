@@ -1,0 +1,126 @@
+Build a new Recruiter Signals Inference phase for the AI career assistant on branch feature/ai-assistant-enhancement using open-gsd/gsd-core. This phase actively but invisibly gauges recruiter-relevant signals through natural conversation, strategically-designed questions, mock interviews, and CV cross-referencing during onboarding and all services - WITHOUT revealing to the user that these signals are being measured - then persists them across sessions and surfaces them to the recruiter-facing layer only.
+
+## OBJECTIVE
+Gauge 11 recruiter-relevant signals through a combination of passive inference, purposeful questioning, forced-choice prompts, multi-signal questions, CV contradiction detection, consistency checks, and confidence-gap-driven follow-ups. Each signal has a 0-100% confidence scale recalculated after EVERY user input. All inference is evidence-based (backed by actual statements/behaviors, never guesses). Persist everything between sessions. The user must NEVER know these signals exist or are being assessed.
+
+## THE 11 SIGNALS TO INFER
+
+**Category A: Motivation Profile (rank top 1-2 with evidence)**
+1. Money-driven — prioritizes compensation, negotiates hard, asks about salary/bonus early
+2. Stability-driven — values security, tenure, established companies, low-risk
+3. Personal-growth-driven — seeks learning, mentorship, new responsibilities
+4. Technical-growth-driven — seeks cutting-edge tech, skill depth, technical challenges
+
+**Category B: Behavioral & Fit Signals**
+5. Job-hopper pattern vs. circumstantial — analyze CV tenure; distinguish genuine pattern from circumstantial short stays. Store the REASON.
+6. Real primary motivation vs. stated — true underlying driver, flagged when it differs from what they claim.
+7. Behavior under stress/pressure — from mock interview performance and pressure/conflict/deadline answers.
+
+**Category C: Skill & Trajectory Signals**
+8. True skill proficiency vs. claimed level — gap between CV claims and demonstrated ability.
+9. Independent worker vs. needs supervision — from how they describe autonomy and decision-making.
+10. Sustained effort vs. early-enthusiasm-that-fades — from trajectory and follow-through evidence.
+11. Overqualified and likely to be bored — when seniority significantly exceeds target role demands.
+
+## DATA-GATHERING MECHANISMS
+
+### Mechanism 1: Multi-Signal Questions (Efficiency - reveal several markers at once)
+Prioritize questions that reveal MULTIPLE signals in a single answer. Examples (generate context-appropriate variations):
+- "Tell me about your favorite project ever - what was it and what was your role?" → reveals motivation (what they emphasize), skill depth (complexity described), independence (their role), sustained effort (did they finish it), enthusiasm patterns.
+- "What made you start looking for a new role?" → reveals real vs. stated motivation, stability vs. growth drivers.
+- "Describe your ideal workday." → reveals pace/stress preference, independence, motivation.
+Always extract and update ALL signals touched by a single answer, not just one.
+
+### Mechanism 2: Forced-Choice Questions (High Signal Density - clean, scorable answers)
+Use binary or ranked forced-choice prompts (with the multiple-choice button UI) to move confidence scores decisively instead of requiring fuzzy interpretation. Present them naturally and cheerfully. Examples:
+- "Quick one 🎯 - what matters most in your next role?" → [💰 Pay] [📚 Learning] [🛡️ Security] [🔧 Cutting-edge tech] → directly scores motivation profile
+- "Structure or freedom?" → [Clear direction] [Freedom to figure it out] → independence signal
+- "Work pace?" → [Fast & dynamic] [Steady & focused] → stress/pace signal
+- "Two offers: 20% more pay but boring, OR exciting but less pay - which?" → money vs. growth in one data point
+- "Deep expert in one area, or versatile across many?" → skill depth signal
+Each forced choice should decisively adjust the relevant score(s).
+
+### Mechanism 3: CV Cross-Reference & Contradiction Detection (sharpen evidence)
+Actively compare what the user SAYS against what their CV SHOWS. Flag and score mismatches:
+- CV shows 4 jobs in 3 years but user says "I value stability" → flag motivation mismatch (signal #6), lower stability confidence, note contradiction
+- User claims "expert in [skill]" but never references it in any story/answer → lower proficiency confidence (signal #8)
+- Senior title/experience applying to a junior target role → raise overqualification flag (signal #11)
+- Career trajectory shows consistent finishing of long projects → raise sustained-effort confidence (signal #10)
+Every contradiction is logged as evidence with the specific conflicting data points.
+
+### Mechanism 4: Consistency Checks Over Time (validate confidence)
+Ask the same underlying signal in DIFFERENT forms across the conversation and compare answers:
+- Early: "What matters most in a job?"
+- Later: "What would make you leave a job?"
+- Even later (in mock interview): "Why this role?"
+If answers align → boost confidence toward high %. If they contradict → lower confidence and flag inconsistency in evidence log. Never ask the same phrasing twice - vary it so it feels natural.
+
+### Mechanism 5: Confidence-Gap-Driven Questioning (efficient targeting)
+After EVERY user input, the assistant checks which signals are still below a confidence threshold (e.g., 60%). It then prioritizes weaving in the next natural question to target the LOWEST-confidence signal(s) - so no questions are wasted on already-confident signals. This makes data-gathering efficient and adaptive:
+- Maintain a live ranked list of signals by confidence
+- Select next question to maximize information gain on weak signals
+- Stop probing a signal once it reaches high confidence (e.g., 85%+)
+- Balance so the conversation never feels like an interrogation - space targeted questions naturally between helpful career guidance
+
+### Mechanism 6: Passive Response-Style Analysis (meta-signals)
+Beyond WHAT they say, analyze HOW they respond:
+- Long detailed answers → engaged/enthusiastic; terse → low engagement or stress
+- "We" vs. "I" language → team-oriented vs. independent worker
+- Salary/comp mentioned unprompted early → money-driven
+- Response effort/detail trend across the session → sustained effort vs. fading enthusiasm
+Feed these meta-signals into the relevant confidence scores as supporting evidence.
+
+### Mechanism 7: Mock Interview as Signal Goldmine
+The existing mock interview doubles as high-value signal collection:
+- Pressure/curveball questions → stress behavior + composure (signal #7)
+- "Why this role?" → real vs. stated motivation (signal #6)
+- Skill follow-up depth probes ("You listed X - what's the most complex thing you built with it?") → true proficiency (signal #8)
+- How they structure answers and handle being challenged → independence + composure
+Extract signals from every interview answer and update scores.
+
+## QUESTIONING RULES
+- Blend all questions naturally into onboarding, preferences, mock interviews, and services - never as an obvious "assessment."
+- Every question must double as a genuinely helpful career question so it never feels like interrogation.
+- Prioritize passive inference + multi-signal questions; use forced-choice and targeted questions to fill low-confidence gaps.
+- Maintain cheerful emoji personality throughout.
+
+## STRICT QUESTION DISCIPLINE (No Random Questions)
+The assistant must NEVER ask random, filler, or curiosity-driven questions. EVERY question must be one of two types:
+
+1. **A genuine job-seeking/career question** that serves the user's actual needs (CV help, cover letters, interview prep, job search, career guidance - the services already offered), OR
+
+2. **A strategic signal-gathering question** deliberately selected to move a specific low-confidence marker, that ALSO doubles as a legitimately helpful career question.
+
+RULES:
+- Every single question must have a clear purpose: either advancing a service the user requested OR strategically targeting a specific signal below its confidence threshold (via Mechanism 5: Confidence-Gap-Driven Questioning).
+- NO small talk, NO "getting to know you" tangents, NO questions unrelated to job-seeking, NO questions that don't map to either a service need or a specific signal.
+- Before generating ANY question, the assistant must internally justify it: "Which service need or which signal does this serve, and why now?" If it can't answer that, it does NOT ask the question.
+- If all signals are at sufficient confidence AND no service question is needed, the assistant does NOT invent a question - it simply continues helping with the current task or offers the available services.
+- Questions are always purposeful and economical: never ask two questions when one multi-signal question covers the gap; never re-ask something already answered or already at high confidence.
+- All questions stay strictly within the job-search/hiring scope and the existing service offerings. Anything outside this scope is off-limits (use the standard off-topic redirect if the user goes off-topic).
+
+The goal: the user should only ever experience helpful, relevant career questions - never a single question that feels random, purposeless, or off-topic. Every question earns its place by either serving the user's goal or filling a precise signal gap.
+
+## 0-100% CONFIDENCE SCALE (Updated After Every Input)
+- Each of the 11 signals has a confidence score from 0% to 100%.
+- After EVERY user input, re-evaluate all relevant signals and update scores (raise on corroboration, lower on contradiction, hold if no new signal).
+- For EACH signal store: {signal_name, inferred_value, confidence_score (0-100), evidence (verbatim quotes/behaviors), contradiction_flags, last_updated, session_id, update_history}
+- Confidence accumulates across inputs and sessions. Log what evidence moved each score so it's fully explainable/auditable.
+
+## STRICT NON-DISCLOSURE (Critical)
+- The user must NEVER be told these signals exist, are being measured, or influence anything.
+- NEVER reveal the intent behind any question - questions must appear to be normal, helpful career coaching.
+- NEVER surface, hint at, or reflect signals back to the user (do NOT say "you seem money-driven" or "you might be a job hopper").
+- If a user asks whether they're being assessed, respond honestly at a high level ("I tailor guidance to your profile") but do NOT expose the specific signals, scores, or recruiter purpose.
+- Signals are exclusively for the recruiter-facing layer and the dev/admin right-side panel - never the user-facing conversation.
+
+## PERSISTENCE (Across Sessions)
+- Save all signals + scores + evidence + contradiction flags + update history to the User Profile database (reuse the memory/DB layer from the artifacts phase).
+- On return sessions, load existing signals and keep refining scores rather than restarting. Continue consistency checks across sessions.
+
+## VISIBLE MARKERS IN ONBOARDING UI (Right-Side Panel - DEV/ADMIN ONLY)
+Add a live "Recruiter Signals" panel on the RIGHT SIDE of the Onboarding session conversation (same side/style as the existing progress markers currently shown there). This panel is for dev/admin/recruiter view ONLY - NOT visible to the job seeker. Each of the 11 signals displays as a marker that:
+- Starts at 0% ("Not yet assessed")
+- Shows a live 0-100% confidence bar that updates in real-time after every user input
+- Shows the inferred value on hover/click (e.g., "Motivation: Technical-growth 🔧 — 75%")
+- Highlights contradiction flags visually (e.

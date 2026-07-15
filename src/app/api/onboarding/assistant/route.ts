@@ -15,6 +15,7 @@ import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/ser
 import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
 import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
 import { detectEditIntent, applyEdit, storeEditedVersion, handleArtifactEditWorkflow } from "@/lib/artifacts/edit";
+import { runInferenceSafely } from "@/lib/ai/signals/hook";
 
 type AssistantRequestBody = {
   message?: string;
@@ -312,6 +313,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               data: { assistantState: JSON.parse(JSON.stringify(newState)) }
             });
           }
+          void runInferenceSafely({
+            userId: session.user.id,
+            newInput: userMessage,
+            source: "message",
+            cvFacts: onboardingSession?.cvExtractedFacts,
+            sessionId: onboardingSession?.id
+          });
           return NextResponse.json({ answer });
         }
       }
@@ -843,6 +851,13 @@ ${localeInstruction}`;
               answer: userMessage,
               sessionId: state.services.interviewPrep.mockInterviewState?.startedAt
             });
+            void runInferenceSafely({
+              userId: session.user.id,
+              newInput: userMessage,
+              source: "mock_interview",
+              cvFacts: onboardingSession?.cvExtractedFacts,
+              sessionId: onboardingSession?.id
+            });
           }
         } catch (error) {
           console.error("Failed to auto-save interview Q&A:", error);
@@ -870,6 +885,14 @@ ${localeInstruction}`;
         });
       }
     }
+
+    void runInferenceSafely({
+      userId: session.user.id,
+      newInput: userMessage,
+      source: "message",
+      cvFacts: onboardingSession?.cvExtractedFacts,
+      sessionId: onboardingSession?.id
+    });
 
     return NextResponse.json({ answer });
   } catch (error) {

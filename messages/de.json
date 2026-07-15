@@ -211,6 +211,12 @@
       "skillGaps": "Fähigkeiten zum Stärken 📈",
       "salary": "Gehaltsberatung 💰",
       "readiness": "Profilbereitschaft 🔍"
-    }
-  }
+    }  },
+  "recruiterSignals": {
+    "title": "Recruiter-Signale (Admin)",
+    "notAssessed": "Noch nicht bewertet",
+    "categoryMotivation": "Motivation",
+    "categoryBehavioral": "Verhalten & Passung",
+    "categorySkill": "Kompetenz & Entwicklung",
+    "contradiction": "Widerspruch"  }
 }
