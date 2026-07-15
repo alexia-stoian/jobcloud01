@@ -13,6 +13,7 @@ import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assista
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
 import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
 import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
+import { detectEditIntent, applyEdit, storeEditedVersion } from "@/lib/artifacts/edit";
 
 type AssistantRequestBody = {
   message?: string;
@@ -401,6 +402,85 @@ Then I can pull it right up! 📝✨`;
         } catch (error) {
           console.error("Error retrieving artifact:", error);
           answer = `Sorry, I had trouble looking that up. 😅 Could you try asking again or provide more details? 💬`;
+          newState = state;
+        }
+      } else if (detectEditIntent(userMessage).detected) {
+        // Wave 1B: Artifact Editing - offer to edit most recent artifact
+        const editIntent = detectEditIntent(userMessage);
+        
+        try {
+          // Get the most recent artifact of any type
+          const coverLetters = await artifactDAL.findByUserAndType(session.user.id, 'cover_letter');
+          const jobPostings = await artifactDAL.findByUserAndType(session.user.id, 'job_posting');
+          const interviewQAs = await artifactDAL.findByUserAndType(session.user.id, 'interview_qa');
+          
+          // Find the most recent artifact overall
+          const allArtifacts = [...coverLetters, ...jobPostings, ...interviewQAs]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          if (allArtifacts.length > 0) {
+            const artifactToEdit = allArtifacts[0];
+            
+            try {
+              // Apply the edit using Claude
+              const editedContent = await applyEdit(
+                artifactToEdit.content,
+                editIntent,
+                anthropicApiKey,
+                anthropicModel
+              );
+              
+              // Store as new version
+              const newVersionId = await storeEditedVersion(
+                session.user.id,
+                artifactToEdit.id,
+                editedContent,
+                editIntent.operation || 'edit'
+              );
+              
+              // Format response
+              const operationName = editIntent.operation === 'shorten' ? 'shortened' :
+                                  editIntent.operation === 'expand' ? 'expanded' :
+                                  'updated';
+              
+              answer = `Done! I've ${operationName} your ${artifactToEdit.type.replace('_', ' ')}! 📝✨
+
+---
+
+${editedContent}
+
+---
+
+How does this look? 😊
+
+Would you like to:
+✏️ **Make another change** (adjust tone, length, etc.)
+💾 **Save this version** (keep it)
+↩️ **Go back** (use the previous version)
+✅ **Use this now** (ready to go!)
+
+Let me know! 🚀`;
+              newState = state;
+            } catch (error) {
+              console.error("Error during edit:", error);
+              answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
+              newState = state;
+            }
+          } else {
+            // No artifacts to edit
+            answer = `I don't have any saved artifacts to edit yet! 🤔 
+
+Let's create something first:
+📝 **Generate a cover letter** (tailored to a specific job)
+💬 **Save a job posting** (share the details with me)
+🎤 **Practice an interview** (we'll save your answers)
+
+What would help most? 😊`;
+            newState = state;
+          }
+        } catch (error) {
+          console.error("Error in edit workflow:", error);
+          answer = `Sorry, I had trouble accessing your artifacts. 😅 Could you try again? 💬`;
           newState = state;
         }
       } else if (isCoverLetterRequest(userMessage)) {
