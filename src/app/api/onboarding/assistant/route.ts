@@ -496,6 +496,27 @@ ${localeInstruction}`;
           
           // The message itself is the job posting - Claude will analyze it
           processedMessage = userMessage;
+
+          // Auto-save job posting
+          try {
+            // Extract company and job title from posting
+            const companyMatch = userMessage.match(/(?:company|employer|organization)[:\s]+([^\n]+)/i);
+            const titleMatch = userMessage.match(/(?:position|title|role|job)[:\s]+([^\n]+)/i);
+            
+            await artifactDAL.store(
+              session.user.id,
+              'job_posting',
+              userMessage,
+              {
+                company: companyMatch?.[1]?.trim() || 'Unknown Company',
+                jobTitle: titleMatch?.[1]?.trim() || 'Unknown Position',
+                source: 'user_input'
+              }
+            );
+          } catch (error) {
+            console.error("Failed to store job posting artifact:", error);
+            // Don't fail the request - artifact storage is optional
+          }
         } else {
           // General interview prep (no specific job posting)
           systemPromptForInterview = `You are a professional interview coach helping job seekers prepare for interviews.
