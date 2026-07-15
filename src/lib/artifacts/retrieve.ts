@@ -5,7 +5,7 @@
  */
 
 import * as dal from './dal';
-import type { StoredArtifactData, ArtifactType } from './dal';
+import type { StoredArtifactData } from './dal';
 
 /**
  * Find the most recent artifact for a user by company
@@ -27,8 +27,9 @@ export async function findRecentByCompany(
     
     // Find first artifact matching the company (most recent first due to ordering)
     const match = artifacts.find(artifact => {
-      const metadata = artifact.metadata as any;
-      return metadata?.company?.toLowerCase().includes(company.toLowerCase());
+      const metadata = artifact.metadata as Record<string, unknown>;
+      const metaCompany = metadata.company as string | undefined;
+      return metaCompany?.toLowerCase().includes(company.toLowerCase());
     });
     
     if (match) {
@@ -55,8 +56,8 @@ export async function findRecentByQuestion(
   
   // Find first artifact matching the question pattern (most recent first)
   const match = artifacts.find(artifact => {
-    const metadata = artifact.metadata as any;
-    const question = metadata?.question || '';
+    const metadata = artifact.metadata as Record<string, unknown>;
+    const question = (metadata.question as string) || '';
     const content = artifact.content;
     
     const pattern = questionPattern.toLowerCase();
@@ -76,11 +77,11 @@ export async function findRecentByQuestion(
  * @returns Formatted display string
  */
 export function formatArtifactForDisplay(artifact: StoredArtifactData): string {
-  const metadata = artifact.metadata as any;
+  const metadata = artifact.metadata as Record<string, unknown>;
   
   if (artifact.type === 'cover_letter') {
-    const company = metadata?.company || 'that company';
-    const jobTitle = metadata?.jobTitle || 'that role';
+    const company = (metadata.company as string) || 'that company';
+    const jobTitle = (metadata.jobTitle as string) || 'that role';
     
     return `Here's your cover letter for ${jobTitle} at ${company}! 📝✨
 
@@ -98,12 +99,11 @@ Would you like to:
 
 Let me know! 😊`;
   }
-  
+
   if (artifact.type === 'job_posting') {
-    const company = metadata?.company || 'that company';
-    const jobTitle = metadata?.jobTitle || 'that role';
+    const company = (metadata.company as string) || 'that company';
     
-    return `Here's the job posting for ${jobTitle} at ${company} that you shared! 📋✨
+    return `Here's that job posting from ${company}! 📋✨
 
 ---
 
@@ -111,41 +111,35 @@ ${artifact.content}
 
 ---
 
-What would you like to do?
-🎯 **Practice interview** (prepare for this role)
-📝 **Write cover letter** (tailored to this posting)
-🔍 **Analyze requirements** (key skills and qualifications)
-❓ **Ask questions** (anything about this role)
+Ready to:
+📝 **Prepare a cover letter** for this role
+🎤 **Practice interview prep** based on this posting
+💬 **Discuss any concerns** about the position
 
-Let me know! 🚀`;
+What would help most? 😊`;
   }
-  
+
   if (artifact.type === 'interview_qa') {
-    const question = metadata?.question || 'that question';
+    const question = (metadata.question as string) || 'that question';
     
-    return `Here's what you said about that! 🎤✨
+    return `Here's your answer to: "${question}" 🎤✨
 
-**Q:** ${question}
-
-**Your answer:**
+---
 
 ${artifact.content}
 
 ---
 
 Would you like to:
-✏️ **Refine this answer** (improve it for next time)
-🔄 **Try a different approach** (alternative perspective)
-📊 **Get feedback** (strengths and improvements)
-✅ **Save this version** (you're happy with it)
+✏️ **Refine this answer** (more concise, add more detail)
+🎯 **See next question** (keep practicing)
+💾 **Save this version** (you're happy with it)
 
-What sounds good? 😊`;
+Let me know! 😊`;
   }
-  
-  // Fallback for unknown types
-  return `Here's your artifact! 📝
 
-${artifact.content}`;
+  // Default fallback
+  return `Found your saved artifact! Here it is:\n\n---\n\n${artifact.content}\n\n---\n\nNeed anything else?`;
 }
 
 /**
@@ -197,24 +191,10 @@ export function detectRetrievalIntent(message: string): {
     (lowerMsg.includes('what did i') && lowerMsg.includes('say')) ||
     (lowerMsg.includes('remind me') && lowerMsg.includes('answer'))
   ) {
-    // Extract company or topic if possible
-    const company = message.match(/(?:for|at|with)\s+([A-Za-z0-9\s&'-]+)/i)?.[1];
-    if (company) {
-      return {
-        isRetrievalRequest: true,
-        requestType: 'company',
-        query: company.trim()
-      };
-    }
-    
-    const topic = message.match(/(?:about|on|to)\s+([A-Za-z0-9\s]+?)(?:\?|$)/i)?.[1];
-    if (topic) {
-      return {
-        isRetrievalRequest: true,
-        requestType: 'question',
-        query: topic.trim()
-      };
-    }
+    return {
+      isRetrievalRequest: true,
+      requestType: 'company',
+    };
   }
   
   return { isRetrievalRequest: false };

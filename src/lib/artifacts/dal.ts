@@ -7,24 +7,18 @@
  * - Interview Q&A
  */
 
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 
 export type ArtifactType = 'cover_letter' | 'job_posting' | 'interview_qa';
 
-export interface ArtifactMetadata {
-  company?: string;
-  jobTitle?: string;
-  question?: string;
-  sessionId?: string;
-  source?: string;
-}
+export type ArtifactMetadata = Record<string, unknown>;
 
 export interface StoredArtifactData {
   id: string;
   userId: string;
   type: ArtifactType;
   content: string;
-  metadata: ArtifactMetadata;
+  metadata: Record<string, unknown>;
   version: number;
   parentArtifactId: string | null;
   createdAt: Date;
@@ -44,14 +38,14 @@ export async function store(
   userId: string,
   type: ArtifactType,
   content: string,
-  metadata: ArtifactMetadata = {}
+  metadata?: Record<string, unknown>
 ) {
-  const artifact = await prisma.storedArtifact.create({
+  const artifact = await db.storedArtifact.create({
     data: {
       userId,
       type,
       content,
-      metadata,
+      metadata: (metadata || {}) as any,
       version: 1,
     },
   });
@@ -66,7 +60,7 @@ export async function store(
  * @returns Artifact data or null
  */
 export async function retrieve(id: string) {
-  const artifact = await prisma.storedArtifact.findUnique({
+  const artifact = await db.storedArtifact.findUnique({
     where: { id },
   });
 
@@ -84,7 +78,7 @@ export async function findByUserAndType(
   userId: string,
   type: ArtifactType
 ) {
-  const artifacts = await prisma.storedArtifact.findMany({
+  const artifacts = await db.storedArtifact.findMany({
     where: {
       userId,
       type,
@@ -115,7 +109,7 @@ export async function createVersion(
   }
 
   // Create new version
-  const newVersion = await prisma.storedArtifact.create({
+  const newVersion = await db.storedArtifact.create({
     data: {
       userId: parent.userId,
       type: parent.type,
