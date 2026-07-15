@@ -12,6 +12,7 @@ import { createInitialAssistantState, transitionPhase, markProfileCollected } fr
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
 import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
+import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
 
 type AssistantRequestBody = {
   message?: string;
@@ -353,6 +354,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (offTopicDetection.isOffTopic) {
         answer = generateOffTopicRedirect(offTopicDetection.category);
         newState = state; // Don't change state for off-topic
+      } else if (detectRetrievalIntent(userMessage).isRetrievalRequest) {
+        // Wave 1A: Artifact Retrieval - check before generating new content
+        const retrievalIntent = detectRetrievalIntent(userMessage);
+        
+        try {
+          if (retrievalIntent.requestType === 'company' && retrievalIntent.query) {
+            // User asking for cover letter or job posting by company
+            const artifact = await findRecentByCompany(session.user.id, retrievalIntent.query);
+            if (artifact) {
+              answer = formatArtifactForDisplay(artifact);
+              newState = state;
+            } else {
+              // No artifact found - fall through to normal processing
+              answer = `I don't have a saved ${artifact?.type === 'cover_letter' ? 'cover letter' : 'job posting'} for ${retrievalIntent.query} in my memory yet. 🤔 
+
+Would you like me to help you create one? Just let me know the job details and I'll draft it for you! 📝✨`;
+              newState = state;
+            }
+          } else if (retrievalIntent.requestType === 'question' && retrievalIntent.query) {
+            // User asking for past interview answer
+            const artifact = await findRecentByQuestion(session.user.id, retrievalIntent.query);
+            if (artifact) {
+              answer = formatArtifactForDisplay(artifact);
+              newState = state;
+            } else {
+              answer = `I don't have that interview answer saved yet. 🤔 
+
+Would you like to:
+🎤 **Practice that question again** (I'll ask it and we can work on your answer)
+📝 **See your other saved answers** (for different questions)
+✨ **Start fresh** (let's tackle a new question)
+
+What sounds good? 😊`;
+              newState = state;
+            }
+          } else {
+            // Generic retrieval request without specific query
+            answer = `I'd love to help you find something! Could you tell me:
+📋 **For a cover letter or job posting:** The company name
+🎤 **For an interview answer:** The question or topic
+
+Then I can pull it right up! 📝✨`;
+            newState = state;
+          }
+        } catch (error) {
+          console.error("Error retrieving artifact:", error);
+          answer = `Sorry, I had trouble looking that up. 😅 Could you try asking again or provide more details? 💬`;
+          newState = state;
+        }
       } else if (isCoverLetterRequest(userMessage)) {
         // Wave 2: Cover Letter Service
         const result = await handleCoverLetterRequest(
