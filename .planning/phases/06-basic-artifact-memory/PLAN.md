@@ -1,10 +1,10 @@
-# Phase 6 Plan: Basic Artifact Memory (MINIMAL - 3h max)
+# Phase 6 Plan: Basic Artifact Memory (MINIMAL - 4h max)
 
-**Phase Goal**: Users can store + retrieve cover letters and interview answers verbatim, and make simple edits.
+**Phase Goal**: Users can store + retrieve cover letters, job postings, and interview answers verbatim, and make simple edits.
 
-**Scope**: LEAN - cover letters + interview Q&A only. Single table, 3 DAL functions, basic edits. NO job postings, NO complex reference resolution.
+**Scope**: LEAN - cover letters + job postings + interview Q&A. Single table, 3 DAL functions, basic edits. NO complex reference resolution, NO LangGraph/vector store.
 
-**Estimated Effort**: 3 hours max
+**Estimated Effort**: 4 hours max
 
 ---
 
@@ -30,7 +30,7 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 
 ---
 
-## Task Breakdown (3 hours total)
+## Task Breakdown (4 hours total)
 
 ### 1. Database + DAL (45 min)
 - Add schema to `prisma/schema.prisma`
@@ -55,7 +55,20 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 - One hook, one place
 - **Expected: Cover letters auto-saved on generation**
 
-### 3. Auto-Save Interview Q&A (30 min)
+### 3. Auto-Save Job Postings (30 min)
+- Locate where users input/paste job postings (likely in guidance or profile chat flow)
+- After job posting is pasted/submitted, add:
+  ```typescript
+  await dal.store(userId, 'job_posting', fullPostingText, {
+    company: extracted.company,
+    jobTitle: extracted.jobTitle,
+    source: 'user_input'
+  })
+  ```
+- One hook, one place
+- **Expected: Job postings auto-saved on user input**
+
+### 4. Auto-Save Interview Q&A (30 min)
 - Find interview answer storage in `src/lib/ai/assistant/services/interview-prep.ts`
 - After each user answer, add:
   ```typescript
@@ -67,15 +80,15 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 - One hook, one place
 - **Expected: Interview answers auto-saved**
 
-### 4. Retrieval + Display (30 min)
+### 5. Retrieval + Display (45 min)
 - Create `src/lib/artifacts/retrieve.ts`:
-  - `findRecentByCompany(userId, company)` → returns cover letter for company
+  - `findRecentByCompany(userId, company)` → returns cover letter or job posting for company
   - `findRecentByQuestion(userId, questionPattern)` → returns Q&A pair
-  - Format output with "Here's that cover letter for [Company]! 📝✨\n\n[CONTENT]"
-- Integrate into assistant: if user says "show me my cover letter for X" → retrieve + display
-- **Expected: Can retrieve cover letters by company, Q&A by question topic**
+  - Format output with "Here's that cover letter/job posting for [Company]! 📝✨\n\n[CONTENT]"
+- Integrate into assistant: if user says "show me my cover letter for X" or "remind me about that job posting for Y" → retrieve + display
+- **Expected: Can retrieve by company or question topic**
 
-### 5. Basic Edit (30 min)
+### 6. Basic Edit (30 min)
 - Create `src/lib/artifacts/edit.ts`:
   - `applyEdit(content, editIntent)` → returns modified content
   - Handle: "add [paragraph]", "make it shorter", "add more about [X]"
@@ -84,12 +97,12 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
   - Save as new version
 - **Expected: Can edit + version**
 
-### 6. System Prompt + Build (30 min)
+### 7. System Prompt + Build (30 min)
 - Add to `src/lib/ai/assistant/system-prompt.ts`:
-  - "If user references a past artifact, use the stored version exactly"
+  - "If user references a past artifact (cover letter, job posting, interview answer), use the stored version exactly"
   - "When confirming retrieval, use cheerful emoji personality"
 - Build: `npm run build` → verify 0 TypeScript errors
-- Quick manual test: generate cover letter → retrieve it
+- Quick manual test: generate cover letter → retrieve it, input job posting → retrieve it
 - **Expected: Build passes, 0 errors, retrieval works**
 
 ---
@@ -98,9 +111,11 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 
 ✅ Generate cover letter → auto-stored → retrieve by "show me cover letter for [Company]" → get exact verbatim text back
 
+✅ Input job posting → auto-stored → retrieve by "remind me about that job posting for [Company]" → get exact verbatim text back
+
 ✅ Answer interview Q → auto-stored → retrieve by "what did I say about [topic]" → get exact verbatim answer back
 
-✅ Request edit to cover letter ("add X") → apply surgical change only → save as v2 → both versions exist
+✅ Request edit to cover letter or job posting ("add X") → apply surgical change only → save as v2 → both versions exist
 
 ✅ All existing services work unchanged
 
@@ -110,7 +125,6 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 
 ## What's NOT Included (Defer to Phase 7+)
 
-❌ Job posting storage
 ❌ Complex reference resolution (AI-powered fuzzy matching)
 ❌ Retention policies / archival
 ❌ Artifact history UI
@@ -121,14 +135,15 @@ Migration: `npx prisma migrate dev --name add_stored_artifacts`
 
 ## Deliverables
 
-1. **schema.prisma** - Add StoredArtifact model
+1. **schema.prisma** - Add StoredArtifact model (supports cover_letter, job_posting, interview_qa types)
 2. **src/lib/artifacts/dal.ts** - 4 core functions (store, retrieve, list, createVersion)
 3. **src/lib/artifacts/retrieve.ts** - Find + display by company/question
 4. **src/lib/artifacts/edit.ts** - Detect edit intent + apply surgically
 5. **src/lib/ai/assistant/services/cover-letter.ts** - Add store() call
 6. **src/lib/ai/assistant/services/interview-prep.ts** - Add store() call
-7. **src/lib/ai/assistant/system-prompt.ts** - Add artifact retrieval instruction
-8. **Migration file** - CreateStoredArtifact table
+7. **Job posting input handler** - Add store() call (location TBD after codebase exploration)
+8. **src/lib/ai/assistant/system-prompt.ts** - Add artifact retrieval instruction
+9. **Migration file** - CreateStoredArtifact table
 
 ---
 
