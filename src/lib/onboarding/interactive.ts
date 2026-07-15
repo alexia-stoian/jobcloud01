@@ -41,7 +41,7 @@ const PRE_CV_QUESTION_FLOW: InteractiveQuestion[] = [
   {
     id: "employmentObjective",
     field: "employmentObjective",
-    backstory: "So I can tailor every next step to what you actually want, let us align on your main direction first.",
+    backstory: "Let's align on your main goal right now! 🎯 This helps me tailor every next step to what you actually want, and make sure I'm giving you advice that matches YOUR vision! 🚀",
     prompt: "What is your main goal right now?",
     options: [
       { value: "Find a new job", label: "Find a new job" },
@@ -54,7 +54,7 @@ const PRE_CV_QUESTION_FLOW: InteractiveQuestion[] = [
   {
     id: "primaryRole",
     field: "primaryRole",
-    backstory: "This helps me filter advice, CV wording, and interview preparation around the role you care about most.",
+    backstory: "Great! 🎯 This helps me personalize advice, CV wording, and interview prep around the role you care about most. Everything I suggest from here on will be tailored to help you land this role! ✨",
     prompt: "Which role should we optimize your profile for first?",
     options: [
       { value: "Software Engineer", label: "Software Engineer" },
@@ -72,7 +72,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "preferredLocation",
     field: "preferredLocation",
-    backstory: "I filled what I could from your CV. Now I will finish the profile by locking in the preferences that matter most for matching.",
+    backstory: "Perfect! 📍 I've filled what I could from your CV. Now let's lock in the preferences that matter most for matching. This helps me focus on opportunities that actually fit your mobility! 🌍",
     prompt: "Where do you ideally want to work?",
     options: [
       { value: "Zurich", label: "Zurich" },
@@ -88,7 +88,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "targetRoles",
     field: "targetRoles",
-    backstory: "To complete your preference profile, I need to know which roles you want to be considered for, not just your current title.",
+    backstory: "Awesome! 🎯 I need to know which roles you want to be considered for — not just your current title. This helps me make sure I'm surfacing the right opportunities for YOU! 🚀",
     prompt: "Which roles should your profile target?",
     placeholder: "Example: Product Manager, Senior Product Manager",
     allowCustom: true
@@ -96,7 +96,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "targetSeniority",
     field: "targetSeniority",
-    backstory: "Seniority helps me avoid mismatches between your experience and the roles you see.",
+    backstory: "Great question! 💼 Seniority level helps me avoid mismatches between your experience and the roles you see. This way, we focus on roles where you'll actually thrive! ✨",
     prompt: "What seniority level are you targeting?",
     options: [
       { value: "Junior", label: "Junior" },
@@ -110,7 +110,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "targetIndustries",
     field: "targetIndustries",
-    backstory: "Industry preferences help me prioritize the right companies and examples when I help further.",
+    backstory: "Love this! 🌟 Industry preferences help me prioritize the right companies and examples when I help you further. Let's make sure we're looking at places where you'd actually want to work! 🚀",
     prompt: "Which industries are you most interested in?",
     placeholder: "Example: SaaS, fintech, healthcare, climate tech",
     allowCustom: true
@@ -118,7 +118,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "preferredWorkModel",
     field: "preferredWorkModel",
-    backstory: "Work model is part of a complete profile because it strongly affects fit and shortlist quality.",
+    backstory: "Smart! 💼 Work model is part of a complete profile because it strongly affects fit and shortlist quality. Remote, hybrid, on-site — let's lock in what works best for you! ✨",
     prompt: "What work model do you prefer?",
     options: [
       { value: "Remote", label: "Remote" },
@@ -131,7 +131,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "contractPreference",
     field: "contractPreference",
-    backstory: "Contract preference lets me filter out roles that look good on paper but do not fit your plan.",
+    backstory: "Got it! 💼 Contract preference helps me filter out roles that look good on paper but don't fit your plan. This means I only show you opportunities that actually match your career goals! 🎯",
     prompt: "What contract type do you prefer?",
     options: [
       { value: "Permanent", label: "Permanent" },
@@ -144,7 +144,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "workRate",
     field: "workRate",
-    backstory: "Your preferred workload is part of a complete profile because many roles in Switzerland are filtered by percentage.",
+    backstory: "Excellent! ⏰ Your preferred workload is part of your complete profile because many Swiss roles are filtered by percentage. This helps me match opportunities that actually fit your lifestyle! 🚀",
     prompt: "What work rate are you targeting?",
     options: [
       { value: "100%", label: "100% (full-time)" },
@@ -157,7 +157,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "salaryExpectation",
     field: "salaryExpectation",
-    backstory: "Salary preference helps me keep role suggestions realistic and aligned with your market level.",
+    backstory: "Perfect! 💰 Salary expectations help me keep role suggestions realistic and aligned with your market level. This way, we don't waste time on roles that don't match your worth! 💪",
     prompt: "What salary range are you targeting (CHF gross/year)?",
     options: [
       { value: "60k-80k CHF", label: "60k-80k CHF" },
@@ -171,7 +171,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "workPermitStatus",
     field: "workPermitStatus",
-    backstory: "Work authorization is critical to a complete Swiss job-search profile because it changes which roles are realistic right now.",
+    backstory: "Critical info! 🇨🇭 Work authorization changes which roles are realistic right now. Knowing this helps me confidently match you with opportunities where you're legally eligible to work! 🎉",
     prompt: "What is your work authorization status in Switzerland?",
     options: [
       { value: "Swiss Citizen", label: "🇨🇭 Swiss Citizen", description: "full right to work" },
@@ -188,7 +188,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "visaSponsorship",
     field: "visaSponsorship",
-    backstory: "Sponsorship expectations help avoid role suggestions that are unrealistic from the start.",
+    backstory: "Got it! 🌍 Sponsorship expectations help me avoid suggesting roles that are unrealistic from the start. This means I focus on opportunities that actually work for YOUR situation! ✨",
     prompt: "Do you require visa sponsorship?",
     options: [
       { value: "No", label: "No" },
@@ -200,7 +200,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "relocationWillingness",
     field: "relocationWillingness",
-    backstory: "Relocation openness changes which opportunities I should surface and how broadly I should search.",
+    backstory: "Great! 🚀 Your openness to relocation changes which opportunities I should surface and how broadly I search. Let's make sure I'm looking in the right places for you! 🌍",
     prompt: "How open are you to relocation?",
     options: [
       { value: "Not open to relocation", label: "Not open to relocation" },
@@ -213,7 +213,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "commuteRadius",
     field: "commuteRadius",
-    backstory: "Commute tolerance helps me match on-site and hybrid roles more accurately.",
+    backstory: "Smart planning! 📍 Commute tolerance helps me match on-site and hybrid roles more accurately. This way, opportunities actually work logistically for you! ✨",
     prompt: "What commute radius feels acceptable to you?",
     placeholder: "Example: Up to 45 minutes, or only within Lausanne",
     allowCustom: true
@@ -221,7 +221,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "currentJobSituation",
     field: "currentJobSituation",
-    backstory: "Your current situation changes whether I should prioritize speed, negotiation, interview prep, or broader exploration.",
+    backstory: "Important context! 💼 Your current situation helps me prioritize what matters most — speed, negotiation, interview prep, or broader exploration. Let's make sure I'm helping you in the right way! 🎯",
     prompt: "What best describes your current situation?",
     options: [
       { value: "Employed, not actively looking", label: "Employed, not actively looking" },
@@ -235,7 +235,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "fullName",
     field: "fullName",
-    backstory: "Last identity check so your profile, CV, and future documents all stay consistent.",
+    backstory: "Almost there! 😊 Final identity check so your profile, CV, and all future documents stay consistent. We're building something great! 🚀",
     prompt: "What full name should we store in your profile?",
     placeholder: "Example: Alexia Stoian",
     allowCustom: true
@@ -243,7 +243,7 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   {
     id: "employmentObjective",
     field: "employmentObjective",
-    backstory: "I use your goal to personalize the next help I offer after your profile is complete.",
+    backstory: "Perfect! 🎯 I'll use your goal to personalize the help I offer after your profile is complete. Let's make sure every next step moves you closer to your goal! 💪",
     prompt: "What is your main goal right now?",
     options: [
       { value: "Find a new job", label: "Find a new job" },
