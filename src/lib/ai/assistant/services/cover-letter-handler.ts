@@ -14,6 +14,11 @@ import { updateServiceState } from "@/types/assistant-state";
 export interface CoverLetterHandlerResponse {
   answer: string;
   newState: AssistantState;
+  artifactData?: {
+    content: string;
+    company: string;
+    jobTitle: string;
+  };
 }
 
 /**
@@ -97,7 +102,15 @@ Let me know! 😊🚀`;
       lastGeneratedAt: new Date().toISOString()
     });
 
-    return { answer: formattedResponse, newState };
+    return {
+      answer: formattedResponse,
+      newState,
+      artifactData: {
+        content: response.letter,
+        company: response.company,
+        jobTitle: response.title
+      }
+    };
   } catch (error) {
     console.error("Cover letter generation error:", error);
 

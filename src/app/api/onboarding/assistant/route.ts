@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db";
+import * as artifactDAL from "@/lib/artifacts/dal";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
@@ -363,6 +364,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
         answer = result.answer;
         newState = result.newState;
+
+        // Auto-save cover letter to artifacts
+        if (result.artifactData) {
+          try {
+            await artifactDAL.store(
+              session.user.id,
+              'cover_letter',
+              result.artifactData.content,
+              {
+                company: result.artifactData.company,
+                jobTitle: result.artifactData.jobTitle,
+                source: 'ai_generated'
+              }
+            );
+          } catch (error) {
+            console.error("Failed to store cover letter artifact:", error);
+            // Don't fail the request - artifact storage is optional
+          }
+        }
       } else if (
         userMessage.toLowerCase().includes("cv") ||
         userMessage.toLowerCase().includes("resume") ||
