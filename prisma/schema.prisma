@@ -36,6 +36,7 @@ model User {
   authAuditEvent   AuthAuditEvent[]
   interviewSessions InterviewSession[]
   completedResources CompletedResource[]
+  storedArtifacts  StoredArtifact[]
 }
 
 model Account {
@@ -248,4 +249,30 @@ model CompletedResource {
   @@unique([userId, resourceId])
   @@index([userId, skill])
   @@index([userId, completedAt])
+}
+
+// Artifact storage for retrieval and modification
+model StoredArtifact {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Artifact type: cover_letter | job_posting | interview_qa
+  type              String
+  
+  // Full artifact content (verbatim storage)
+  content           String    @db.Text
+  
+  // Metadata for retrieval (JSON: company, jobTitle, question, sessionId, etc.)
+  metadata          Json      @default("{}")
+  
+  // Versioning
+  version           Int       @default(1)
+  parentArtifactId  String?   // Reference to original if this is an edit
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([userId, type, createdAt])
 }

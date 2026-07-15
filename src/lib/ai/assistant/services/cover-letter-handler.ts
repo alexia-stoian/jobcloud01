@@ -10,10 +10,16 @@ import type { AssistantState } from "@/types/assistant-state";
 import type { JobInfo } from "./cover-letter";
 import { detectJobInfo, inferRefinementMode, generateCoverLetter, countWords } from "./cover-letter";
 import { updateServiceState } from "@/types/assistant-state";
+import { checkCoverLetterAlignment, buildMisalignmentMessage } from "./profile-alignment";
 
 export interface CoverLetterHandlerResponse {
   answer: string;
   newState: AssistantState;
+  artifactData?: {
+    content: string;
+    company: string;
+    jobTitle: string;
+  };
 }
 
 /**
@@ -26,7 +32,8 @@ export async function handleCoverLetterRequest(
   state: AssistantState,
   cvData: ExtractedCvFacts | undefined,
   apiKey: string,
-  model: string
+  model: string,
+  profileSummary?: string
 ): Promise<CoverLetterHandlerResponse> {
   // Detect job information from message
   const jobInfo = detectJobInfo(message);
@@ -48,6 +55,20 @@ Once you share these details, I'll create a personalized cover letter that highl
     });
 
     return { answer, newState };
+  }
+
+  // Guard: if the requested role clearly contradicts the candidate's real profile
+  // (e.g., a nurse cover letter for a software engineer), flag it and refuse rather
+  // than help misrepresent their background.
+  if (profileSummary && profileSummary !== "(no profile details on file yet)") {
+    const requestDescription = `The candidate is asking for a cover letter for this role: "${jobInfo.title || "Unknown Role"}" at "${jobInfo.company || "Unknown Company"}".\nTheir message: ${message}`;
+    const alignment = await checkCoverLetterAlignment(requestDescription, profileSummary, apiKey, model);
+    if (!alignment.aligned) {
+      return {
+        answer: buildMisalignmentMessage(alignment.reason),
+        newState: state
+      };
+    }
   }
 
   try {
@@ -97,7 +118,15 @@ Let me know! 😊🚀`;
       lastGeneratedAt: new Date().toISOString()
     });
 
-    return { answer: formattedResponse, newState };
+    return {
+      answer: formattedResponse,
+      newState,
+      artifactData: {
+        content: response.letter,
+        company: response.company,
+        jobTitle: response.title
+      }
+    };
   } catch (error) {
     console.error("Cover letter generation error:", error);
 

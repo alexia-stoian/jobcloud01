@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { computeCompletion } from "@/lib/profile/completion-gate";
 import { getInteractiveQuestionStateForMode } from "@/lib/onboarding/interactive";
 import { canConfirmOnboardingField } from "@/lib/onboarding/confirm-policy";
+import { createInitialAssistantState } from "@/types/assistant-state";
 
 type AnswerBody = {
   field?: string;
@@ -153,11 +154,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
   }
 
+  // Guard against stale sessions: a valid JWT can outlive its User row (e.g. after
+  // a DB reset). Creating a profile for a non-existent user violates the FK and
+  // 500s. Verify the user exists and return 401 so the client re-authenticates.
+  const userExists = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true }
+  });
+  if (!userExists) {
+    return NextResponse.json({ error: "session_invalid" }, { status: 401 });
+  }
+
   const profile = await db.candidateProfile.upsert({
     where: { userId: session.user.id },
     create: {
       userId: session.user.id,
       locale: "en",
+      assistantState: JSON.parse(JSON.stringify(createInitialAssistantState())),
       [field]: value
     },
     update: {

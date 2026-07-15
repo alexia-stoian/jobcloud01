@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db";
+import * as artifactDAL from "@/lib/artifacts/dal";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
@@ -9,7 +10,11 @@ import { detectTargetRoleFromMessage, getTargetRoleQuestion } from "@/lib/onboar
 import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
+import { buildProfileSummary } from "@/lib/ai/assistant/services/profile-alignment";
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
+import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
+import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
+import { detectEditIntent, applyEdit, storeEditedVersion, handleArtifactEditWorkflow } from "@/lib/artifacts/edit";
 
 type AssistantRequestBody = {
   message?: string;
@@ -150,8 +155,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log("[Profile Creation] Created new onboarding session for user:", session.user.id, "linked to profile:", profile.id);
       }
     } else {
-      // Existing user - load state from DB
-      state = (profile.assistantState as unknown as AssistantState) || createInitialAssistantState();
+      // Existing user - load state from DB.
+      // NOTE: schema default is `{}`, and profiles created via the interactive
+      // onboarding route have no assistantState. An empty object is truthy in JS,
+      // so we must validate the state has a currentPhase before trusting it.
+      const loadedState = profile.assistantState as unknown as AssistantState | null;
+      const hasValidState = Boolean(loadedState && loadedState.currentPhase);
+      state = hasValidState ? loadedState! : createInitialAssistantState();
+
+      // Persist a freshly initialized state so downstream requests are consistent
+      if (!hasValidState) {
+        await db.candidateProfile.update({
+          where: { id: profile.id },
+          data: { assistantState: JSON.parse(JSON.stringify(state)) }
+        });
+      }
       
       // Ensure onboarding session exists
       if (!onboardingSession) {
@@ -231,6 +249,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let answer: string;
     let newState = state;
 
+    // Summary of the candidate's real profile (from CV or manual entry), used to
+    // flag cover letters that misrepresent their background.
+    const profileSummary = profile
+      ? buildProfileSummary(
+          profile as Parameters<typeof buildProfileSummary>[0],
+          onboardingSession?.targetRole
+        )
+      : "(no profile details on file yet)";
+
     if (state.currentPhase === "greeting") {
       // Handle greeting
       const greeting = routeGreeting(state, profile || undefined);
@@ -289,37 +316,95 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
       
-      // Handle profile collection with Claude
-      const systemPrompt = getSystemPrompt("profile", mode);
-      const localeInstruction = getLocaleInstruction(locale);
+      // ===== CHECK FOR COVER LETTER REQUEST IN PROFILE-COLLECTION PHASE =====
+      // Allow users to request cover letters even while collecting profile info
+      const isCoverLetterMsg = isCoverLetterRequest(userMessage);
       
-      answer = await callAnthropicAssistant({
-        userMessage,
-        systemPrompt: `${systemPrompt}\n\n${localeInstruction}`,
-        anthropicApiKey,
-        anthropicModel,
-        profileMemory: profile ? buildDurableProfileMemory({
-          profile,
-          qualifications: profile.qualifications,
-          onboardingSession: onboardingSession  // Use the separately-loaded session, not profile.onboardingSession
-        }) : undefined,
-        onboardingSession: onboardingSession  // Also pass the correct session object
-      });
-      
-      // Check if user has provided their name - if so, mark profile as started
-      if (userMessage.length > 0) {
-        newState = markProfileCollected(state);
-        // Update profile with name if detected
-        const nameMatch = userMessage.match(/(?:I'm|My name is|I am)\s+([A-Za-z\s]+)/i);
-        if (nameMatch?.[1] && profile) {
-          profile = await db.candidateProfile.update({
-            where: { id: profile.id },
-            data: { fullName: nameMatch[1].trim() },
-            include: { qualifications: true, onboardingSession: true }
-          });
+      // Edit requests ("make it longer", "more formal", etc.) must be checked BEFORE
+      // the cover letter check, otherwise "make the cover letter longer" would be
+      // treated as a brand-new cover letter request instead of editing the saved one.
+      const editIntent = detectEditIntent(userMessage);
+
+      if (editIntent.detected) {
+        try {
+          answer = await handleArtifactEditWorkflow(
+            session.user.id,
+            editIntent,
+            anthropicApiKey,
+            anthropicModel,
+            profileSummary
+          );
+        } catch (error) {
+          console.error("[Profile Collection] Error in edit workflow:", error);
+          answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
+        }
+        newState = state;
+      } else if (isCoverLetterMsg) {
+        const result = await handleCoverLetterRequest(
+          userMessage,
+          profile!,
+          state,
+          undefined,
+          anthropicApiKey,
+          anthropicModel,
+          profileSummary
+        );
+        answer = result.answer;
+        newState = result.newState;
+
+        // Auto-save cover letter to artifacts
+        if (result.artifactData) {
+          try {
+            await artifactDAL.store(
+              session.user.id,
+              'cover_letter',
+              result.artifactData.content,
+              {
+                company: result.artifactData.company,
+                jobTitle: result.artifactData.jobTitle,
+                source: 'ai_generated'
+              }
+            );
+            console.log("[Profile Collection] Auto-saved cover letter for:", result.artifactData.company);
+          } catch (error) {
+            console.error("[Profile Collection] Failed to store cover letter artifact:", error);
+          }
+        }
+      } else {
+        // Handle normal profile collection with Claude
+        const systemPrompt = getSystemPrompt("profile", mode);
+        const localeInstruction = getLocaleInstruction(locale);
+        
+        answer = await callAnthropicAssistant({
+          userMessage,
+          systemPrompt: `${systemPrompt}\n\n${localeInstruction}`,
+          anthropicApiKey,
+          anthropicModel,
+          profileMemory: profile ? buildDurableProfileMemory({
+            profile,
+            qualifications: profile.qualifications,
+            onboardingSession: onboardingSession  // Use the separately-loaded session, not profile.onboardingSession
+          }) : undefined,
+          onboardingSession: onboardingSession  // Also pass the correct session object
+        });
+        
+        // Check if user has provided their name - if so, mark profile as started
+        if (userMessage.length > 0) {
+          newState = markProfileCollected(state);
+          // Update profile with name if detected
+          const nameMatch = userMessage.match(/(?:I'm|My name is|I am)\s+([A-Za-z\s]+)/i);
+          if (nameMatch?.[1] && profile) {
+            profile = await db.candidateProfile.update({
+              where: { id: profile.id },
+              data: { fullName: nameMatch[1].trim() },
+              include: { qualifications: true, onboardingSession: true }
+            });
+          }
         }
       }
     } else if (state.currentPhase === "services") {
+      console.log("[DEBUG] In services phase. Message:", userMessage.substring(0, 100));
+      
       // ===== CHECK FOR TARGET ROLE IN EVERY MESSAGE =====
       // This ensures that even if user mentions a career goal in the services phase,
       // we capture it (e.g., "give me PM interview questions")
@@ -348,9 +433,139 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       // Check for off-topic queries first (Wave 5)
       const offTopicDetection = detectOffTopic(userMessage);
+      console.log("[DEBUG] Off-topic detection:", offTopicDetection.isOffTopic);
       if (offTopicDetection.isOffTopic) {
         answer = generateOffTopicRedirect(offTopicDetection.category);
         newState = state; // Don't change state for off-topic
+      } else if (detectRetrievalIntent(userMessage).isRetrievalRequest) {
+        console.log("[DEBUG] Matched retrieval intent");
+        // Wave 1A: Artifact Retrieval - check before generating new content
+        const retrievalIntent = detectRetrievalIntent(userMessage);
+        
+        try {
+          if (retrievalIntent.requestType === 'company' && retrievalIntent.query) {
+            // User asking for cover letter or job posting by company
+            const artifact = await findRecentByCompany(session.user.id, retrievalIntent.query);
+            if (artifact) {
+              answer = formatArtifactForDisplay(artifact);
+              newState = state;
+            } else {
+              // No artifact found - offer to create one
+              answer = `I don't have a saved cover letter or job posting for ${retrievalIntent.query} in my memory yet. 🤔 
+
+Would you like me to help you create one? Just let me know the job details and I'll draft it for you! 📝✨`;
+              newState = state;
+            }
+          } else if (retrievalIntent.requestType === 'question' && retrievalIntent.query) {
+            // User asking for past interview answer
+            const artifact = await findRecentByQuestion(session.user.id, retrievalIntent.query);
+            if (artifact) {
+              answer = formatArtifactForDisplay(artifact);
+              newState = state;
+            } else {
+              answer = `I don't have that interview answer saved yet. 🤔 
+
+Would you like to:
+🎤 **Practice that question again** (I'll ask it and we can work on your answer)
+📝 **See your other saved answers** (for different questions)
+✨ **Start fresh** (let's tackle a new question)
+
+What sounds good? 😊`;
+              newState = state;
+            }
+          } else {
+            // Generic retrieval request without specific query
+            answer = `I'd love to help you find something! Could you tell me:
+📋 **For a cover letter or job posting:** The company name
+🎤 **For an interview answer:** The question or topic
+
+Then I can pull it right up! 📝✨`;
+            newState = state;
+          }
+        } catch (error) {
+          console.error("Error retrieving artifact:", error);
+          answer = `Sorry, I had trouble looking that up. 😅 Could you try asking again or provide more details? 💬`;
+          newState = state;
+        }
+      } else if (detectEditIntent(userMessage).detected) {
+        // Wave 1B: Artifact Editing - offer to edit most recent artifact
+        const editIntent = detectEditIntent(userMessage);
+        
+        try {
+          // Get the most recent artifact of any type
+          const coverLetters = await artifactDAL.findByUserAndType(session.user.id, 'cover_letter');
+          const jobPostings = await artifactDAL.findByUserAndType(session.user.id, 'job_posting');
+          const interviewQAs = await artifactDAL.findByUserAndType(session.user.id, 'interview_qa');
+          
+          // Find the most recent artifact overall
+          const allArtifacts = [...coverLetters, ...jobPostings, ...interviewQAs]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          if (allArtifacts.length > 0) {
+            const artifactToEdit = allArtifacts[0];
+            
+            try {
+              // Apply the edit using Claude
+              const editedContent = await applyEdit(
+                artifactToEdit.content,
+                editIntent,
+                anthropicApiKey,
+                anthropicModel
+              );
+              
+              // Store as new version
+              const newVersionId = await storeEditedVersion(
+                session.user.id,
+                artifactToEdit.id,
+                editedContent,
+                editIntent.operation || 'edit'
+              );
+              
+              // Format response
+              const operationName = editIntent.operation === 'shorten' ? 'shortened' :
+                                  editIntent.operation === 'expand' ? 'expanded' :
+                                  'updated';
+              
+              answer = `Done! I've ${operationName} your ${artifactToEdit.type.replace('_', ' ')}! 📝✨
+
+---
+
+${editedContent}
+
+---
+
+How does this look? 😊
+
+Would you like to:
+✏️ **Make another change** (adjust tone, length, etc.)
+💾 **Save this version** (keep it)
+↩️ **Go back** (use the previous version)
+✅ **Use this now** (ready to go!)
+
+Let me know! 🚀`;
+              newState = state;
+            } catch (error) {
+              console.error("Error during edit:", error);
+              answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
+              newState = state;
+            }
+          } else {
+            // No artifacts to edit
+            answer = `I don't have any saved artifacts to edit yet! 🤔 
+
+Let's create something first:
+📝 **Generate a cover letter** (tailored to a specific job)
+💬 **Save a job posting** (share the details with me)
+🎤 **Practice an interview** (we'll save your answers)
+
+What would help most? 😊`;
+            newState = state;
+          }
+        } catch (error) {
+          console.error("Error in edit workflow:", error);
+          answer = `Sorry, I had trouble accessing your artifacts. 😅 Could you try again? 💬`;
+          newState = state;
+        }
       } else if (isCoverLetterRequest(userMessage)) {
         // Wave 2: Cover Letter Service
         const result = await handleCoverLetterRequest(
@@ -359,10 +574,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           state,
           undefined, // cvData could be loaded from profile if available
           anthropicApiKey,
-          anthropicModel
+          anthropicModel,
+          profileSummary
         );
         answer = result.answer;
         newState = result.newState;
+
+        // Auto-save cover letter to artifacts
+        if (result.artifactData) {
+          try {
+            await artifactDAL.store(
+              session.user.id,
+              'cover_letter',
+              result.artifactData.content,
+              {
+                company: result.artifactData.company,
+                jobTitle: result.artifactData.jobTitle,
+                source: 'ai_generated'
+              }
+            );
+          } catch (error) {
+            console.error("Failed to store cover letter artifact:", error);
+            // Don't fail the request - artifact storage is optional
+          }
+        }
       } else if (
         userMessage.toLowerCase().includes("cv") ||
         userMessage.toLowerCase().includes("resume") ||
@@ -476,6 +711,27 @@ ${localeInstruction}`;
           
           // The message itself is the job posting - Claude will analyze it
           processedMessage = userMessage;
+
+          // Auto-save job posting
+          try {
+            // Extract company and job title from posting
+            const companyMatch = userMessage.match(/(?:company|employer|organization)[:\s]+([^\n]+)/i);
+            const titleMatch = userMessage.match(/(?:position|title|role|job)[:\s]+([^\n]+)/i);
+            
+            await artifactDAL.store(
+              session.user.id,
+              'job_posting',
+              userMessage,
+              {
+                company: companyMatch?.[1]?.trim() || 'Unknown Company',
+                jobTitle: titleMatch?.[1]?.trim() || 'Unknown Position',
+                source: 'user_input'
+              }
+            );
+          } catch (error) {
+            console.error("Failed to store job posting artifact:", error);
+            // Don't fail the request - artifact storage is optional
+          }
         } else {
           // General interview prep (no specific job posting)
           systemPromptForInterview = `You are a professional interview coach helping job seekers prepare for interviews.
@@ -561,7 +817,41 @@ ${localeInstruction}`;
       });
     }
 
-    // ===== STEP 3: Persist state changes and locale preference =====
+    // ===== STEP 3: Auto-save interview Q&A if detected =====
+    if (state.currentPhase === "services" && state.services?.interviewPrep?.currentMode === "practice") {
+      // Try to detect if user answered an interview question
+      // Note: We need previous message to detect this properly
+      // For now, detect based on interview keywords and store opportunistically
+      const isLikelyInterviewAnswer = (
+        (userMessage.length > 50) && 
+        !userMessage.toLowerCase().startsWith("show me") &&
+        !userMessage.toLowerCase().startsWith("remind") &&
+        (state.services?.interviewPrep?.practiceHistory?.length ?? 0) > 0
+      );
+
+      if (isLikelyInterviewAnswer && (state.services?.interviewPrep?.practiceHistory?.length ?? 0) > 0) {
+        try {
+          // Get the last question from practice history
+          const lastEntry = state.services.interviewPrep!.practiceHistory![
+            state.services.interviewPrep!.practiceHistory!.length - 1
+          ];
+          
+          if (lastEntry && !lastEntry.userAnswer) {
+            // Store this answer to artifacts
+            await storeInterviewQA(session.user.id, {
+              question: lastEntry.question,
+              answer: userMessage,
+              sessionId: state.services.interviewPrep.mockInterviewState?.startedAt
+            });
+          }
+        } catch (error) {
+          console.error("Failed to auto-save interview Q&A:", error);
+          // Don't fail the request - artifact storage is optional
+        }
+      }
+    }
+
+    // ===== STEP 4: Persist state changes and locale preference =====
     if (profile) {
       // Save updated assistant state if it changed
       if (newState && newState !== state) {

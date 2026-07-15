@@ -177,7 +177,7 @@ export async function generateCoverLetter(
     },
     body: JSON.stringify({
       model: anthropicModel,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
@@ -192,10 +192,12 @@ export async function generateCoverLetter(
   }
 
   const data = (await response.json()) as AnthropicResponse;
-  const content = data.content?.[0];
+  
+  // Find the first text content block (skip thinking blocks from extended-thinking models)
+  const content = data.content?.find(c => c.type === "text");
 
   if (!content || content.type !== "text") {
-    throw new Error("Unexpected response format from Anthropic");
+    throw new Error("Unexpected response format from Anthropic - no text content found");
   }
 
   const letter = content.text;
