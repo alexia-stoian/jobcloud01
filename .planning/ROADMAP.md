@@ -76,5 +76,33 @@
 | 3. Durable Memory And Readiness | 1/1 | Completed | 2026-07-09 |
 | 4. Personalized Job Guidance And Coaching | 1/1 | Completed | 2026-07-09 |
 
+### Phase 5: Cheerful Preference Questions
+**Goal**: Users experience warm, emoji-rich preference questions that match the assistant's cheerful personality and provide encouragement after each selection.
+**Mode:** mvp
+**User Story**: 
+- **As a** job seeker going through the onboarding and preference-gathering process for the first time
+- **I want to** see preference questions written in a warm, cheerful, encouraging way with emojis, and receive a short celebratory acknowledgment after each answer before moving to the next question
+- **So that** the onboarding experience feels consistent with the cheerful assistant personality, I feel motivated and supported throughout the preference-gathering process, and the transition from preferences to services feels seamless and encouraging
+**Depends on**: Phase 4
+**Requirements**: UX-TONE-01, UX-PERSONALITY-CONSISTENCY
+**Success Criteria** (what must be TRUE):
+1. All preference questions (contract type, work rate, salary, work authorization, etc.) use cheerful personality with emojis.
+2. Questions include multiple-choice buttons (existing buttons kept) with warm introductory text.
+3. After user selects an answer, the assistant acknowledges it with a celebratory message (e.g., "Got it! 🎯" or "Perfect! 💼✨").
+4. The exact same Profile fields and data saving logic remain unchanged - only message text and tone are improved.
+5. The preference tone matches the energy of interview mode, cover letter mode, and CV enhancement services.
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress Table
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Account, Language, And Candidate Profile Foundation | 1/1 | Completed | 2026-07-08 |
+| 2. CV-Aware Guided Onboarding | 1/1 | Completed | 2026-07-09 |
+| 3. Durable Memory And Readiness | 1/1 | Completed | 2026-07-09 |
+| 4. Personalized Job Guidance And Coaching | 1/1 | Completed | 2026-07-09 |
+| 5. Cheerful Preference Questions | 0/1 | Not started | - |
+
 ---
-*Last updated: 2026-07-09 after Phase 4 completion*
+*Last updated: 2026-07-15 after Phase 5 creation*

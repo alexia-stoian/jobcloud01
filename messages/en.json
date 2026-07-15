@@ -160,24 +160,29 @@
     "offTrackNudge": "That does not look like an answer to this question. Let us stay on track:",
     "questions": {
       "fullName": {
-        "prompt": "What name should we use on your profile?",
-        "reason": "Needed to identify the candidate profile."
+        "prompt": "What name should we use on your profile? 😊",
+        "reason": "Needed to identify the candidate profile.",
+        "acknowledgment": "Perfect! 😊 I've saved {name} to your profile!"
       },
       "primaryRole": {
-        "prompt": "Should we set your target role to {targetRole}?",
-        "reason": "Confirms the role the rest of onboarding should optimize for."
+        "prompt": "Great — should we lock in {targetRole} as your target role? 🎯",
+        "reason": "Confirms the role the rest of onboarding should optimize for.",
+        "acknowledgment": "Awesome! 🎯✨ I've locked in {targetRole} as your target role. Everything I suggest from here on will be tailored to help you land this role! 🚀"
       },
       "preferredLocation": {
-        "prompt": "Which location are you targeting for your next role?",
-        "reason": "Location is a core matching signal."
+        "prompt": "Where in the world are you looking to work? 🌍",
+        "reason": "Location is a core matching signal.",
+        "acknowledgment": "Perfect! 📍 I've saved {location} as your location preference. This helps me filter job matches so we only focus on opportunities that actually fit your mobility! 🚀✨"
       },
       "workPermitStatus": {
-        "prompt": "What is your work permit status in Switzerland?",
-        "reason": "Permit status affects job eligibility."
+        "prompt": "What's your work permit status? 🇨🇭 (This helps me avoid wasting your time on roles you're not eligible for!)",
+        "reason": "Permit status affects job eligibility.",
+        "acknowledgment": "Awesome! 🇨🇭 I've saved your work permit status to your profile. This means I can confidently match you with opportunities where you're legally eligible to work! 🎉"
       },
       "contractPreference": {
-        "prompt": "Do you prefer permanent or fixed-term work?",
-        "reason": "This helps refine matching."
+        "prompt": "What type of work setup works best for you? 💼 (Permanent, contract, freelance, or open to anything?)",
+        "reason": "This helps refine matching.",
+        "acknowledgment": "Got it! 💼✨ I've saved that to your profile. This helps me find roles that actually fit your lifestyle and career goals! 🎯"
       }
     },
     "redirects": {

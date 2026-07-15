@@ -160,24 +160,29 @@
     "offTrackNudge": "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
     "questions": {
       "fullName": {
-        "prompt": "Welchen Namen sollen wir in Ihrem Profil speichern?",
-        "reason": "Notwendig zur Identifizierung des Kandidatenprofils."
+        "prompt": "Welchen Namen sollen wir in Ihrem Profil speichern? 😊",
+        "reason": "Notwendig zur Identifizierung des Kandidatenprofils.",
+        "acknowledgment": "Perfekt! 😊 Ich habe {name} in deinem Profil gespeichert!"
       },
       "primaryRole": {
-        "prompt": "Sollen wir Ihre Zielrolle auf {targetRole} setzen?",
-        "reason": "Bestaetigt die Rolle, auf die sich das restliche Onboarding konzentrieren soll."
+        "prompt": "Großartig — sollen wir {targetRole} als deine Zielrolle fixieren? 🎯",
+        "reason": "Bestaetigt die Rolle, auf die sich das restliche Onboarding konzentrieren soll.",
+        "acknowledgment": "Toll! 🎯✨ Ich habe {targetRole} als deine Zielrolle festgelegt. Alles, was ich dir von jetzt an vorschlage, wird dir helfen, diese Rolle zu bekommen! 🚀"
       },
       "preferredLocation": {
-        "prompt": "Welchen Ort zielt Ihre naechste Stelle an?",
-        "reason": "Standort ist ein zentrales Matching-Signal."
+        "prompt": "Wo in der Welt moechtest du arbeiten? 🌍",
+        "reason": "Standort ist ein zentrales Matching-Signal.",
+        "acknowledgment": "Perfekt! 📍 Ich habe {location} als deine Ortsvoreinstellung gespeichert. Dies hilft mir, Stellenangebote zu filtern, damit wir nur auf Chancen konzentrieren, die zu deiner Flexibilaet passen! 🚀✨"
       },
       "workPermitStatus": {
-        "prompt": "Wie ist Ihr Arbeitsbewilligungsstatus in der Schweiz?",
-        "reason": "Der Bewilligungsstatus beeinflusst die Stelleneignung."
+        "prompt": "Wie ist dein Arbeitsbewilligungsstatus? 🇨🇭 (Das hilft mir, nicht deine Zeit mit nicht zulässigen Stellen zu verschwenden!)",
+        "reason": "Der Bewilligungsstatus beeinflusst die Stelleneignung.",
+        "acknowledgment": "Großartig! 🇨🇭 Ich habe deinen Arbeitsbewilligungsstatus in deinem Profil gespeichert. Das bedeutet, ich kann dir zuversichtlich Chancen zuordnen, bei denen du legal arbeiten darfst! 🎉"
       },
       "contractPreference": {
-        "prompt": "Bevorzugen Sie dauerhafte oder befristete Vertraege?",
-        "reason": "Dies hilft, das Matching zu verfeinern."
+        "prompt": "Welche Arbeitsform passt am besten zu dir? 💼 (Dauerstelle, Vertrag, Freiberufler oder offen für alles?)",
+        "reason": "Dies hilft, das Matching zu verfeinern.",
+        "acknowledgment": "Verstanden! 💼✨ Ich habe das in deinem Profil gespeichert. So finde ich Stellen, die wirklich zu deinem Lebensstil und deinen Karrierezielen passen! 🎯"
       }
     },
     "redirects": {

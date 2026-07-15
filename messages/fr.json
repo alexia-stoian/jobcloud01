@@ -160,24 +160,29 @@
     "offTrackNudge": "Cela ne semble pas repondre a la question. Restons sur le sujet:",
     "questions": {
       "fullName": {
-        "prompt": "Quel nom devons-nous enregistrer dans votre profil ?",
-        "reason": "Necessaire pour identifier le profil du candidat."
+        "prompt": "Quel nom devons-nous enregistrer dans votre profil ? 😊",
+        "reason": "Necessaire pour identifier le profil du candidat.",
+        "acknowledgment": "Parfait! 😊 J'ai enregistre {name} dans votre profil!"
       },
       "primaryRole": {
-        "prompt": "Devons-nous definir votre role cible a {targetRole} ?",
-        "reason": "Confirme le role sur lequel le reste de l'onboarding doit se concentrer."
+        "prompt": "Formidable — devons-nous fixer {targetRole} comme votre role cible? 🎯",
+        "reason": "Confirme le role sur lequel le reste de l'onboarding doit se concentrer.",
+        "acknowledgment": "Super! 🎯✨ J'ai fixe {targetRole} comme votre role cible. Tout ce que je vous suggere desormais sera adapte pour vous aider a decrocher ce role! 🚀"
       },
       "preferredLocation": {
-        "prompt": "Quel lieu visez-vous pour votre prochain poste ?",
-        "reason": "Le lieu est un signal de correspondance essentiel."
+        "prompt": "Ou dans le monde souhaitez-vous travailler? 🌍",
+        "reason": "Le lieu est un signal de correspondance essentiel.",
+        "acknowledgment": "Parfait! 📍 J'ai enregistre {location} comme votre preference de lieu. Cela m'aide a filtrer les offres d'emploi pour que nous nous concentrions uniquement sur les opportunites qui correspondent a votre mobilite! 🚀✨"
       },
       "workPermitStatus": {
-        "prompt": "Quel est votre statut d'autorisation de travail en Suisse ?",
-        "reason": "Le statut d'autorisation affecte l'admissibilite au poste."
+        "prompt": "Quel est votre statut d'autorisation de travail? 🇨🇭 (Cela m'aide a ne pas gaspiller votre temps sur des postes pour lesquels vous n'etes pas eligible!)",
+        "reason": "Le statut d'autorisation affecte l'admissibilite au poste.",
+        "acknowledgment": "Formidable! 🇨🇭 J'ai enregistre votre statut d'autorisation de travail dans votre profil. Cela signifie que je peux vous proposer en toute confiance des opportunites ou vous etes legally autorise a travailler! 🎉"
       },
       "contractPreference": {
-        "prompt": "Preferez-vous un travail permanent ou a duree determinee ?",
-        "reason": "Cela aide a affiner la correspondance."
+        "prompt": "Quel type d'arrangement vous convient le mieux? 💼 (Permanent, contrat, independant, ou ouvert a tout?)",
+        "reason": "Cela aide a affiner la correspondance.",
+        "acknowledgment": "Entendu! 💼✨ J'ai enregistre cela dans votre profil. Cela m'aide a trouver des postes qui correspondent vraiment a votre mode de vie et a vos objectifs professionnels! 🎯"
       }
     },
     "redirects": {
