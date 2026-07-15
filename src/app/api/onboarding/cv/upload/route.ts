@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
+import { db } from "@/lib/db";
 import { cvUploadRequestSchema } from "@/lib/cv/extract";
 import { upsertOnboardingCvExtraction } from "@/lib/onboarding/persist";
 
@@ -9,7 +10,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  // Guard against stale sessions: a valid JWT can outlive its User row (e.g. after
+  // a DB reset). Writing profile data for a non-existent user violates the FK.
+  const userExists = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true }
+  });
+  if (!userExists) {
+    return NextResponse.json({ error: "session_invalid" }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
   const parsed = cvUploadRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });

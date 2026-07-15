@@ -254,7 +254,7 @@ model CompletedResource {
 // Artifact storage for retrieval and modification
 model StoredArtifact {
   id                String    @id @default(cuid())
-  userId            String    @db.Uuid
+  userId            String
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // Artifact type: cover_letter | job_posting | interview_qa

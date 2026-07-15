@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { extractCvFacts } from "@/lib/cv/extract";
+import { createInitialAssistantState } from "@/types/assistant-state";
 
 export async function upsertOnboardingCvExtraction(input: {
   userId: string;
@@ -26,7 +27,8 @@ export async function upsertOnboardingCvExtraction(input: {
       profile = await db.candidateProfile.create({
         data: {
           userId: input.userId,
-          locale: input.locale
+          locale: input.locale,
+          assistantState: JSON.parse(JSON.stringify(createInitialAssistantState()))
         }
       });
     }

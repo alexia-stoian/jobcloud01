@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { canConfirmOnboardingField } from "@/lib/onboarding/confirm-policy";
+import { createInitialAssistantState } from "@/types/assistant-state";
 
 type ConfirmBody = {
   field?: string;
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     create: {
       userId: session.user.id,
       locale: onboarding.locale,
+      assistantState: JSON.parse(JSON.stringify(createInitialAssistantState())),
       [body.field]: body.value.trim()
     },
     update: {

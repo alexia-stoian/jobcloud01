@@ -1,7 +1,7 @@
 -- CreateTable
 CREATE TABLE "StoredArtifact" (
     "id" TEXT NOT NULL,
-    "userId" UUID NOT NULL,
+    "userId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "metadata" JSONB NOT NULL DEFAULT '{}',

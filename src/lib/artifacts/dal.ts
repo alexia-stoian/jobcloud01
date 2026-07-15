@@ -39,18 +39,20 @@ export async function store(
   type: ArtifactType,
   content: string,
   metadata?: Record<string, unknown>
-) {
+): Promise<StoredArtifactData> {
   const artifact = await db.storedArtifact.create({
     data: {
       userId,
       type,
       content,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       metadata: (metadata || {}) as any,
       version: 1,
     },
   });
 
-  return artifact;
+  // Cast Prisma result to StoredArtifactData
+  return artifact as StoredArtifactData;
 }
 
 /**
@@ -59,12 +61,13 @@ export async function store(
  * @param id - Artifact ID
  * @returns Artifact data or null
  */
-export async function retrieve(id: string) {
+export async function retrieve(id: string): Promise<StoredArtifactData | null> {
   const artifact = await db.storedArtifact.findUnique({
     where: { id },
   });
 
-  return artifact;
+  // Cast Prisma result to StoredArtifactData
+  return artifact as StoredArtifactData | null;
 }
 
 /**
@@ -77,7 +80,7 @@ export async function retrieve(id: string) {
 export async function findByUserAndType(
   userId: string,
   type: ArtifactType
-) {
+): Promise<StoredArtifactData[]> {
   const artifacts = await db.storedArtifact.findMany({
     where: {
       userId,
@@ -88,7 +91,8 @@ export async function findByUserAndType(
     },
   });
 
-  return artifacts;
+  // Cast Prisma results to StoredArtifactData
+  return artifacts as StoredArtifactData[];
 }
 
 /**
@@ -101,7 +105,7 @@ export async function findByUserAndType(
 export async function createVersion(
   parentArtifactId: string,
   newContent: string
-) {
+): Promise<StoredArtifactData> {
   // Get the parent artifact
   const parent = await retrieve(parentArtifactId);
   if (!parent) {
@@ -114,11 +118,13 @@ export async function createVersion(
       userId: parent.userId,
       type: parent.type,
       content: newContent,
-      metadata: parent.metadata,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      metadata: parent.metadata as any,
       version: parent.version + 1,
       parentArtifactId: parentArtifactId,
     },
   });
 
-  return newVersion;
+  // Cast Prisma result to StoredArtifactData
+  return newVersion as StoredArtifactData;
 }

@@ -387,6 +387,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!response.ok) {
+        // Stale session (JWT outlived the user row): send the user to log in again
+        // instead of showing a confusing "could not save" message.
+        if (response.status === 401) {
+          window.location.href = "/login?callbackUrl=/onboarding";
+          return;
+        }
         setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
         return;
       }
@@ -448,6 +454,11 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     setHistory((current) => [...current, { role: "user", text: `📄 ${file.name}` }]);
     setHistory((current) => [...current, { role: "assistant", text: i18n.readingCv }]);
 
+    // Always clear the transient "Reading your CV..." bubble so the UI never
+    // looks stuck, whatever the outcome.
+    const clearReading = () =>
+      setHistory((current) => current.filter((m) => m.text !== i18n.readingCv));
+
     try {
       // Step 1: parse file to plain text server-side
       const formData = new FormData();
@@ -455,7 +466,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
 
       const parseRes = await fetch("/api/cv/parse", { method: "POST", body: formData });
       if (!parseRes.ok) {
-        const err = (await parseRes.json()) as { detail?: string };
+        if (parseRes.status === 401) {
+          window.location.href = "/login?callbackUrl=/onboarding";
+          return;
+        }
+        const err = (await parseRes.json().catch(() => ({}))) as { detail?: string };
+        clearReading();
         setHistory((current) => [
           ...current,
           { role: "assistant", text: err.detail ?? i18n.fileReadFailed }
@@ -478,6 +494,11 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
 
       if (!uploadRes.ok) {
+        if (uploadRes.status === 401) {
+          window.location.href = "/login?callbackUrl=/onboarding";
+          return;
+        }
+        clearReading();
         setHistory((current) => [...current, { role: "assistant", text: i18n.cvSaveFailed }]);
         return;
       }
@@ -487,7 +508,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       const filled = Object.entries(seeds).filter(([, v]) => v && String(v).trim().length > 0).map(([k]) => k);
       setHasUploadedCv(true);
 
-      setHistory((current) => current.filter((m) => m.text !== i18n.readingCv));
+      clearReading();
 
       if (filled.length > 0) {
         setHistory((current) => [
@@ -516,6 +537,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         }
       }
     } catch {
+      clearReading();
       setHistory((current) => [...current, { role: "assistant", text: i18n.uploadFailed }]);
     } finally {
       setIsUploading(false);
