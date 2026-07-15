@@ -57,17 +57,17 @@ const UI_STRINGS = {
     placeholderComplete: "Profile complete. You can still type changes anytime.",
     offTrackNudge: "That does not look like an answer to this question. Let us stay on track:",
     completionHelp: [
-      "Your profile is now filled as completely as I can make it from your CV and your answers.",
-      "I can also help with:",
-      "- improve or rewrite your CV",
-      "- draft or tailor a cover letter",
-      "- prepare interview questions and sample answers",
-      "- benchmark salary expectations in Switzerland",
-      "- identify skill gaps and learning priorities",
-      "- refine your role positioning and profile story",
-      "- explain permit and relocation implications",
-      "- suggest concrete next steps for your job search",
-      "What would you like help with next?"
+      "🎉 Your profile is now built and ready! I've filled it as completely as I can from your CV and your answers.",
+      "You're in a great position now, and I can help you move forward with: 🚀",
+      "• 📄 Improve or rewrite your CV to stand out",
+      "• ✉️ Draft or tailor a cover letter that resonates",
+      "• 🎤 Prepare interview questions and practice answers",
+      "• 💰 Benchmark your salary expectations for Swiss roles",
+      "• 📊 Identify skill gaps and learning priorities",
+      "• 🎯 Refine your role positioning and unique profile story",
+      "• 🌍 Explain work permit and relocation implications",
+      "• 📋 Suggest concrete next steps to accelerate your search",
+      "What would you like to tackle first? Pick something above, or ask me anything! 💪"
     ].join("\n")
   },
   de: {
@@ -87,17 +87,17 @@ const UI_STRINGS = {
     placeholderComplete: "Profil ist abgeschlossen. Sie koennen weiterhin Aenderungen eingeben.",
     offTrackNudge: "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
     completionHelp: [
-      "Ihr Profil ist nun so vollstaendig wie moeglich anhand Ihres CV und Ihrer Antworten.",
-      "Ich kann ausserdem helfen bei:",
-      "- Verbesserung oder Ueberarbeitung Ihres CV",
-      "- Entwurf oder Anpassung eines Motivationsschreibens",
-      "- Interviewfragen und Beispielantworten",
-      "- Gehaltsbenchmark fuer die Schweiz",
-      "- Skill-Gap-Analyse und Lernprioritaeten",
-      "- Schaerfung Ihrer Rollenpositionierung und Profilstory",
-      "- Erklaerung von Bewilligungs- und Umzugsthemen",
-      "- Konkreten naechsten Schritten fuer Ihre Jobsuche",
-      "Wobei soll ich Sie als Naechstes unterstuetzen?"
+      "🎉 Ihr Profil ist jetzt fertig und bereit! Ich habe es anhand Ihres CV und Ihrer Antworten so vollstaendig wie moeglich gestaltet.",
+      "Sie sind jetzt in einer hervorragenden Position, und ich kann Ihnen dabei helfen, voranzukommen: 🚀",
+      "• 📄 Ihren CV verbessern oder ueberarbeiten, um hervorzustechen",
+      "• ✉️ Ein Motivationsschreiben entwerfen oder anpassen",
+      "• 🎤 Interviewfragen vorbereiten und Antworten trainieren",
+      "• 💰 Ihre Gehaltserwartungen fuer Schweizer Rollen benchmarken",
+      "• 📊 Skill-Gaps und Lernprioritaeten identifizieren",
+      "• 🎯 Ihre Rollenpositionierung und persoenliche Profilstory schaerfen",
+      "• 🌍 Bewilligungs- und Umzugsimplikationen erklaueren",
+      "• 📋 Konkrete naechste Schritte zur Beschleunigung Ihrer Suche vorschlagen",
+      "Womit moechten Sie zuerst beginnen? Waehlen Sie oben etwas aus oder fragen Sie mich einfach! 💪"
     ].join("\n")
   },
   fr: {
@@ -117,17 +117,17 @@ const UI_STRINGS = {
     placeholderComplete: "Profil termine. Vous pouvez encore saisir des modifications.",
     offTrackNudge: "Cela ne semble pas repondre a la question. Restons sur le sujet:",
     completionHelp: [
-      "Votre profil est maintenant rempli aussi completement que possible a partir de votre CV et de vos reponses.",
-      "Je peux aussi vous aider pour:",
-      "- ameliorer ou reecrire votre CV",
-      "- rediger ou adapter une lettre de motivation",
-      "- preparer des questions d'entretien et des reponses types",
-      "- evaluer les attentes salariales en Suisse",
-      "- identifier les lacunes de competences et les priorites d'apprentissage",
-      "- affiner votre positionnement de role et votre narrative profil",
-      "- expliquer les implications permis/relocation",
-      "- proposer des prochaines etapes concretes pour votre recherche d'emploi",
-      "Que souhaitez-vous faire ensuite ?"
+      "🎉 Votre profil est maintenant complet et pret! Je l'ai rempli aussi completement que possible a partir de votre CV et de vos reponses.",
+      "Vous etes maintenant en excellente position, et je peux vous aider a avancer: 🚀",
+      "• 📄 Ameliorer ou reecrire votre CV pour vous demarquer",
+      "• ✉️ Rediger ou adapter une lettre de motivation percutante",
+      "• 🎤 Preparer des questions d'entretien et pratiquer les reponses",
+      "• 💰 Evaluer vos attentes salariales pour les roles suisses",
+      "• 📊 Identifier les lacunes de competences et les priorites d'apprentissage",
+      "• 🎯 Affiner votre positionnement de role et votre histoire professionnelle unique",
+      "• 🌍 Expliquer les implications permis de travail et relocation",
+      "• 📋 Proposer des prochaines etapes concretes pour accelerer votre recherche",
+      "Par quoi aimeriez-vous commencer? Choisissez quelque chose ci-dessus, ou posez-moi une question! 💪"
     ].join("\n")
   }
 } as const;
