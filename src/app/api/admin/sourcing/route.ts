@@ -78,6 +78,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     };
   });
 
+  // The deterministic score decides WHO makes the top 3, but the LLM assigns the
+  // final displayed fit %. Re-sort the shown results by that displayed percentage
+  // (stable tiebreak by name) so rank 1 always has the highest %, rank 2 the
+  // next, and rank 3 the lowest — matching what the recruiter sees.
+  results.sort((a, b) => (b.fitPercent - a.fitPercent) || a.name.localeCompare(b.name));
+
   const response: SourcingResponse = {
     results,
     usedLlm,
