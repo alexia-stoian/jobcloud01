@@ -172,7 +172,7 @@ Return a SINGLE JSON object:
   "bestSkills": ["<most relevant skills the candidate actually has>"],
   "pros": ["<concrete strengths for this role>"],
   "cons": ["<concrete gaps or risks, incl. missing required facts>"],
-  "recommendation": "<a detailed hiring assessment of 2-3 concise paragraphs. Cover: (1) how the candidate's experience and skills map to the required skills and responsibilities; (2) education and language fit; (3) what the behavioral signals suggest about fit for this team's culture and autonomy level, paraphrased qualitatively; (4) concrete risks, gaps, or missing facts a recruiter must verify in an interview, then a clear final verdict on whether to advance this candidate and why. Ground every claim in the supplied facts; where a required fact is missing, say so explicitly.>"
+  "recommendation": "<a thorough hiring assessment of 4-6 full paragraphs. Cover in depth: (1) how the candidate's experience and skills map to the required skills and responsibilities, calling out specific matches and gaps; (2) education and language fit; (3) what the behavioral signals suggest about fit for this team's culture and autonomy level, paraphrased qualitatively; (4) structural considerations (seniority, location, salary, contract/work-model) worth clarifying; (5) concrete risks, gaps, or missing facts a recruiter must verify in an interview; and (6) a clear, well-justified final verdict on whether to advance this candidate and why. Write complete sentences and finish every paragraph — do not cut off. Ground every claim in the supplied facts; where a required fact is missing, say so explicitly.>"
 }`;
 }
 
@@ -199,10 +199,10 @@ function parseSingleReport(text: string): LlmReport | null {
     obj = parsed as Record<string, unknown>;
   } catch {
     // Common failure: the model wrote a multi-paragraph "recommendation" with
-    // LITERAL newlines/tabs inside the JSON string (invalid JSON). Escape control
-    // characters that appear inside string literals, then retry once.
+    // LITERAL newlines/tabs or UNESCAPED inner quotes inside the JSON string.
+    // Repair those, then retry once.
     try {
-      const parsed = JSON.parse(escapeControlCharsInStrings(cleaned));
+      const parsed = JSON.parse(repairJsonStrings(cleaned));
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         return null;
       }
@@ -237,7 +237,7 @@ function parseSingleReport(text: string): LlmReport | null {
  * usable AI-grounded report survives even when `JSON.parse` cannot.
  */
 function salvageReport(text: string): LlmReport | null {
-  const esc = escapeControlCharsInStrings(text);
+  const esc = repairJsonStrings(text);
 
   const numField = (key: string): number => {
     const m = esc.match(new RegExp(`"${key}"\\s*:\\s*(\\d+)`));
@@ -263,6 +263,23 @@ function salvageReport(text: string): LlmReport | null {
   }
   const fitPercent = numField("fitPercent");
   const verdictMatch = esc.match(/"verdict"\s*:\s*"(recommended|consider|not_recommended)"/);
+
+  // recommendation is the LAST field — grab everything from its opening quote to
+  // the final closing quote (greedy), so inner quotes and even a truncated tail
+  // are preserved rather than cut at the first inner quote.
+  let recommendation = "";
+  const recGreedy = esc.match(/"recommendation"\s*:\s*"([\s\S]*?)"\s*}?\s*$/);
+  if (recGreedy) {
+    recommendation = recGreedy[1]
+      .replace(/\\n/g, " ")
+      .replace(/\\t/g, " ")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .trim();
+  } else {
+    recommendation = strField("recommendation");
+  }
+
   return {
     userId: strField("userId"),
     fitPercent,
@@ -271,55 +288,69 @@ function salvageReport(text: string): LlmReport | null {
     pros: arrField("pros"),
     cons: arrField("cons"),
     verdict: toVerdict(verdictMatch?.[1], fitPercent),
-    recommendation: strField("recommendation")
+    recommendation
   };
 }
 
 /**
- * Escape raw control characters (newline, carriage return, tab) that appear
- * INSIDE JSON string literals. LLMs frequently emit multi-paragraph text with
- * literal newlines inside a `"..."` value, which is invalid JSON and makes
- * `JSON.parse` throw. Structural whitespace (outside strings) is left untouched.
+ * Repair the two JSON mistakes LLMs make most in long narrative fields:
+ *   1. LITERAL newlines/tabs inside a string value.
+ *   2. UNESCAPED double quotes inside a string value (e.g. a "quality-first"
+ *      culture, or The verdict is "consider").
+ * Walks the text tracking string context; a `"` is treated as the string's
+ * closing quote only when the next non-space char is a JSON structural token
+ * (`,` `}` `]` `:`) or end-of-input — otherwise it is an inner quote and gets
+ * escaped. Structural whitespace outside strings is left untouched.
  */
-function escapeControlCharsInStrings(text: string): string {
+function repairJsonStrings(text: string): string {
   let out = "";
   let inString = false;
   let escaped = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        out += ch;
-        escaped = false;
-        continue;
-      }
-      if (ch === "\\") {
-        out += ch;
-        escaped = true;
-        continue;
-      }
-      if (ch === '"') {
-        out += ch;
-        inString = false;
-        continue;
-      }
-      if (ch === "\n") {
-        out += "\\n";
-        continue;
-      }
-      if (ch === "\r") {
-        out += "\\r";
-        continue;
-      }
-      if (ch === "\t") {
-        out += "\\t";
-        continue;
-      }
+    if (!inString) {
       out += ch;
+      if (ch === '"') {
+        inString = true;
+      }
+      continue;
+    }
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === "\n") {
+      out += "\\n";
+      continue;
+    }
+    if (ch === "\r") {
+      out += "\\r";
+      continue;
+    }
+    if (ch === "\t") {
+      out += "\\t";
       continue;
     }
     if (ch === '"') {
-      inString = true;
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) {
+        j++;
+      }
+      const next = text[j];
+      if (next === undefined || next === "," || next === "}" || next === "]" || next === ":") {
+        out += '"';
+        inString = false;
+      } else {
+        // Inner quote inside the narrative — escape it so JSON stays valid.
+        out += '\\"';
+      }
+      continue;
     }
     out += ch;
   }
@@ -474,7 +505,7 @@ async function buildOneReport(
   // staying well within the request timeout.
   let llm: LlmReport | null = null;
   for (let attempt = 0; attempt < 2 && (!llm || llm.whyFit.trim().length === 0); attempt++) {
-    const raw = await callAnthropic(prompt, 4096);
+    const raw = await callAnthropic(prompt, 8000);
     llm = raw ? parseSingleReport(raw) : null;
   }
 
