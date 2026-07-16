@@ -102,6 +102,9 @@ export interface ScoredCandidate {
   missingRequiredSkills: string[];
 }
 
+/** Hiring recommendation verdict for a candidate. */
+export type SourcingVerdict = "recommended" | "consider" | "not_recommended";
+
 /** The fact-grounded report rendered for a top candidate. */
 export interface CandidateReport {
   fitPercent: number;
@@ -109,6 +112,10 @@ export interface CandidateReport {
   bestSkills: string[];
   pros: string[];
   cons: string[];
+  /** Overall hiring verdict. */
+  verdict: SourcingVerdict;
+  /** Long, detailed accept/reject narrative shown in the full-report panel. */
+  recommendation: string;
   /** `true` when produced by the LLM; `false` when the deterministic fallback ran. */
   grounded: boolean;
 }
@@ -122,6 +129,8 @@ export interface SourcingResult {
   bestSkills: string[];
   pros: string[];
   cons: string[];
+  verdict: SourcingVerdict;
+  recommendation: string;
 }
 
 /** The API response shape for `POST /api/admin/sourcing`. */

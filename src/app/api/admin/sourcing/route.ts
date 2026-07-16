@@ -56,7 +56,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       whyFit: report?.whyFit ?? "",
       bestSkills: report?.bestSkills ?? [],
       pros: report?.pros ?? [],
-      cons: report?.cons ?? []
+      cons: report?.cons ?? [],
+      verdict: report?.verdict ?? "not_recommended",
+      recommendation: report?.recommendation ?? ""
     };
   });
 

@@ -11,7 +11,7 @@
  */
 
 import { env } from "@/lib/env";
-import type { CandidateReport, RecruiterNeeds, ScoredCandidate } from "./types";
+import type { CandidateReport, RecruiterNeeds, ScoredCandidate, SourcingVerdict } from "./types";
 
 type AnthropicTextContent = { type: "text"; text: string };
 type AnthropicResponse = { content?: AnthropicTextContent[]; error?: { message?: string } };
@@ -23,7 +23,18 @@ type LlmReport = {
   bestSkills: string[];
   pros: string[];
   cons: string[];
+  verdict: SourcingVerdict;
+  recommendation: string;
 };
+
+function toVerdict(value: unknown, fitPercent: number): SourcingVerdict {
+  if (value === "recommended" || value === "consider" || value === "not_recommended") {
+    return value;
+  }
+  if (fitPercent >= 70) return "recommended";
+  if (fitPercent >= 45) return "consider";
+  return "not_recommended";
+}
 
 /** Clamp a string for prompt embedding (defense-in-depth atop T1 sanitization). */
 function clamp(value: string | null | undefined, max = 200): string {
@@ -56,7 +67,7 @@ async function callAnthropic(prompt: string): Promise<string | null> {
       },
       body: JSON.stringify({
         model: anthropicModel,
-        max_tokens: 3500,
+        max_tokens: 6000,
         messages: [{ role: "user", content: prompt }]
       }),
       signal: controller.signal,
@@ -136,10 +147,12 @@ Return a JSON array where each element is:
 {
   "userId": "<the candidate userId>",
   "fitPercent": <integer 0-100>,
+  "verdict": "recommended" | "consider" | "not_recommended",
   "whyFit": "<2-4 sentence fact-grounded rationale>",
   "bestSkills": ["<most relevant skills the candidate actually has>"],
   "pros": ["<concrete strengths for this role>"],
-  "cons": ["<concrete gaps or risks, incl. missing required facts>"]
+  "cons": ["<concrete gaps or risks, incl. missing required facts>"],
+  "recommendation": "<a LONG, detailed hiring assessment of 3-5 paragraphs. Cover: (1) how the candidate's experience and skills map to the required skills and responsibilities; (2) education and language fit; (3) what the behavioral signals suggest about fit for this team's culture and autonomy level, paraphrased qualitatively; (4) concrete risks, gaps, or missing facts a recruiter must verify in an interview; (5) a clear final verdict on whether to advance this candidate and why. Ground every claim in the supplied facts; where a required fact is missing, say so explicitly.>"
 }
 Return ONE element per candidate, preserving their userId.`;
 }
@@ -185,7 +198,9 @@ function parseLlmReports(text: string): LlmReport[] | null {
       whyFit: typeof obj.whyFit === "string" ? obj.whyFit : "",
       bestSkills: toStringArray(obj.bestSkills),
       pros: toStringArray(obj.pros),
-      cons: toStringArray(obj.cons)
+      cons: toStringArray(obj.cons),
+      verdict: toVerdict(obj.verdict, fitPercent),
+      recommendation: typeof obj.recommendation === "string" ? obj.recommendation.trim() : ""
     });
   }
   return reports.length > 0 ? reports : null;
@@ -304,12 +319,70 @@ function fallbackReport(needs: RecruiterNeeds, scored: ScoredCandidate): Candida
     whyFitParts.push(`Primary role on file: ${bundle.primaryRole}.`);
   }
 
+  const verdict: SourcingVerdict =
+    scored.score >= 70 ? "recommended" : scored.score >= 45 ? "consider" : "not_recommended";
+
+  // Build a longer, structured deterministic narrative for the full-report panel.
+  const recParts: string[] = [];
+  recParts.push(
+    `${bundle.name} reaches an overall fit of ${scored.score}% for this role, computed from the facts recorded in their profile.`
+  );
+  if (scored.matchedRequiredSkills.length > 0) {
+    recParts.push(
+      `On the required skills, they cover ${scored.matchedRequiredSkills.join(", ")}${
+        scored.missingRequiredSkills.length > 0
+          ? `, but no evidence was found for ${scored.missingRequiredSkills.join(", ")}`
+          : " — every listed required skill is present"
+      }.`
+    );
+  } else if ((needs.requiredSkills ?? []).length > 0) {
+    recParts.push(
+      `None of the required skills (${(needs.requiredSkills ?? []).join(", ")}) were found on the profile, which is a significant gap.`
+    );
+  }
+  if (typeof needs.minYearsExperience === "number") {
+    recParts.push(
+      bundle.estimatedYearsExperience >= needs.minYearsExperience
+        ? `Their ~${bundle.estimatedYearsExperience} years of recorded experience meets the ${needs.minYearsExperience}-year minimum.`
+        : `Their ~${bundle.estimatedYearsExperience} years of recorded experience is below the ${needs.minYearsExperience}-year minimum (some roles may be missing dates).`
+    );
+  }
+  if ((needs.languages ?? []).length > 0) {
+    recParts.push(
+      bundle.languages.length > 0
+        ? `Languages on file: ${bundle.languages.join(", ")}.`
+        : `No languages are recorded, so the requested languages (${(needs.languages ?? []).join(", ")}) cannot be confirmed.`
+    );
+  }
+  if ((needs.education ?? []).length > 0) {
+    recParts.push(
+      bundle.education.length > 0
+        ? `Education on file: ${bundle.education.map((e) => e.title).filter(Boolean).join("; ")}.`
+        : "No education entries are recorded to match the requested minimum."
+    );
+  }
+  const highSignals = bundle.signals
+    .filter((s) => s.inferredValue && s.confidence >= 50)
+    .map((s) => `${s.name.toLowerCase()} (${s.confidence}%)`);
+  if (highSignals.length > 0) {
+    recParts.push(`Behavioral signals inferred with reasonable confidence: ${highSignals.join(", ")}.`);
+  }
+  recParts.push(
+    verdict === "recommended"
+      ? "Overall this candidate is a strong match and worth advancing to an interview."
+      : verdict === "consider"
+        ? "Overall this is a partial match — worth considering if the missing facts can be clarified in a screening call."
+        : "Overall the recorded facts do not support a strong fit for this role; advance only if key gaps can be explained."
+  );
+
   return {
     fitPercent: scored.score,
     whyFit: whyFitParts.join(" "),
     bestSkills,
     pros: pros.length > 0 ? pros : ["No standout strengths derived from recorded facts."],
     cons: cons.length > 0 ? cons : ["No obvious gaps derived from recorded facts."],
+    verdict,
+    recommendation: recParts.join(" "),
     grounded: false
   };
 }
@@ -339,8 +412,10 @@ export async function buildReports(
   for (const scored of top) {
     const llm = llmByUser.get(scored.bundle.userId);
     if (llm && llm.whyFit.trim().length > 0) {
+      const fallback = fallbackReport(needs, scored);
+      const fitPercent = llm.fitPercent > 0 ? llm.fitPercent : scored.score;
       reports.set(scored.bundle.userId, {
-        fitPercent: llm.fitPercent > 0 ? llm.fitPercent : scored.score,
+        fitPercent,
         whyFit: llm.whyFit.trim(),
         bestSkills:
           llm.bestSkills.length > 0
@@ -348,8 +423,11 @@ export async function buildReports(
             : Array.from(
                 new Set([...scored.matchedRequiredSkills, ...scored.matchedNiceToHaveSkills])
               ).slice(0, 8),
-        pros: llm.pros,
-        cons: llm.cons,
+        pros: llm.pros.length > 0 ? llm.pros : fallback.pros,
+        cons: llm.cons.length > 0 ? llm.cons : fallback.cons,
+        verdict: llm.verdict,
+        recommendation:
+          llm.recommendation.trim().length > 0 ? llm.recommendation.trim() : fallback.recommendation,
         grounded: true
       });
     } else {

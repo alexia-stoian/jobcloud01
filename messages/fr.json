@@ -269,7 +269,14 @@
       "whyFitHeading": "Pourquoi ils conviennent",
       "bestSkillsHeading": "Meilleures compétences",
       "prosHeading": "Avantages",
-      "consHeading": "Inconvénients"
+      "consHeading": "Inconvénients",
+      "viewReport": "Voir le rapport complet",
+      "closeReport": "Fermer le rapport",
+      "reportPanelLabel": "Rapport complet du candidat",
+      "recommendationHeading": "Évaluation d'embauche",
+      "verdictRecommended": "Recommandé",
+      "verdictConsider": "À considérer",
+      "verdictNotRecommended": "Non recommandé"
     },
     "fields": {
       "currentJobSituation": "Situation actuelle",

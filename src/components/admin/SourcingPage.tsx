@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
+import type { SourcingResponse, SourcingResult, SourcingVerdict } from "@/lib/sourcing/types";
 
 type Status = "idle" | "loading" | "done" | "error";
 
@@ -15,6 +15,17 @@ export function SourcingPage(): React.ReactElement {
   const [results, setResults] = useState<SourcingResult[]>([]);
   const [usedLlm, setUsedLlm] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
+  const [selected, setSelected] = useState<SourcingResult | null>(null);
+
+  const verdictLabel = useCallback(
+    (verdict: SourcingVerdict): string =>
+      verdict === "recommended"
+        ? t("verdictRecommended")
+        : verdict === "consider"
+          ? t("verdictConsider")
+          : t("verdictNotRecommended"),
+    [t]
+  );
 
   const runMatching = useCallback(
     async (file: File): Promise<void> => {
@@ -22,6 +33,7 @@ export function SourcingPage(): React.ReactElement {
       setStatus("loading");
       setErrorKey(null);
       setResults([]);
+      setSelected(null);
 
       let payload: unknown;
       try {
@@ -123,6 +135,9 @@ export function SourcingPage(): React.ReactElement {
                       {index + 1}
                     </span>
                     <span className="sourcing-card__name">{result.name}</span>
+                    <span className={`sourcing-verdict sourcing-verdict--${result.verdict}`}>
+                      {verdictLabel(result.verdict)}
+                    </span>
                     <span className="sourcing-card__fit">
                       {t("fitLabel", { percent: result.fitPercent })}
                     </span>
@@ -179,10 +194,110 @@ export function SourcingPage(): React.ReactElement {
                       </ul>
                     </div>
                   ) : null}
+
+                  {result.recommendation ? (
+                    <button
+                      type="button"
+                      className="sourcing-card__report-btn"
+                      onClick={() => setSelected(result)}
+                    >
+                      <span aria-hidden="true">▤</span> {t("viewReport")}
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
+        </>
+      ) : null}
+
+      {selected ? (
+        <>
+          <div
+            className="sourcing-scrim"
+            role="button"
+            tabIndex={0}
+            aria-label={t("closeReport")}
+            onClick={() => setSelected(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " " || e.key === "Escape") setSelected(null);
+            }}
+          />
+          <aside className="sourcing-panel" aria-label={t("reportPanelLabel")}>
+            <header className="sourcing-panel__header">
+              <div>
+                <h2 className="sourcing-panel__name">{selected.name}</h2>
+                <span className={`sourcing-verdict sourcing-verdict--${selected.verdict}`}>
+                  {verdictLabel(selected.verdict)} · {t("fitLabel", { percent: selected.fitPercent })}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="sourcing-panel__close"
+                onClick={() => setSelected(null)}
+                aria-label={t("closeReport")}
+              >
+                ✕
+              </button>
+            </header>
+
+            <div className="sourcing-panel__body">
+              <h3 className="sourcing-panel__heading">{t("recommendationHeading")}</h3>
+              {selected.recommendation
+                .split(/\n{2,}|(?<=\.) (?=[A-Z])/)
+                .reduce<string[]>((acc, sentence) => {
+                  // Group sentences into ~3-sentence paragraphs for readability.
+                  const last = acc[acc.length - 1];
+                  if (last && last.split(". ").length < 3) {
+                    acc[acc.length - 1] = `${last} ${sentence}`.trim();
+                  } else {
+                    acc.push(sentence.trim());
+                  }
+                  return acc;
+                }, [])
+                .filter(Boolean)
+                .map((para, i) => (
+                  <p key={i} className="sourcing-panel__para">
+                    {para}
+                  </p>
+                ))}
+
+              {selected.bestSkills.length > 0 ? (
+                <>
+                  <h3 className="sourcing-panel__heading">{t("bestSkillsHeading")}</h3>
+                  <div className="sourcing-card__chips">
+                    {selected.bestSkills.map((skill) => (
+                      <span key={skill} className="admin-chip">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {selected.pros.length > 0 ? (
+                <>
+                  <h3 className="sourcing-panel__heading">{t("prosHeading")}</h3>
+                  <ul className="sourcing-card__list sourcing-card__list--pros">
+                    {selected.pros.map((pro, i) => (
+                      <li key={i}>{pro}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+
+              {selected.cons.length > 0 ? (
+                <>
+                  <h3 className="sourcing-panel__heading">{t("consHeading")}</h3>
+                  <ul className="sourcing-card__list sourcing-card__list--cons">
+                    {selected.cons.map((con, i) => (
+                      <li key={i}>{con}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          </aside>
         </>
       ) : null}
     </section>

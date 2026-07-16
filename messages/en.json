@@ -340,7 +340,14 @@
       "whyFitHeading": "Why they fit",
       "bestSkillsHeading": "Best skills",
       "prosHeading": "Pros",
-      "consHeading": "Cons"
+      "consHeading": "Cons",
+      "viewReport": "View full report",
+      "closeReport": "Close report",
+      "reportPanelLabel": "Full candidate report",
+      "recommendationHeading": "Hiring assessment",
+      "verdictRecommended": "Recommended",
+      "verdictConsider": "Consider",
+      "verdictNotRecommended": "Not recommended"
     },
     "fields": {
       "currentJobSituation": "Current situation",
