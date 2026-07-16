@@ -20,7 +20,8 @@ export type InferenceSource =
   | "message"
   | "interactive_answer"
   | "mock_interview"
-  | "forced_choice";
+  | "forced_choice"
+  | "cv";
 
 /**
  * Map an inference input source to the evidence source used when the model does

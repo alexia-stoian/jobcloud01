@@ -90,12 +90,25 @@ export async function loadSignalStateWithMeta(userId: string): Promise<{
 }
 
 /**
- * Defensive cast of the stored Json into SignalRecord[]. Falls back to a fresh
- * seed if the stored value is not the expected array shape.
+ * Defensive cast of the stored Json into SignalRecord[]. Reconciles the stored
+ * signals against the full registry so ALL 11 signals always exist — a signal
+ * that is missing from an older/partial row (e.g. saved before the registry grew)
+ * would otherwise never be updatable, because `mergeUpdates` only touches signals
+ * already present in the prior array. Falls back to a fresh seed on bad shape.
  */
 function normalizeSignals(value: unknown): SignalRecord[] {
   if (!Array.isArray(value)) {
     return seedSignals();
   }
-  return value as SignalRecord[];
+
+  const stored = new Map<string, SignalRecord>();
+  for (const item of value as SignalRecord[]) {
+    if (item && typeof item === "object" && typeof item.key === "string") {
+      stored.set(item.key, item);
+    }
+  }
+
+  // Start from a fresh seed (guarantees every registry key is present) and
+  // overlay any stored values on top.
+  return seedSignals().map((seed) => stored.get(seed.key) ?? seed);
 }

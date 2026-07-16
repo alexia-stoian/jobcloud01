@@ -91,13 +91,14 @@ export async function inferSignals(args: InferSignalsArgs): Promise<SignalRecord
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1500,
+        max_tokens: 4096,
         system,
         messages: [{ role: "user", content: user }],
       }),
     });
 
     if (!response.ok) {
+      console.error(`[signals] Anthropic error: ${response.status}`);
       return prior;
     }
 
@@ -109,16 +110,19 @@ export async function inferSignals(args: InferSignalsArgs): Promise<SignalRecord
       )?.text?.trim() ?? "";
 
     if (!text) {
+      console.error("[signals] empty text response from model");
       return prior;
     }
 
     const parsed = parseUpdates(text);
     if (!parsed) {
+      console.error("[signals] failed to parse updates:", text.slice(0, 300));
       return prior;
     }
     updates = parsed;
-  } catch {
+  } catch (err) {
     // Network / parse / anything — never throw.
+    console.error("[signals] inference call threw:", err);
     return prior;
   }
 
@@ -129,10 +133,20 @@ export async function inferSignals(args: InferSignalsArgs): Promise<SignalRecord
     inferenceSourceToEvidenceSource(source)
   );
 
+  if (updates.length > 0) {
+    console.log(
+      `[signals] updated ${updates.length} signal(s):`,
+      updates.map((u) => `${u.key}=${u.confidence}`).join(", ")
+    );
+  } else {
+    console.log("[signals] no signal cues in input");
+  }
+
   try {
     await saveSignalState(userId, merged, sessionId ?? null);
-  } catch {
+  } catch (err) {
     // Persistence failure must not break the caller.
+    console.error("[signals] save failed:", err);
     return merged;
   }
 
@@ -154,7 +168,13 @@ function parseUpdates(text: string): SignalUpdate[] | null {
   try {
     obj = JSON.parse(cleaned);
   } catch {
-    return null;
+    // The model may have truncated its output mid-array (many rich updates can
+    // exceed the token budget). Try to salvage the complete update objects.
+    const salvaged = salvageTruncatedUpdates(cleaned);
+    if (salvaged === null) {
+      return null;
+    }
+    obj = salvaged;
   }
 
   if (typeof obj !== "object" || obj === null) {
@@ -221,6 +241,70 @@ function normalizeSource(value: unknown): EvidenceSource {
     return value;
   }
   return "message";
+}
+
+/**
+ * Best-effort recovery of a truncated `{ "updates": [ ... ] }` payload.
+ *
+ * When the model runs out of tokens mid-array, the trailing update object is
+ * incomplete and `JSON.parse` fails. We scan the array body, keep only the
+ * update objects whose braces balance completely, and rebuild a valid payload.
+ * Returns null if nothing salvageable is found.
+ */
+function salvageTruncatedUpdates(text: string): { updates: unknown[] } | null {
+  const arrStart = text.indexOf("[");
+  if (arrStart === -1) {
+    return null;
+  }
+
+  const complete: string[] = [];
+  let depth = 0;
+  let objStart = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = arrStart + 1; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      if (depth === 0) {
+        objStart = i;
+      }
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && objStart !== -1) {
+        complete.push(text.slice(objStart, i + 1));
+        objStart = -1;
+      }
+    } else if (ch === "]" && depth === 0) {
+      break;
+    }
+  }
+
+  if (complete.length === 0) {
+    return null;
+  }
+
+  try {
+    const updates = complete.map((o) => JSON.parse(o) as unknown);
+    return { updates };
+  } catch {
+    return null;
+  }
 }
 
 /**

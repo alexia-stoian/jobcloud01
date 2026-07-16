@@ -3,6 +3,7 @@ import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { cvUploadRequestSchema } from "@/lib/cv/extract";
 import { upsertOnboardingCvExtraction } from "@/lib/onboarding/persist";
+import { runInferenceSafely } from "@/lib/ai/signals/hook";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
@@ -38,6 +39,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       fileName: parsed.data.fileName,
       mimeType: parsed.data.mimeType,
       locale: parsed.data.locale
+    });
+
+    // Assess the CV itself: it carries strong signal evidence (tenure pattern ->
+    // job-hopper, seniority vs. target -> overqualified, claimed skills ->
+    // proficiency baseline). Awaited so the signal state persists; never throws.
+    await runInferenceSafely({
+      userId: session.user.id,
+      newInput: parsed.data.cvText.slice(0, 6000),
+      source: "cv",
+      cvFacts: result.extracted.facts,
+      sessionId: result.session?.id ?? null
     });
 
     return NextResponse.json({

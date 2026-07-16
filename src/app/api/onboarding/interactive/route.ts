@@ -271,7 +271,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     hasCvUpload
   });
 
-  void runInferenceSafely({
+  // Assess EVERY structured answer the user gives (not just interview answers).
+  // Awaited so the signal state reliably persists before we respond; the hook
+  // never throws, so it cannot break onboarding.
+  await runInferenceSafely({
     userId: session.user.id,
     newInput: `${field}: ${value}`,
     source: "interactive_answer",

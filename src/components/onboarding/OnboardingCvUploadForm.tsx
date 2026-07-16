@@ -60,18 +60,13 @@ const UI_STRINGS = {
     completionHelp: [
       "🎉 Your profile is now built and ready! I've filled it as completely as I can from your CV and your answers.",
       "",
-      "You're in a great position now, and I can help you move forward with: 🚀",
+      "Here's what I can actually help you with right now: 🚀",
       "",
-      "- 📄 Improve or rewrite your CV to stand out",
-      "- ✉️ Draft or tailor a cover letter that resonates",
-      "- 🎤 Prepare interview questions and practice answers",
-      "- 💰 Benchmark your salary expectations for Swiss roles",
-      "- 📊 Identify skill gaps and learning priorities",
-      "- 🎯 Refine your role positioning and unique profile story",
-      "- 🌍 Explain work permit and relocation implications",
-      "- 📋 Suggest concrete next steps to accelerate your search",
+      "- ✉️ Draft or tailor a cover letter for a specific role",
+      "- 🎤 Run a focused mock interview (2 technical + 1 behavioral question) with feedback on each answer",
+      "- 📄 Give you concrete suggestions to improve your CV",
       "",
-      "What would you like to tackle first? Pick something above, or ask me anything! 💪"
+      "What would you like to tackle first? 💪"
     ].join("\n")
   },
   de: {
@@ -93,18 +88,13 @@ const UI_STRINGS = {
     completionHelp: [
       "🎉 Ihr Profil ist jetzt fertig und bereit! Ich habe es anhand Ihres CV und Ihrer Antworten so vollstaendig wie moeglich gestaltet.",
       "",
-      "Sie sind jetzt in einer hervorragenden Position, und ich kann Ihnen dabei helfen, voranzukommen: 🚀",
+      "Hier ist, womit ich Ihnen aktuell wirklich helfen kann: 🚀",
       "",
-      "- 📄 Ihren CV verbessern oder ueberarbeiten, um hervorzustechen",
-      "- ✉️ Ein Motivationsschreiben entwerfen oder anpassen",
-      "- 🎤 Interviewfragen vorbereiten und Antworten trainieren",
-      "- 💰 Ihre Gehaltserwartungen fuer Schweizer Rollen benchmarken",
-      "- 📊 Skill-Gaps und Lernprioritaeten identifizieren",
-      "- 🎯 Ihre Rollenpositionierung und persoenliche Profilstory schaerfen",
-      "- 🌍 Bewilligungs- und Umzugsimplikationen erklaueren",
-      "- 📋 Konkrete naechste Schritte zur Beschleunigung Ihrer Suche vorschlagen",
+      "- ✉️ Ein Motivationsschreiben fuer eine bestimmte Stelle entwerfen oder anpassen",
+      "- 🎤 Ein fokussiertes Mock-Interview (2 technische + 1 Verhaltensfrage) mit Feedback zu jeder Antwort durchfuehren",
+      "- 📄 Ihnen konkrete Vorschlaege zur Verbesserung Ihres CV geben",
       "",
-      "Womit moechten Sie zuerst beginnen? Waehlen Sie oben etwas aus oder fragen Sie mich einfach! 💪"
+      "Womit moechten Sie zuerst beginnen? 💪"
     ].join("\n")
   },
   fr: {
@@ -126,18 +116,13 @@ const UI_STRINGS = {
     completionHelp: [
       "🎉 Votre profil est maintenant complet et pret! Je l'ai rempli aussi completement que possible a partir de votre CV et de vos reponses.",
       "",
-      "Vous etes maintenant en excellente position, et je peux vous aider a avancer: 🚀",
+      "Voici ce avec quoi je peux reellement vous aider maintenant: 🚀",
       "",
-      "- 📄 Ameliorer ou reecrire votre CV pour vous demarquer",
-      "- ✉️ Rediger ou adapter une lettre de motivation percutante",
-      "- 🎤 Preparer des questions d'entretien et pratiquer les reponses",
-      "- 💰 Evaluer vos attentes salariales pour les roles suisses",
-      "- 📊 Identifier les lacunes de competences et les priorites d'apprentissage",
-      "- 🎯 Affiner votre positionnement de role et votre histoire professionnelle unique",
-      "- 🌍 Expliquer les implications permis de travail et relocation",
-      "- 📋 Proposer des prochaines etapes concretes pour accelerer votre recherche",
+      "- ✉️ Rediger ou adapter une lettre de motivation pour un poste precis",
+      "- 🎤 Mener un entretien blanc cible (2 questions techniques + 1 comportementale) avec un retour sur chaque reponse",
+      "- 📄 Vous donner des suggestions concretes pour ameliorer votre CV",
       "",
-      "Par quoi aimeriez-vous commencer? Choisissez quelque chose ci-dessus, ou posez-moi une question! 💪"
+      "Par quoi aimeriez-vous commencer? 💪"
     ].join("\n")
   }
 } as const;
