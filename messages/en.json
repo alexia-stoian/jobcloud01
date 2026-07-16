@@ -281,5 +281,13 @@
       "location": "Location"
     },
     "loading": "Calculating your readiness scores…"
+  },
+  "recruiterSignals": {
+    "title": "Recruiter Signals (admin)",
+    "notAssessed": "Not yet assessed",
+    "categoryMotivation": "Motivation",
+    "categoryBehavioral": "Behavioral & Fit",
+    "categorySkill": "Skill & Trajectory",
+    "contradiction": "Contradiction"
   }
 }

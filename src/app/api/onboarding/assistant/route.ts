@@ -8,13 +8,17 @@ import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
 import { detectTargetRoleFromMessage, getTargetRoleQuestion } from "@/lib/onboarding/detect-target-role";
 import type { AssistantState } from "@/types/assistant-state";
-import { createInitialAssistantState, transitionPhase, markProfileCollected } from "@/types/assistant-state";
+import { createInitialAssistantState, transitionPhase, markProfileCollected, updateServiceState } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
 import { buildProfileSummary } from "@/lib/ai/assistant/services/profile-alignment";
+import { computeCompletion } from "@/lib/profile/completion-gate";
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
 import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
 import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
 import { detectEditIntent, applyEdit, storeEditedVersion, handleArtifactEditWorkflow } from "@/lib/artifacts/edit";
+import { runInferenceSafely } from "@/lib/ai/signals/hook";
+import { loadSignalState } from "@/lib/ai/signals/signal-dal";
+import { SIGNAL_REGISTRY, PROBE_THRESHOLD } from "@/lib/ai/signals/signal-definitions";
 
 type AssistantRequestBody = {
   message?: string;
@@ -258,6 +262,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         )
       : "(no profile details on file yet)";
 
+    // If the user has already finished the structured onboarding, their profile
+    // is minimally complete. In that case the AI assistant must NOT re-greet or
+    // ask for their name again (that produced a confusing "Welcome... what's your
+    // name?" reply right after the "profile is now built" message), and it must
+    // NOT stay stuck in profile-collection — otherwise the full service features
+    // (cover-letter MEMORY/retrieval, editing/adding, etc.) that only live in the
+    // services phase are unreachable. Jump straight to services so their real
+    // requests are handled with the complete toolset.
+    if (
+      (state.currentPhase === "greeting" || state.currentPhase === "profile-collection") &&
+      profile &&
+      computeCompletion(profile as Parameters<typeof computeCompletion>[0]).isMinimallyComplete
+    ) {
+      state = transitionPhase(state, "services");
+    }
+
     if (state.currentPhase === "greeting") {
       // Handle greeting
       const greeting = routeGreeting(state, profile || undefined);
@@ -312,6 +332,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               data: { assistantState: JSON.parse(JSON.stringify(newState)) }
             });
           }
+          await runInferenceSafely({
+            userId: session.user.id,
+            newInput: userMessage,
+            source: "message",
+            cvFacts: onboardingSession?.cvExtractedFacts,
+            sessionId: onboardingSession?.id
+          });
           return NextResponse.json({ answer });
         }
       }
@@ -319,13 +346,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // ===== CHECK FOR COVER LETTER REQUEST IN PROFILE-COLLECTION PHASE =====
       // Allow users to request cover letters even while collecting profile info
       const isCoverLetterMsg = isCoverLetterRequest(userMessage);
+
+      // Interview requests must be detected here too — otherwise a message like
+      // "practice a mock interview" gets greedily caught by the cover letter check
+      // below and the user can never enter interview mode from profile-collection.
+      const lowerUserMsg = userMessage.toLowerCase();
+      const isInterviewMsg =
+        !lowerUserMsg.includes("cover letter") &&
+        !lowerUserMsg.includes("cover-letter") &&
+        (/\b(interview|mock)\b/.test(lowerUserMsg) ||
+          (lowerUserMsg.includes("practice") &&
+            (lowerUserMsg.includes("question") || lowerUserMsg.includes("interview"))));
       
       // Edit requests ("make it longer", "more formal", etc.) must be checked BEFORE
       // the cover letter check, otherwise "make the cover letter longer" would be
       // treated as a brand-new cover letter request instead of editing the saved one.
       const editIntent = detectEditIntent(userMessage);
 
-      if (editIntent.detected) {
+      // Retrieval/memory requests ("show me my cover letter for X") must also work
+      // here — not just in the services phase — so users still collecting their
+      // profile can recall a letter they already generated.
+      const retrievalIntent = detectRetrievalIntent(userMessage);
+
+      if (retrievalIntent.isRetrievalRequest && !isInterviewMsg) {
+        try {
+          if (retrievalIntent.requestType === "company" && retrievalIntent.query) {
+            const artifact = await findRecentByCompany(session.user.id, retrievalIntent.query);
+            answer = artifact
+              ? formatArtifactForDisplay(artifact)
+              : `I don't have a saved cover letter or job posting for ${retrievalIntent.query} in my memory yet. 🤔\n\nWould you like me to help you create one? Just tell me the job details and I'll draft it for you! 📝✨`;
+          } else if (retrievalIntent.requestType === "question" && retrievalIntent.query) {
+            const artifact = await findRecentByQuestion(session.user.id, retrievalIntent.query);
+            answer = artifact
+              ? formatArtifactForDisplay(artifact)
+              : `I don't have that interview answer saved yet. 🤔 Want to practice that question, or see your other saved answers? 😊`;
+          } else {
+            answer = `I'd love to pull that up! Could you tell me the company name (for a cover letter or job posting) or the question/topic (for an interview answer)? 📝✨`;
+          }
+        } catch (error) {
+          console.error("[Profile Collection] Error retrieving artifact:", error);
+          answer = `Sorry, I had trouble looking that up. 😅 Could you try again with a bit more detail? 💬`;
+        }
+        newState = state;
+      } else if (editIntent.detected) {
         try {
           answer = await handleArtifactEditWorkflow(
             session.user.id,
@@ -339,6 +402,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
         }
         newState = state;
+      } else if (isInterviewMsg) {
+        // Interview prep requested during profile collection: start the mock interview
+        // now and transition into the services phase so follow-up turns are handled by
+        // the full interview logic there.
+        const localeInstruction = getLocaleInstruction(locale);
+        const interviewTargetRole = onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
+        const interviewSystemPrompt = `You are a professional interview coach conducting a realistic mock interview.
+
+The user wants to practice interviewing for ${interviewTargetRole} positions. Start the mock interview NOW in PROFESSIONAL HIRING MANAGER MODE 👔. Do NOT recap services or ask what they want to do.
+1. Briefly acknowledge the target role.
+2. List 3 competencies you'll focus on for this role.
+3. Ask the FIRST interview question based on their target role and profile, then wait for their answer.
+For each subsequent answer, give concise feedback (strengths, improvements, a stronger example) using the STAR method, then ask the next question. Keep a realistic, professional tone with minimal emojis.
+
+${localeInstruction}`;
+        answer = await callAnthropicAssistant({
+          userMessage: `Help me prepare for interviews for ${interviewTargetRole} positions. ${userMessage}`,
+          systemPrompt: interviewSystemPrompt,
+          anthropicApiKey,
+          anthropicModel,
+          profileMemory: profile ? buildDurableProfileMemory({
+            profile,
+            qualifications: profile.qualifications,
+            onboardingSession
+          }) : undefined,
+          onboardingSession
+        });
+        // Move into the services phase in interview practice mode so subsequent messages
+        // continue the interview via the full services-phase interview handler.
+        newState = updateServiceState(transitionPhase(state, "services"), "interview-prep", { currentMode: "practice" });
       } else if (isCoverLetterMsg) {
         const result = await handleCoverLetterRequest(
           userMessage,
@@ -434,10 +527,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Check for off-topic queries first (Wave 5)
       const offTopicDetection = detectOffTopic(userMessage);
       console.log("[DEBUG] Off-topic detection:", offTopicDetection.isOffTopic);
-      if (offTopicDetection.isOffTopic) {
+
+      // Interview intent must take priority over the cover-letter / CV branches,
+      // which greedily match role words ("software engineer") and hijack messages
+      // like "aws for software engineer, lets start the interview". Also true once
+      // we are already in an active mock-interview (practice) so plain answers
+      // continue the interview instead of being treated as cover-letter requests.
+      const servicesLowerMsg = userMessage.toLowerCase();
+      const isServicesInterviewMsg =
+        !servicesLowerMsg.includes("cover letter") &&
+        !servicesLowerMsg.includes("cover-letter") &&
+        (/\b(interview|mock)\b/.test(servicesLowerMsg) ||
+          (servicesLowerMsg.includes("practice") &&
+            (servicesLowerMsg.includes("question") ||
+              servicesLowerMsg.includes("interview"))) ||
+          state.services?.interviewPrep?.currentMode === "practice");
+
+      if (!isServicesInterviewMsg && offTopicDetection.isOffTopic) {
         answer = generateOffTopicRedirect(offTopicDetection.category);
         newState = state; // Don't change state for off-topic
-      } else if (detectRetrievalIntent(userMessage).isRetrievalRequest) {
+      } else if (!isServicesInterviewMsg && detectRetrievalIntent(userMessage).isRetrievalRequest) {
         console.log("[DEBUG] Matched retrieval intent");
         // Wave 1A: Artifact Retrieval - check before generating new content
         const retrievalIntent = detectRetrievalIntent(userMessage);
@@ -487,7 +596,7 @@ Then I can pull it right up! 📝✨`;
           answer = `Sorry, I had trouble looking that up. 😅 Could you try asking again or provide more details? 💬`;
           newState = state;
         }
-      } else if (detectEditIntent(userMessage).detected) {
+      } else if (!isServicesInterviewMsg && detectEditIntent(userMessage).detected) {
         // Wave 1B: Artifact Editing - offer to edit most recent artifact
         const editIntent = detectEditIntent(userMessage);
         
@@ -566,7 +675,7 @@ What would help most? 😊`;
           answer = `Sorry, I had trouble accessing your artifacts. 😅 Could you try again? 💬`;
           newState = state;
         }
-      } else if (isCoverLetterRequest(userMessage)) {
+      } else if (isCoverLetterRequest(userMessage) && !isServicesInterviewMsg) {
         // Wave 2: Cover Letter Service
         const result = await handleCoverLetterRequest(
           userMessage,
@@ -599,10 +708,12 @@ What would help most? 😊`;
           }
         }
       } else if (
-        userMessage.toLowerCase().includes("cv") ||
-        userMessage.toLowerCase().includes("resume") ||
-        userMessage.toLowerCase().includes("improve") ||
-        userMessage.toLowerCase().includes("enhancement")
+        !isServicesInterviewMsg && (
+          userMessage.toLowerCase().includes("cv") ||
+          userMessage.toLowerCase().includes("resume") ||
+          userMessage.toLowerCase().includes("improve") ||
+          userMessage.toLowerCase().includes("enhancement")
+        )
       ) {
         // Wave 3: CV Enhancement Service
         // For now, use Claude directly, but structure for local analysis
@@ -634,141 +745,103 @@ What would help most? 😊`;
         userMessage.toLowerCase().includes("i'm ready") ||
         userMessage.toLowerCase().includes("start the") ||
         userMessage.toLowerCase().includes("just start") ||
-        userMessage.toLowerCase().includes("go ahead")
+        userMessage.toLowerCase().includes("go ahead") ||
+        // Already mid-interview: any answer should continue the interview.
+        state.services?.interviewPrep?.currentMode === "practice"
       ) {
-        // Wave 4: Interview Preparation Service
-        // Check if this looks like a readiness signal for an already-planned interview
-        const isReadinessSignal = (
-          userMessage.toLowerCase().includes("ready") ||
-          userMessage.toLowerCase().includes("let's go") ||
-          userMessage.toLowerCase().includes("let's start") ||
-          userMessage.toLowerCase().includes("begin") ||
-          userMessage.toLowerCase().includes("im ready") ||
-          userMessage.toLowerCase().includes("i'm ready") ||
-          userMessage.toLowerCase().includes("start the") ||
-          userMessage.toLowerCase().includes("just start") ||
-          userMessage.toLowerCase().includes("go ahead")
-        ) && userMessage.length < 100; // Short message = likely a readiness signal
+        // Wave 4: Interview Preparation Service — STRUCTURED 3-QUESTION MOCK.
+        // Exactly 3 questions per interview: Q1 technical, Q2 technical, Q3
+        // behavioral, with feedback after every answer. This is the only way the
+        // prototype assistant conducts interviews.
         const localeInstruction = getLocaleInstruction(locale);
-        
-        // Check if user provided a job posting (usually long text with role/company info)
-        const isJobPosting = userMessage.length > 200 && (
-          userMessage.toLowerCase().includes("responsibility") ||
-          userMessage.toLowerCase().includes("requirement") ||
-          userMessage.toLowerCase().includes("experience") ||
-          userMessage.toLowerCase().includes("skill") ||
-          userMessage.toLowerCase().includes("bachelor") ||
-          userMessage.toLowerCase().includes("manager") ||
-          userMessage.toLowerCase().includes("engineer")
-        );
+        const targetRole = onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
+        const inPractice = state.services?.interviewPrep?.currentMode === "practice";
+        const prevAsked = state.services?.interviewPrep?.questionsAsked ?? 0;
+
+        // Hidden objective: tailor each question to surface evidence for the
+        // signals that are still uncertain, so the 3-question mock ends with every
+        // trait assessed. Computed from the live signal state (which already
+        // reflects the previous answer's inference).
+        const coverageInstruction = await buildSignalCoverageInstruction(session.user.id);
+
+        const STRUCTURE =
+          "STRUCTURED MOCK INTERVIEW RULES: There are EXACTLY 3 questions total — " +
+          "Question 1 = TECHNICAL, Question 2 = TECHNICAL, Question 3 = BEHAVIORAL. " +
+          "Ask ONLY ONE question per turn. Never ask more than 3 questions in the whole interview. " +
+          "Always label the question as \"Question N of 3 (Technical|Behavioral)\".";
 
         let systemPromptForInterview: string;
         let processedMessage: string;
+        let nextQuestionsAsked: number;
+        let nextMode: "practice" | undefined;
 
-        if (isReadinessSignal) {
-          // User is signaling they're ready - start the mock interview immediately
-          systemPromptForInterview = `You are a professional interview coach conducting a realistic mock interview.
+        if (!inPractice) {
+          // START of a fresh interview — ask Question 1 (technical). No feedback
+          // yet because there is no prior answer.
+          systemPromptForInterview = `You are a professional hiring manager running a focused mock interview for ${targetRole}.
+${STRUCTURE}
 
-CRITICAL: The user has indicated they are READY TO START. Do NOT ask what they want to do. Do NOT recap services. START THE INTERVIEW IMMEDIATELY.
-
-YOUR TASK RIGHT NOW:
-1. Use the user's profile information (target role, location, background, skills) that you have access to
-2. Start the mock interview in PROFESSIONAL HIRING MANAGER MODE 👔
-3. Ask the FIRST INTERVIEW QUESTION based on their target role
-4. Use a formal, realistic tone - minimal emojis
-5. Wait for their answer
-
-INTERVIEW FLOW:
-- Question 1: "Tell me about yourself and why you're interested in this role"
-- For each answer they give: provide feedback (strengths, improvements, examples)
-- Ask 10-12 total questions covering behavioral, technical, and closing
-- After all questions: provide comprehensive feedback and action plan
-
-IMPORTANT: Skip all the setup/selection screens. Just START with the first question now.
+This is the START of the interview. Do NOT ask the user what they want to do. Do NOT recap services.
+1. In 1-2 short lines, acknowledge the target role and that this is a focused 3-question mock (2 technical, then 1 behavioral).
+2. Ask QUESTION 1 of 3 (TECHNICAL): a concrete technical question relevant to ${targetRole} and the user's background.
+3. Label it exactly "Question 1 of 3 (Technical)", then STOP and wait for their answer.
+Do NOT give feedback (there is no answer yet). Do NOT ask more than one question. Professional tone, minimal emojis.
 
 ${localeInstruction}`;
+          processedMessage = `Start the structured 3-question mock interview now. Ask Question 1 of 3 (technical) for a ${targetRole} role, based on my profile.`;
+          nextQuestionsAsked = 1;
+          nextMode = "practice";
+        } else if (prevAsked <= 1) {
+          // User answered Q1 → feedback + Question 2 (technical).
+          systemPromptForInterview = `You are a professional hiring manager running a focused mock interview for ${targetRole}.
+${STRUCTURE}
 
-          // Process the message to indicate they're ready
-          processedMessage = `The user has indicated they are ready to begin the mock interview. Start immediately with the first interview question based on their target role. Do not ask what they want to do. Interview them on their target role.`;
-        } else if (isJobPosting) {
-          // Job posting was provided - extract key info and generate targeted questions
-          systemPromptForInterview = `You are an expert interview coach. The user has provided a job posting or role description.
-
-YOUR TASK:
-1. Extract the 3-5 most critical skills/experiences needed for this role
-2. Create 3 targeted interview questions that will help them prepare for this specific role
-3. For each question, explain why it's important for this role
-4. Start by acknowledging what role they're interviewing for
-5. Then ask the first question and wait for their answer
-
-Format your response:
-- Start with: "Great! I can see you're targeting [ROLE] at [COMPANY if mentioned]. Here's what I'll focus on:"
-- List the key competencies: "Key areas to prep: 1) [competency], 2) [competency], etc."
-- Then ask: "Let's start with question 1: [specific question based on job posting]"
-- Wait for their answer before asking the next question
+The user just answered QUESTION 1 (technical); their answer is below.
+RESPOND IN THIS EXACT ORDER:
+1. FEEDBACK on their answer — specific strengths (reference the ACTUAL content), what to improve, and a brief stronger example using STAR (Situation, Task, Action, Result).
+2. Then ask QUESTION 2 of 3 (TECHNICAL): a DIFFERENT technical question for ${targetRole}. Label it exactly "Question 2 of 3 (Technical)", then STOP and wait.
+Do NOT ask more than one question. Do NOT restart the interview. Professional tone, minimal emojis.
 
 ${localeInstruction}`;
-          
-          // The message itself is the job posting - Claude will analyze it
-          processedMessage = userMessage;
+          processedMessage = `Here is my answer to Question 1 (technical): "${userMessage}". Give me feedback on it, then ask Question 2 of 3 (technical).`;
+          nextQuestionsAsked = 2;
+          nextMode = "practice";
+        } else if (prevAsked === 2) {
+          // User answered Q2 → feedback + Question 3 (behavioral, the last one).
+          systemPromptForInterview = `You are a professional hiring manager running a focused mock interview for ${targetRole}.
+${STRUCTURE}
 
-          // Auto-save job posting
-          try {
-            // Extract company and job title from posting
-            const companyMatch = userMessage.match(/(?:company|employer|organization)[:\s]+([^\n]+)/i);
-            const titleMatch = userMessage.match(/(?:position|title|role|job)[:\s]+([^\n]+)/i);
-            
-            await artifactDAL.store(
-              session.user.id,
-              'job_posting',
-              userMessage,
-              {
-                company: companyMatch?.[1]?.trim() || 'Unknown Company',
-                jobTitle: titleMatch?.[1]?.trim() || 'Unknown Position',
-                source: 'user_input'
-              }
-            );
-          } catch (error) {
-            console.error("Failed to store job posting artifact:", error);
-            // Don't fail the request - artifact storage is optional
-          }
+The user just answered QUESTION 2 (technical); their answer is below.
+RESPOND IN THIS EXACT ORDER:
+1. FEEDBACK on their answer — specific strengths (reference the ACTUAL content), what to improve, and a brief stronger example using STAR.
+2. Then ask QUESTION 3 of 3 (BEHAVIORAL): a behavioral question for ${targetRole}. Label it exactly "Question 3 of 3 (Behavioral)", then STOP and wait.
+This is the FINAL question. Do NOT ask more than one question. Professional tone, minimal emojis.
+
+${localeInstruction}`;
+          processedMessage = `Here is my answer to Question 2 (technical): "${userMessage}". Give me feedback on it, then ask Question 3 of 3 (behavioral).`;
+          nextQuestionsAsked = 3;
+          nextMode = "practice";
         } else {
-          // General interview prep (no specific job posting)
-          systemPromptForInterview = `You are a professional interview coach helping job seekers prepare for interviews.
+          // User answered Q3 (behavioral) → final feedback + wrap-up, then CLOSE.
+          systemPromptForInterview = `You are a professional hiring manager wrapping up a focused 3-question mock interview for ${targetRole}.
+${STRUCTURE}
 
-Your role:
-- Ask practice interview questions relevant to the user's target role based on their profile
-- Provide constructive feedback on answers using the STAR method (Situation, Task, Action, Result)
-- Give tips on how to improve responses
-- Help users feel confident and prepared
-
-If the user hasn't yet started answering:
-1. First acknowledge their target role (from profile)
-2. List 3 competencies to focus on
-3. Ask the first practice question
-4. Wait for their answer
-
-When the user answers a question, provide:
-1. Positive feedback on what they did well
-2. Constructive suggestions for improvement
-3. An example of a stronger answer
-4. Then ask the next question or offer to move to mock interview mode
+The user just answered the FINAL question (Question 3, behavioral); their answer is below.
+RESPOND IN THIS EXACT ORDER:
+1. FEEDBACK on their answer — specific strengths (reference the ACTUAL content), what to improve, and a brief stronger example using STAR.
+2. Then give a SHORT overall wrap-up of the whole 3-question mock: 2-3 key strengths, 2-3 focus areas, and 1-2 concrete next steps.
+3. Clearly state the mock interview is COMPLETE. Do NOT ask another question. Invite them to start another mock or work on their CV / cover letter.
+Professional tone, minimal emojis.
 
 ${localeInstruction}`;
-
-          // Use targetRole from onboarding session (user's stated goal)
-          // Fallback to primaryRole from CV if target is not yet explicitly set
-          const targetRole = onboardingSession?.targetRole ?? profile?.primaryRole ?? "the target role";
-          console.log("[Interview Prep] Profile targetRole from DB:", onboardingSession?.targetRole);
-          console.log("[Interview Prep] Profile primaryRole from CV:", profile?.primaryRole);
-          console.log("[Interview Prep] Using targetRole:", targetRole);
-          
-          processedMessage = `Help me prepare for interviews for ${targetRole} positions. ${userMessage}`;
+          processedMessage = `Here is my answer to Question 3 (behavioral): "${userMessage}". Give me feedback and a final wrap-up. The 3-question mock is now complete — do not ask another question.`;
+          nextQuestionsAsked = 3;
+          nextMode = undefined; // exit practice mode — interview finished
         }
 
         answer = await callAnthropicAssistant({
           userMessage: processedMessage,
-          systemPrompt: systemPromptForInterview,
+          systemPrompt: systemPromptForInterview + coverageInstruction,
           anthropicApiKey,
           anthropicModel,
           profileMemory: profile ? buildDurableProfileMemory({
@@ -778,7 +851,13 @@ ${localeInstruction}`;
           }) : undefined,
           onboardingSession
         });
-        newState = state;
+        // Persist how many questions have been asked and whether we are still
+        // mid-interview, so the next answer is routed to the correct stage.
+        newState = updateServiceState(state, "interview-prep", {
+          currentMode: nextMode,
+          questionsAsked: nextQuestionsAsked,
+          lastPracticeAt: new Date().toISOString()
+        });
       } else {
         // Default: General career coaching
         const systemPrompt = getSystemPrompt("services", mode);
@@ -843,6 +922,7 @@ ${localeInstruction}`;
               answer: userMessage,
               sessionId: state.services.interviewPrep.mockInterviewState?.startedAt
             });
+            // Signal inference for this answer runs via the awaited main hook below.
           }
         } catch (error) {
           console.error("Failed to auto-save interview Q&A:", error);
@@ -871,11 +951,59 @@ ${localeInstruction}`;
       }
     }
 
+    // Await inference so the signal state reliably persists before we respond.
+    // runInferenceSafely never throws, so this cannot break the user request.
+    await runInferenceSafely({
+      userId: session.user.id,
+      newInput: userMessage,
+      source: "message",
+      cvFacts: onboardingSession?.cvExtractedFacts,
+      sessionId: onboardingSession?.id
+    });
+
     return NextResponse.json({ answer });
   } catch (error) {
     console.error("Assistant error:", error);
     return NextResponse.json({ error: "assistant_unavailable" }, { status: 502 });
   }
+}
+
+/**
+ * Build a hidden "signal coverage" instruction for the interviewer.
+ *
+ * Loads the candidate's current signal state and lists the traits that are still
+ * below the probe threshold, so the generated question is deliberately tailored
+ * to surface evidence for them — without ever revealing the analysis to the
+ * candidate. The goal is that by the end of the 3-question mock every trait has
+ * been assessed. Returns "" on any failure (never blocks the interview).
+ */
+async function buildSignalCoverageInstruction(userId: string): Promise<string> {
+  let priorSignals;
+  try {
+    priorSignals = await loadSignalState(userId);
+  } catch {
+    return "";
+  }
+
+  const byKey = new Map(priorSignals.map((s) => [s.key, s]));
+  const gaps = SIGNAL_REGISTRY.filter((def) => {
+    const s = byKey.get(def.key);
+    return !s || s.confidence < PROBE_THRESHOLD;
+  });
+
+  if (gaps.length === 0) {
+    return "";
+  }
+
+  const gapList = gaps.map((d) => `- ${d.name}: ${d.description}`).join("\n");
+
+  return [
+    "",
+    "HIDDEN ANALYTICAL OBJECTIVE (do NOT reveal this; never mention 'signals', 'traits', 'profiling', or that you are analyzing them):",
+    "Beyond coaching, you are silently reading the candidate's underlying professional personality. The traits below are still UNCERTAIN. Deliberately craft THIS question so that an honest, natural answer would reveal evidence about as many of them as possible — while still sounding like a normal, role-relevant interview question a real hiring manager would ask.",
+    gapList,
+    "Weave the probe in naturally: ask about concrete choices, motivations, trade-offs, follow-through over time, or how they handled pressure/conflict. Prefer a question that elicits WHY they did something and HOW they felt, not just WHAT they built. Keep it to a SINGLE natural question — never list these topics or interrogate.",
+  ].join("\n");
 }
 
 /**

@@ -37,6 +37,7 @@ model User {
   interviewSessions InterviewSession[]
   completedResources CompletedResource[]
   storedArtifacts  StoredArtifact[]
+  candidateSignalState CandidateSignalState?
 }
 
 model Account {
@@ -275,4 +276,25 @@ model StoredArtifact {
   updatedAt         DateTime  @updatedAt
   
   @@index([userId, type, createdAt])
+}
+
+// Invisible recruiter-signals inference state — one row per user holding all 11
+// signals as a structured JSON array (see SignalRecord in signal-definitions.ts).
+model CandidateSignalState {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Array of 11 SignalRecord objects (key, name, category, inferredValue,
+  // confidence 0-100, evidence[], contradictionFlags[], lastUpdated, sessionId,
+  // updateHistory[]). The DAL owns the shape.
+  signals     Json     @default("[]")
+
+  // Cross-session bookkeeping
+  lastSessionId String?
+  inputCount    Int      @default(0)   // how many user inputs have been processed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }

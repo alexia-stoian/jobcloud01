@@ -211,6 +211,12 @@
       "skillGaps": "Compétences à renforcer 📈",
       "salary": "Conseils salariaux 💰",
       "readiness": "Disponibilité du profil 🔍"
-    }
-  }
+    }  },
+  "recruiterSignals": {
+    "title": "Signaux recruteur (admin)",
+    "notAssessed": "Pas encore Ã©valuÃ©",
+    "categoryMotivation": "Motivation",
+    "categoryBehavioral": "Comportement & AdÃ©quation",
+    "categorySkill": "CompÃ©tences & Trajectoire",
+    "contradiction": "Contradiction"  }
 }

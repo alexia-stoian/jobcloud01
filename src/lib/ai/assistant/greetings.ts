@@ -19,7 +19,7 @@ export interface GreetingResponse {
  */
 export function generateFirstTimeGreeting(): GreetingResponse {
   return {
-    message: `Welcome to JobCloud! 🎉 I'm your personal career assistant, here to help you land your dream job! 🚀
+    message: `Welcome to JobScout24! 🎉 I'm your personal career assistant, here to help you land your dream job! 🚀
 
 I can help you with:
 - 📝 Cover letters tailored to specific roles

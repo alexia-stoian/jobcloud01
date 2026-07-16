@@ -73,6 +73,12 @@ export interface InterviewPrepServiceState {
   currentMode?: "practice" | "mock";
   lastPracticeAt?: string;
   lastMockAt?: string;
+  /**
+   * Number of questions asked so far in the current structured mock interview
+   * (bounded to exactly 3: Q1 technical, Q2 technical, Q3 behavioral). Reset to
+   * 1 when a new interview starts; cleared when the interview completes.
+   */
+  questionsAsked?: number;
   mockInterviewState?: {
     currentQuestion: number;
     totalQuestions: number;
