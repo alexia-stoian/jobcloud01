@@ -44,6 +44,37 @@ function str(obj: Record<string, unknown>, key: string): string | undefined {
   return typeof obj[key] === "string" ? (obj[key] as string) : undefined;
 }
 
+/** Normalize a 2-letter language code to a full English name for display + matching. */
+const LANGUAGE_CODE_MAP: Record<string, string> = {
+  en: "English",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  es: "Spanish",
+  pt: "Portuguese",
+  ro: "Romanian",
+  nl: "Dutch",
+  ru: "Russian",
+  zh: "Chinese",
+  ar: "Arabic"
+};
+
+/**
+ * Language qualifications are stored either as a plain string or a JSON blob
+ * like `{"language":"EN","proficiency":"expert"}`. Extract the readable language
+ * name and expand 2-letter codes so downstream display + matching are clean.
+ */
+function parseLanguageValue(value: string): string | null {
+  const blob = parseBlob(value);
+  const raw = blob ? str(blob, "language") ?? str(blob, "name") : value;
+  const trimmed = (raw ?? "").trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const expanded = LANGUAGE_CODE_MAP[trimmed.toLowerCase()];
+  return expanded ?? trimmed;
+}
+
 /**
  * Estimate years between an ISO-ish start and end date. Entries with a missing
  * start date contribute 0 (documented gap the report may surface as "missing").
@@ -89,7 +120,10 @@ function parseQualifications(qualifications: RawQualification[]): {
     const cat = qual.category.toLowerCase();
 
     if (cat === "language") {
-      languages.push(qual.value);
+      const lang = parseLanguageValue(qual.value);
+      if (lang && !languages.some((l) => l.toLowerCase() === lang.toLowerCase())) {
+        languages.push(lang);
+      }
       continue;
     }
     if (cat === "skill" || cat === "tool") {

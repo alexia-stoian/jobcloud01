@@ -42,12 +42,28 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const bundles = await aggregateCandidates();
   const ranked = rankCandidates(needs, bundles);
-  const topForLlm = ranked.slice(0, TOP_N_FOR_LLM);
+
+  // De-duplicate by candidate identity so the SAME person (duplicate test
+  // accounts sharing a name) is never shown more than once. `ranked` is sorted
+  // by score descending, so the first occurrence per identity is the best one.
+  const seenIdentity = new Set<string>();
+  const distinct = ranked.filter((scored) => {
+    const name = scored.bundle.name.trim().toLowerCase();
+    // Empty names can't be de-duplicated by name — fall back to the unique userId.
+    const identity = name.length > 0 ? `name:${name}` : `id:${scored.bundle.userId}`;
+    if (seenIdentity.has(identity)) {
+      return false;
+    }
+    seenIdentity.add(identity);
+    return true;
+  });
+
+  const topForLlm = distinct.slice(0, TOP_N_FOR_LLM);
 
   const reports = await buildReports(needs, topForLlm);
   const usedLlm = Array.from(reports.values()).some((report) => report.grounded);
 
-  const results: SourcingResult[] = ranked.slice(0, RESULT_COUNT).map((scored) => {
+  const results: SourcingResult[] = distinct.slice(0, RESULT_COUNT).map((scored) => {
     const report = reports.get(scored.bundle.userId);
     return {
       userId: scored.bundle.userId,

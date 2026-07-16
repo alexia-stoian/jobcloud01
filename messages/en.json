@@ -335,7 +335,7 @@
       "parseError": "That file isn't valid JSON. Check the format and try again.",
       "requestError": "Matching failed. Please try again.",
       "noResults": "No candidates matched ({count} evaluated).",
-      "fallbackNote": "Deterministic ranking (no AI narrative — ANTHROPIC_API_KEY not set).",
+      "fallbackNote": "Deterministic ranking shown (AI narrative unavailable — the Anthropic API key is missing or invalid).",
       "fitLabel": "{percent}% fit",
       "whyFitHeading": "Why they fit",
       "bestSkillsHeading": "Best skills",

@@ -264,7 +264,7 @@
       "parseError": "Diese Datei ist kein gültiges JSON. Bitte Format prüfen und erneut versuchen.",
       "requestError": "Matching fehlgeschlagen. Bitte erneut versuchen.",
       "noResults": "Keine passenden Kandidaten ({count} ausgewertet).",
-      "fallbackNote": "Deterministisches Ranking (kein KI-Text — ANTHROPIC_API_KEY nicht gesetzt).",
+      "fallbackNote": "Deterministisches Ranking (KI-Text nicht verfügbar — Anthropic-API-Schlüssel fehlt oder ist ungültig).",
       "fitLabel": "{percent}% Passung",
       "whyFitHeading": "Warum sie passen",
       "bestSkillsHeading": "Beste Fähigkeiten",

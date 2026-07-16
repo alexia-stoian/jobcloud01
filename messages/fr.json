@@ -264,7 +264,7 @@
       "parseError": "Ce fichier n'est pas un JSON valide. Vérifiez le format et réessayez.",
       "requestError": "Le matching a échoué. Veuillez réessayer.",
       "noResults": "Aucun candidat correspondant ({count} évalués).",
-      "fallbackNote": "Classement déterministe (pas de texte IA — ANTHROPIC_API_KEY non défini).",
+      "fallbackNote": "Classement déterministe affiché (texte IA indisponible — clé API Anthropic manquante ou invalide).",
       "fitLabel": "{percent}% d'adéquation",
       "whyFitHeading": "Pourquoi ils conviennent",
       "bestSkillsHeading": "Meilleures compétences",
