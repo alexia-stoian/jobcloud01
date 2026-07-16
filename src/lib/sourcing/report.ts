@@ -45,7 +45,14 @@ function clamp(value: string | null | undefined, max = 200): string {
 }
 
 async function callAnthropic(prompt: string): Promise<string | null> {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
+  // Read the key server-side only. Strip ALL whitespace/newlines (defense against
+  // a multi-line .env value silently corrupting the credential). The key is never
+  // logged, never returned in any API response, and only ever travels from this
+  // server to Anthropic over HTTPS — it is never exposed to the browser.
+  const anthropicApiKey = (process.env.ANTHROPIC_API_KEY ?? env.ANTHROPIC_API_KEY ?? "").replace(
+    /\s+/g,
+    ""
+  );
   const anthropicModel = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
     .replace(/["'`\r\n]/g, "")
     .trim();
