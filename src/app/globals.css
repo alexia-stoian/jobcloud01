@@ -2454,6 +2454,37 @@ select {
 }
 .admin-section--live .admin-section__title::before { background: var(--admin-ok); }
 
+.admin-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-section__head .admin-section__title {
+  margin-bottom: 12px;
+}
+.admin-download {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--admin-accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--admin-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.admin-download:hover {
+  background: var(--admin-accent);
+  color: #fff;
+}
+
 .admin-kv {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

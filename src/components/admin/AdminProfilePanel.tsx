@@ -254,6 +254,75 @@ function summarizeConversation(value: unknown): Array<{ role: string; text: stri
     });
 }
 
+/**
+ * Build a plain-text CV document from the structured data we hold (profile +
+ * parsed qualifications). The original CV binary is not persisted, so the admin
+ * "Download CV" action reconstructs a clean, readable CV from what was extracted
+ * — this works for every candidate, including those onboarded before this
+ * feature existed.
+ */
+function buildCvDocument(bundle: ApiBundle): string {
+  const p = bundle.profile;
+  const lines: string[] = [];
+  const push = (s = ""): void => {
+    lines.push(s);
+  };
+
+  const name = bundle.user.name || p?.fullName || bundle.user.email;
+  push(name.toUpperCase());
+  const roleLine = [p?.primaryRole, p?.preferredLocation].filter(Boolean).join(" · ");
+  if (roleLine) push(roleLine);
+  push(bundle.user.email);
+  push();
+
+  const targetRole = bundle.onboarding?.targetRole ?? p?.targetRoles;
+  if (targetRole) {
+    push(`TARGET ROLE: ${targetRole}`);
+    push();
+  }
+
+  const quals = groupQualifications(bundle.qualifications);
+
+  const section = (title: string, items: ParsedQual[]): void => {
+    const real = items.filter((i): i is Extract<ParsedQual, { kind: "item" }> => i.kind === "item");
+    if (real.length === 0) return;
+    push(title.toUpperCase());
+    for (const item of real) {
+      push(`- ${item.title}${item.sub ? ` — ${item.sub}` : ""}`);
+      if (item.desc) push(`  ${item.desc}`);
+    }
+    push();
+  };
+
+  section("Experience", quals.experience);
+  section("Education", quals.education);
+  section("Certifications", quals.certifications);
+
+  if (quals.skills.length > 0) {
+    push("SKILLS");
+    push(quals.skills.join(", "));
+    push();
+  }
+
+  push("—");
+  push(`Generated from JobScout24 profile data · ${new Date().toLocaleDateString()}`);
+
+  return lines.join("\n");
+}
+
+/** Trigger a browser download of the given text as a file. */
+function downloadTextFile(filename: string, text: string): void {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElement {
   const t = useTranslations("admin");
   const tSignals = useTranslations("recruiterSignals");
@@ -328,6 +397,13 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
     .charAt(0)
     .toUpperCase();
   const updatedTime = bundle?.updatedAt ? new Date(bundle.updatedAt).toLocaleTimeString() : null;
+
+  const handleDownloadCv = (): void => {
+    if (!bundle) return;
+    const rawName = bundle.onboarding?.cvFileName || bundle.user.name || "cv";
+    const base = rawName.replace(/\.[a-z0-9]+$/i, "").trim() || "cv";
+    downloadTextFile(`${base}.txt`, buildCvDocument(bundle));
+  };
 
   const renderValue = (raw: unknown): React.ReactElement => {
     const isEmpty = raw === null || raw === undefined || raw === "";
@@ -458,7 +534,16 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
             {/* CV-derived facts + onboarding conversation */}
             {bundle.onboarding && (
               <section className="admin-section">
-                <h3 className="admin-section__title">{t("cvFactsHeading")}</h3>
+                <div className="admin-section__head">
+                  <h3 className="admin-section__title">{t("cvFactsHeading")}</h3>
+                  <button
+                    type="button"
+                    className="admin-download"
+                    onClick={handleDownloadCv}
+                  >
+                    <span aria-hidden="true">⬇</span> {t("downloadCv")}
+                  </button>
+                </div>
 
                 {/* CV metadata as compact tiles */}
                 <div className="admin-meta">
