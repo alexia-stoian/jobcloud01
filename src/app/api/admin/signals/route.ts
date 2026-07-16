@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { env } from "@/lib/env";
+import { resolveIsAdmin } from "@/lib/auth/admin";
 import { loadSignalStateWithMeta } from "@/lib/ai/signals/signal-dal";
 
 /**
  * Dev/admin/recruiter-only read of the invisible recruiter-signal state.
  *
- * Gate behaviour (see Phase 7 plan Section 8a):
+ * Gate behaviour (see Phase 7 plan Section 8a, reconciled in Phase 8 Plan 1):
  *  - Feature flag OFF  -> 404 (endpoint appears non-existent to job seekers).
  *  - Flag ON, no session -> 401.
- *  - Flag ON + session (and, if an allowlist is configured, on the allowlist)
- *    -> 200 with `{ signals, inputCount, updatedAt }`.
+ *  - Flag ON + session + admin (`resolveIsAdmin`) -> 200 with
+ *    `{ signals, inputCount, updatedAt }`.
  *
- * A `?userId=` override is honoured ONLY for allowlisted admins; every other
- * caller is scoped to their own session user id.
+ * Admin-ness is decided by the shared `resolveIsAdmin` helper (durable
+ * `User.role === "ADMIN"` OR the legacy `SIGNALS_ADMIN_USER_IDS` allowlist),
+ * so the whole admin area shares one server-enforced rule.
+ *
+ * A `?userId=` override is honoured ONLY for admins; every other caller is
+ * scoped to their own session user id.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // When disabled, do not reveal the endpoint exists.
@@ -28,24 +33,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const sessionUserId = session.user.id;
 
-  const allowlist = (env.SIGNALS_ADMIN_USER_IDS ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
+  const isAdmin = await resolveIsAdmin(sessionUserId);
 
-  const isAllowlisted = allowlist.length > 0 && allowlist.includes(sessionUserId);
-
-  // If an allowlist is configured, non-listed callers are treated as if the
-  // endpoint does not exist (stay hidden rather than expose a 403).
-  if (allowlist.length > 0 && !isAllowlisted) {
+  // Non-admin callers are treated as if the endpoint does not exist (stay
+  // hidden rather than expose a 403).
+  if (!isAdmin) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
   const requestedUserId = request.nextUrl.searchParams.get("userId");
   const targetUserId =
-    isAllowlisted && requestedUserId && requestedUserId.length > 0
-      ? requestedUserId
-      : sessionUserId;
+    requestedUserId && requestedUserId.length > 0 ? requestedUserId : sessionUserId;
 
   const { signals, inputCount, updatedAt } = await loadSignalStateWithMeta(targetUserId);
 

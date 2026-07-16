@@ -1,0 +1,70 @@
+# Admin User Dashboard — Feature Brief (Phase 8 source prompt)
+
+## One-line
+Add an admin-only "Admin" destination in the left navigation (under Notifications) that opens a page listing every user of the app, with a per-user "Profile" button that reveals a large right-side panel showing that user's full candidate profile AND their computed recruiter signals — everything updating in real time as users edit their profile or trigger signals during onboarding.
+
+## Who this is for
+Internal admin/recruiter staff ONLY. This is the recruiter-facing surface for the invisible Recruiter Signals system built in Phase 7. Job seekers must never see it or be able to reach it.
+
+## User story
+- As an **admin/recruiter**
+- I want a dedicated Admin page that lists all candidates and lets me open any candidate's full profile plus their live recruiter signals in a side panel
+- So that I can review candidates at a glance, drill into one person's complete profile and inferred signals, and watch those update live as the candidate interacts with the app — without the candidate ever knowing.
+
+## Scope — what to build
+
+### 1. Left-nav "Admin" entry
+- Add an "Admin" item to the primary sidebar navigation, positioned directly UNDER "Notifications".
+- Follows the exact same visual style/pattern as the other nav links (icon + label, active state).
+- Only rendered for admin users. Non-admins never see the link, and the route is protected server-side (not just hidden in the UI).
+- Route: `/admin` (or `/admin/users`).
+
+### 2. Admin access control
+- Introduce a robust notion of "admin" (do NOT rely only on hiding the button):
+  - Preferred: an `isAdmin`/`role` field on the User model (Prisma migration), gated so only admins pass.
+  - The existing signals admin gate (`SIGNALS_ADMIN_ENABLED` / session checks in `src/app/api/admin/signals/route.ts`) should be reconciled/extended so the whole admin area shares one consistent authorization rule.
+- Every admin API route and the admin page must enforce this server-side (401/403 or 404 for non-admins).
+
+### 3. Admin users list page
+- Lists ALL users of the app.
+- Each row shows at least: name (or email fallback), target role, onboarding/profile completion status, and a **"Profile"** button.
+- Reasonable UX for many users (search/filter by name/email is a nice-to-have; at minimum a clean scrollable list).
+- Reuses the app shell + Switzerland-first EN/DE/FR i18n; do not regress existing locale support.
+
+### 4. Right-side profile + signals panel
+- Clicking a user's "Profile" button opens a LARGE panel on the RIGHT side of the app (same side/spirit as the existing onboarding signals panel / progress markers).
+- The panel shows, for the selected user:
+  - **Full candidate profile**: all saved fields (personal details, job situation, target roles, location, contract preference, work rate, qualifications, work permit status, salary expectation, CV-derived facts, onboarding answers, profile history/timeline).
+  - **Recruiter signals**: all 11 signals with their confidence bars, inferred values, evidence, and contradiction flags — reusing the Phase 7 signal model and the existing `RecruiterSignalsPanel` styling where sensible.
+- Panel can be closed and another user selected.
+
+### 5. Real-time updates
+- The panel and (where sensible) the list must reflect changes in **real time**: when the selected candidate updates their profile or does something in onboarding that moves their signals, the admin sees it update live without a manual refresh.
+- Choose an appropriate mechanism (e.g. Server-Sent Events, WebSocket, or short-interval polling) — pick the simplest reliable option that fits the existing Next.js App Router stack. Document the choice.
+- "Real time" means within a few seconds of the candidate's change.
+
+## Reuse / integrate with existing code
+- Recruiter Signals: `src/lib/ai/signals/*` (engine, signal-dal, signal-definitions), `src/app/api/admin/signals/route.ts`, `src/components/onboarding/RecruiterSignalsPanel.tsx`.
+- Profile: `CandidateProfile`, `OnboardingSession`, `ProfileHistoryEvent`, `ProfileQualification` (Prisma), existing profile summary/timeline components.
+- App shell & nav: `src/components/layout/AppShell.tsx` (sidebar), existing nav link pattern.
+- Auth/session: `src/auth/config.ts`, `auth()`.
+- i18n: `messages/{en,de,fr}.json`, `next-intl` routing.
+
+## Hard constraints (non-negotiable)
+- Job seekers must NEVER see the admin nav item, page, panel, or any signal data. Enforce server-side.
+- All existing functionality (onboarding, CV extraction, cover letters, interview prep, coaching, signals inference, artifact memory) must remain unchanged and un-regressed.
+- Reuse existing infra: Prisma/Postgres, Next.js App Router, the established `userId String -> User.id` (cuid/TEXT) FK convention, existing auth, existing signal + profile models.
+- Switzerland-first EN/DE/FR must not regress; new admin UI strings should be localized.
+- `npm run build` must pass with 0 errors.
+- No secrets committed; follow OWASP-safe access control (authorize on the server for every admin route).
+
+## Success criteria (what must be TRUE)
+1. An admin sees an "Admin" link under "Notifications" in the left sidebar; a non-admin does not, and cannot reach `/admin` by URL.
+2. The Admin page lists all app users, each with a working "Profile" button.
+3. Clicking "Profile" opens a large right-side panel showing that user's complete profile and all 11 recruiter signals with confidence/evidence/contradictions.
+4. When the selected candidate updates their profile or triggers signals via onboarding, the admin panel updates in real time (within a few seconds) without a manual page refresh.
+5. Existing user-facing flows and the invisible nature of signals are fully preserved; build passes.
+
+## Out of scope (for now)
+- Editing a candidate's profile from the admin panel (read-only view is fine for v1).
+- Bulk actions, exports, analytics dashboards, role management UI (a single admin flag/seed is enough).

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/AppShell";
+import { resolveIsAdmin } from "@/lib/auth/admin";
 import dashboardImage from "../../../images/img3.jpeg";
 
 type Props = {
@@ -38,8 +39,10 @@ export async function AppShellServer({ children }: Props): Promise<React.ReactEl
   const userName = user?.profile?.fullName?.trim() || emailName || "Candidate";
   const userRole = user?.profile?.primaryRole?.trim() || "";
 
+  const isAdmin = await resolveIsAdmin(userId);
+
   return (
-    <AppShell userName={userName} userRole={userRole} profileImageSrc={dashboardImage}>
+    <AppShell userName={userName} userRole={userRole} isAdmin={isAdmin} profileImageSrc={dashboardImage}>
       {children}
     </AppShell>
   );

@@ -145,5 +145,23 @@
 |-------|----------------|--------|-----------|
 | 7. Recruiter Signals Inference | 0/1 | Not started | - |
 
+### Phase 8: Admin User Dashboard (Recruiter-Facing)
+**Goal**: Admin/recruiter staff get a protected Admin area — reachable from an "Admin" link under "Notifications" in the left sidebar — that lists every user and, per user, reveals their complete candidate profile plus the Phase 7 recruiter signals in a large right-side panel that updates in real time as candidates change their profile or trigger signals. Job seekers never see any of it.
+**Mode:** mvp
+**Depends on**: Phase 7 (recruiter signals model + admin signals API + panel), Phase 1 (auth, profile, i18n, app shell), Phase 3 (durable profile/memory)
+**Requirements**: ADMIN-NAV-01, ADMIN-AUTHZ-02, ADMIN-USERLIST-03, ADMIN-PROFILE-PANEL-04, ADMIN-SIGNALS-PANEL-05, ADMIN-REALTIME-06, ADMIN-NONDISCLOSURE-07
+**Success Criteria** (what must be TRUE):
+1. Admins see an "Admin" link directly under "Notifications" in the left sidebar; non-admins never see it and cannot reach `/admin` by URL (server-enforced authorization).
+2. The Admin page lists all app users, each with name/email, target role, completion status, and a working "Profile" button.
+3. Clicking "Profile" opens a large right-side panel showing that user's complete candidate profile and all 11 recruiter signals with confidence bars, inferred values, evidence, and contradiction flags.
+4. When the selected candidate updates their profile or triggers signals during onboarding, the admin panel updates in real time (within a few seconds) without a manual refresh.
+5. All existing user-facing functionality and the invisible nature of signals are fully preserved; `npm run build` passes with 0 errors; EN/DE/FR not regressed.
+**Plans**: TBD
+**UI hint**: yes (admin-only surface)
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 8. Admin User Dashboard | 0/? | Not started | - |
+
 ---
-*Last updated: 2026-07-15 after Phase 5 merge, now starting Phase 6 (focused artifact memory)*
+*Last updated: 2026-07-16 — added Phase 8 (Admin User Dashboard, recruiter-facing) after Phase 7 merge*

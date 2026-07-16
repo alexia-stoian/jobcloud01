@@ -6,11 +6,12 @@ import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
+import type { Route } from "next";
 import type { StaticImageData } from "next/image";
 import logo from "../../../images/logo.png";
 
 type NavItem = {
-  labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications";
+  labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin";
   icon: string;
   href:
     | "/dashboard/unavailable/dashboard"
@@ -18,12 +19,14 @@ type NavItem = {
     | "/dashboard/unavailable/discover-jobs"
     | "/profile/summary"
     | "/dashboard/unavailable/messages"
-    | "/dashboard/unavailable/notifications";
+    | "/dashboard/unavailable/notifications"
+    | "/admin";
 };
 
 type Props = {
   userName: string;
   userRole: string;
+  isAdmin: boolean;
   profileImageSrc: string | StaticImageData;
   children: React.ReactNode;
 };
@@ -46,10 +49,14 @@ function isActive(pathname: string, href: string): boolean {
     return pathname.startsWith("/profile");
   }
 
+  if (href === "/admin") {
+    return pathname.startsWith("/admin");
+  }
+
   return pathname === href;
 }
 
-export function AppShell({ userName, userRole, profileImageSrc, children }: Props): React.ReactElement {
+export function AppShell({ userName, userRole, isAdmin, profileImageSrc, children }: Props): React.ReactElement {
   const tApp = useTranslations("app");
   const tAuth = useTranslations("auth");
   const locale = useLocale();
@@ -88,6 +95,12 @@ export function AppShell({ userName, userRole, profileImageSrc, children }: Prop
     return tApp("dashboard");
   }, [pathname, tApp]);
 
+  const items = useMemo<NavItem[]>(
+    () => (isAdmin ? [...navItems, { labelKey: "admin", icon: "◈", href: "/admin" }] : navItems),
+    [isAdmin]
+  );
+
+
   return (
     <div className={`app-shell${collapsed ? " app-shell--collapsed" : ""}`}>
       <aside className="app-sidebar" aria-label="Primary navigation">
@@ -118,10 +131,10 @@ export function AppShell({ userName, userRole, profileImageSrc, children }: Prop
           </button>
         ) : (
           <nav className="app-sidebar__nav">
-            {navItems.map((item) => (
+            {items.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href as Route}
                 className={`app-sidebar__link${isActive(pathname, item.href) ? " app-sidebar__link--active" : ""}`}
               >
                 <span className="app-sidebar__link-icon" aria-hidden="true">
