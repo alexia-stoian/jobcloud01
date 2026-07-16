@@ -21,21 +21,28 @@ type Props = {
    * Plan 3 supplies a handler that opens the right-side profile/signals panel.
    */
   onSelect?: (userId: string) => void;
+  /** Currently-open user, for the selected card highlight. */
+  selectedUserId?: string | null;
 };
 
 type LoadState = "loading" | "error" | "ready";
 
+/** First initial of the best available display name for the avatar. */
+function initialOf(user: AdminUser): string {
+  const source = user.name?.trim() || user.email?.trim() || "?";
+  return source.charAt(0).toUpperCase();
+}
+
 /**
  * Admin-only client list of every user. Fetches `/api/admin/users` (server-gated
- * by `requireAdmin`) on mount and renders one row per user with name/email,
- * target role, a completion badge, and a "Profile" button.
+ * by `requireAdmin`) on mount and renders one card per user with avatar,
+ * name/email, target role, a completion pill, and a "Profile" button.
  */
-export function AdminUsersList({ onSelect }: Props): React.ReactElement {
+export function AdminUsersList({ onSelect, selectedUserId }: Props): React.ReactElement {
   const t = useTranslations("admin");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [query, setQuery] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,59 +87,67 @@ export function AdminUsersList({ onSelect }: Props): React.ReactElement {
     );
   }, [users, query]);
 
-  const handleSelect = (userId: string): void => {
-    setSelectedUserId(userId);
-    onSelect?.(userId);
-  };
-
   return (
-    <section className="img3-panel">
-      <header className="img3-panel__header">
-        <h1>{t("title")}</h1>
-        <p>{t("usersHeading")}</p>
+    <section className="admin-list">
+      <header className="admin-list__header">
+        <div>
+          <h1 className="admin-list__title">{t("title")}</h1>
+          <p className="admin-list__subtitle">{t("usersHeading")}</p>
+        </div>
+        {state === "ready" && (
+          <span className="admin-count">
+            <span className="admin-count__dot" aria-hidden="true" />
+            {t("countLabel", { count: filtered.length })}
+          </span>
+        )}
       </header>
 
-      <input
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={t("searchPlaceholder")}
-        aria-label={t("searchPlaceholder")}
-        className="img3-input"
-      />
+      <div className="admin-search">
+        <span className="admin-search__icon" aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("searchPlaceholder")}
+          aria-label={t("searchPlaceholder")}
+          className="admin-search__input"
+        />
+      </div>
 
-      {state === "loading" && <p>{t("loading")}</p>}
-      {state === "error" && <p role="alert">{t("error")}</p>}
-      {state === "ready" && filtered.length === 0 && <p>{t("empty")}</p>}
+      {state === "loading" && <p className="admin-state">{t("loading")}</p>}
+      {state === "error" && <p className="admin-state" role="alert">{t("error")}</p>}
+      {state === "ready" && filtered.length === 0 && <p className="admin-state">{t("empty")}</p>}
 
       {state === "ready" && filtered.length > 0 && (
-        <ul className="img3-list">
+        <ul className="admin-cards">
           {filtered.map((user) => (
             <li
               key={user.id}
-              className="img3-list__row"
+              className="admin-card"
               aria-selected={selectedUserId === user.id}
             >
-              <div className="img3-list__main">
-                <span className="img3-list__name">{user.name}</span>
-                <span className="img3-list__email">{user.email}</span>
+              <span className="admin-avatar" aria-hidden="true">{initialOf(user)}</span>
+              <div className="admin-card__body">
+                <span className="admin-card__name" title={user.name}>{user.name}</span>
+                <span className="admin-card__email" title={user.email}>{user.email}</span>
+                <span className="admin-card__meta">
+                  <span
+                    className={user.targetRole ? "admin-chip" : "admin-chip admin-chip--muted"}
+                    title={user.targetRole ?? undefined}
+                  >
+                    {user.targetRole ?? t("noTargetRole")}
+                  </span>
+                  <span
+                    className={user.isComplete ? "admin-pill admin-pill--ok" : "admin-pill admin-pill--pending"}
+                  >
+                    {user.isComplete ? t("complete") : t("incomplete")}
+                  </span>
+                </span>
               </div>
-              <span className="img3-list__meta">
-                {user.targetRole ?? t("noTargetRole")}
-              </span>
-              <span
-                className={
-                  user.isComplete
-                    ? "img3-badge img3-badge--complete"
-                    : "img3-badge img3-badge--incomplete"
-                }
-              >
-                {user.isComplete ? t("complete") : t("incomplete")}
-              </span>
               <button
                 type="button"
-                className="img3-button"
-                onClick={() => handleSelect(user.id)}
+                className="admin-card__action"
+                onClick={() => onSelect?.(user.id)}
               >
                 {t("profileButton")}
               </button>

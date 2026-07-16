@@ -15,14 +15,23 @@ export function AdminDashboard(): React.ReactElement {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   return (
-    <div className="img3-admin-dashboard">
-      <AdminUsersList onSelect={setSelectedUserId} />
+    <div className="admin">
+      <AdminUsersList onSelect={setSelectedUserId} selectedUserId={selectedUserId} />
       {selectedUserId && (
-        <AdminProfilePanel
-          key={selectedUserId}
-          userId={selectedUserId}
-          onClose={() => setSelectedUserId(null)}
-        />
+        <>
+          <div
+            className="admin-scrim"
+            role="button"
+            tabIndex={-1}
+            aria-label="Close profile"
+            onClick={() => setSelectedUserId(null)}
+          />
+          <AdminProfilePanel
+            key={selectedUserId}
+            userId={selectedUserId}
+            onClose={() => setSelectedUserId(null)}
+          />
+        </>
       )}
     </div>
   );

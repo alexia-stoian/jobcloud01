@@ -88,26 +88,99 @@ const POLL_INTERVAL_MS = 4000;
 
 const CATEGORY_ORDER: readonly SignalCategory[] = ["motivation", "behavioral", "skill"];
 
-/** Ordered list of profile fields → i18n label key under `admin.fields.*`. */
-const PROFILE_FIELDS: ReadonlyArray<{ key: keyof ProfileBundle; label: string }> = [
-  { key: "fullName", label: "fullName" },
-  { key: "currentJobSituation", label: "currentJobSituation" },
-  { key: "employmentObjective", label: "employmentObjective" },
-  { key: "primaryRole", label: "primaryRole" },
-  { key: "preferredLocation", label: "preferredLocation" },
-  { key: "targetRoles", label: "targetRoles" },
-  { key: "targetSeniority", label: "targetSeniority" },
-  { key: "targetIndustries", label: "targetIndustries" },
-  { key: "preferredWorkModel", label: "preferredWorkModel" },
-  { key: "contractPreference", label: "contractPreference" },
-  { key: "workRate", label: "workRate" },
-  { key: "workPermitStatus", label: "workPermitStatus" },
-  { key: "salaryExpectation", label: "salaryExpectation" },
-  { key: "visaSponsorship", label: "visaSponsorship" },
-  { key: "relocationWillingness", label: "relocationWillingness" },
-  { key: "commuteRadius", label: "commuteRadius" },
-  { key: "locale", label: "locale" }
+type FieldKey = keyof ProfileBundle;
+
+/**
+ * Profile fields organised into logical groups so the panel reads like a
+ * recruiter would think about a candidate, instead of one flat 17-field grid.
+ */
+const FIELD_GROUPS: ReadonlyArray<{ heading: string; fields: FieldKey[] }> = [
+  {
+    heading: "careerGoalHeading",
+    fields: ["employmentObjective", "primaryRole", "targetRoles", "targetSeniority", "targetIndustries"]
+  },
+  {
+    heading: "preferencesHeading",
+    fields: ["preferredLocation", "preferredWorkModel", "contractPreference", "workRate", "commuteRadius", "relocationWillingness"]
+  },
+  {
+    heading: "eligibilityHeading",
+    fields: ["workPermitStatus", "visaSponsorship", "salaryExpectation"]
+  },
+  {
+    heading: "situationHeading",
+    fields: ["currentJobSituation", "locale"]
+  }
 ];
+
+type ParsedQual =
+  | { kind: "tag"; text: string }
+  | { kind: "item"; title: string; sub?: string; desc?: string };
+
+/** Parse a raw qualification value (skills are plain strings; experience /
+ * education / certifications are JSON blobs) into a display-friendly shape. */
+function parseQualification(category: string, value: string): ParsedQual {
+  const cat = category.toLowerCase();
+  if (cat === "skill" || cat === "language" || cat === "tool") {
+    return { kind: "tag", text: value };
+  }
+  let obj: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object") {
+      obj = parsed as Record<string, unknown>;
+    }
+  } catch {
+    obj = null;
+  }
+  if (!obj) {
+    return { kind: "item", title: value };
+  }
+  const str = (k: string): string | undefined => (typeof obj?.[k] === "string" ? (obj[k] as string) : undefined);
+  const dates = [str("startDate"), str("endDate") ?? (obj.isCurrentRole ? "present" : undefined)]
+    .filter(Boolean)
+    .join(" – ");
+
+  if (cat === "experience") {
+    const sub = [str("company"), str("location"), dates].filter(Boolean).join(" · ");
+    return { kind: "item", title: str("title") ?? value, sub: sub || undefined, desc: str("description") };
+  }
+  if (cat === "diploma" || cat === "education" || cat === "degree") {
+    const title = [str("degree"), str("field")].filter(Boolean).join(", ");
+    const sub = [str("school"), str("location"), str("graduationDate") ?? dates].filter(Boolean).join(" · ");
+    return { kind: "item", title: title || str("school") || value, sub: sub || undefined, desc: str("honors") };
+  }
+  // certification / other
+  const sub = [str("issuer"), str("date")].filter(Boolean).join(" · ");
+  return { kind: "item", title: str("name") ?? value, sub: sub || undefined };
+}
+
+/** Group qualifications into skills (tags) + itemised categories. */
+function groupQualifications(quals: QualificationBundle[]): {
+  skills: string[];
+  experience: ParsedQual[];
+  education: ParsedQual[];
+  certifications: ParsedQual[];
+} {
+  const skills: string[] = [];
+  const experience: ParsedQual[] = [];
+  const education: ParsedQual[] = [];
+  const certifications: ParsedQual[] = [];
+  for (const q of quals) {
+    const cat = q.category.toLowerCase();
+    const parsed = parseQualification(q.category, q.value);
+    if (parsed.kind === "tag") {
+      skills.push(parsed.text);
+    } else if (cat === "experience") {
+      experience.push(parsed);
+    } else if (cat === "diploma" || cat === "education" || cat === "degree") {
+      education.push(parsed);
+    } else {
+      certifications.push(parsed);
+    }
+  }
+  return { skills, experience, education, certifications };
+}
 
 function toKeyValueEntries(value: unknown): Array<{ key: string; value: string }> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -212,302 +285,278 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
   const conversation = bundle?.onboarding
     ? summarizeConversation(bundle.onboarding.conversationHistory)
     : [];
+  const quals = bundle ? groupQualifications(bundle.qualifications) : null;
+  const avatarInitial = (bundle?.user.name?.trim() || bundle?.user.email?.trim() || "?")
+    .charAt(0)
+    .toUpperCase();
+  const updatedTime = bundle?.updatedAt ? new Date(bundle.updatedAt).toLocaleTimeString() : null;
+
+  const renderValue = (raw: unknown): React.ReactElement => {
+    const isEmpty = raw === null || raw === undefined || raw === "";
+    return (
+      <span className={isEmpty ? "admin-kv__val admin-kv__val--empty" : "admin-kv__val"}>
+        {isEmpty ? dash : String(raw)}
+      </span>
+    );
+  };
+
+  const renderItems = (items: ParsedQual[]): React.ReactElement => (
+    <div>
+      {items.map((item, index) =>
+        item.kind === "item" ? (
+          <div className="admin-item" key={index}>
+            <div className="admin-item__title">{item.title}</div>
+            {item.sub ? <div className="admin-item__sub">{item.sub}</div> : null}
+            {item.desc ? <div className="admin-item__desc">{item.desc}</div> : null}
+          </div>
+        ) : null
+      )}
+    </div>
+  );
 
   return (
-    <aside
-      className="img3-signals-panel img3-panel"
-      aria-label={t("profileHeading")}
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: "min(560px, 92vw)",
-        overflowY: "auto",
-        background: "#ffffff",
-        borderLeft: "1px solid #e5e7eb",
-        boxShadow: "-8px 0 24px rgba(0,0,0,0.08)",
-        padding: 20,
-        zIndex: 50
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{t("profileHeading")}</h2>
+    <aside className="admin-panel" aria-label={t("profileHeading")}>
+      <header className="admin-panel__header">
+        <span className="admin-avatar" aria-hidden="true">
+          {state === "ready" ? avatarInitial : "…"}
+        </span>
+        <div className="admin-panel__id">
+          <div className="admin-panel__name">{bundle?.user.name ?? t("loading")}</div>
+          <div className="admin-panel__email">{bundle?.user.email ?? ""}</div>
+        </div>
+        {state === "ready" && (
+          <span
+            className={
+              bundle?.completion?.isMinimallyComplete
+                ? "admin-pill admin-pill--ok"
+                : "admin-pill admin-pill--pending"
+            }
+          >
+            {bundle?.completion?.isMinimallyComplete ? t("complete") : t("incomplete")}
+          </span>
+        )}
         <button
           type="button"
-          className="img3-button"
+          className="admin-panel__close"
           onClick={onClose}
           aria-label={t("close")}
           title={t("close")}
         >
           ✕
         </button>
-      </div>
+      </header>
 
-      {state === "loading" && <p>{t("loading")}</p>}
-      {state === "error" && <p role="alert">{t("error")}</p>}
+      <div className="admin-panel__body">
+        {state === "loading" && <p className="admin-state">{t("loading")}</p>}
+        {state === "error" && (
+          <p className="admin-state" role="alert">
+            {t("error")}
+          </p>
+        )}
 
-      {state === "ready" && bundle && (
-        <>
-          {/* Header: name + email + completion badge */}
-          <header style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{bundle.user.name}</div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>{bundle.user.email}</div>
-            <span
-              className={
-                bundle.completion?.isMinimallyComplete
-                  ? "img3-badge img3-badge--complete"
-                  : "img3-badge img3-badge--incomplete"
-              }
-              style={{ marginTop: 6, display: "inline-block" }}
-            >
-              {bundle.completion?.isMinimallyComplete ? t("complete") : t("incomplete")}
-            </span>
-          </header>
-
-          {/* Profile fields */}
-          <section style={{ marginBottom: 18 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-              {t("profileHeading")}
-            </h3>
-            {bundle.profile ? (
-              <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                {PROFILE_FIELDS.map((field) => {
-                  const raw = bundle.profile ? bundle.profile[field.key] : null;
-                  const value = raw === null || raw === undefined || raw === "" ? dash : String(raw);
-                  return (
-                    <div key={field.key}>
-                      <dt style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.6 }}>
-                        {t(`fields.${field.label}`)}
-                      </dt>
-                      <dd style={{ margin: 0, fontSize: 12 }}>{value}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            ) : (
-              <p style={{ fontSize: 12, opacity: 0.7 }}>{t("noData")}</p>
-            )}
-          </section>
-
-          {/* Qualifications */}
-          <section style={{ marginBottom: 18 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-              {t("qualificationsHeading")}
-            </h3>
-            {bundle.qualifications.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: 16 }}>
-                {bundle.qualifications.map((q, index) => (
-                  <li key={`${q.category}-${index}`} style={{ fontSize: 12 }}>
-                    <strong>{q.category}:</strong> {q.value}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ fontSize: 12, opacity: 0.7 }}>{t("noData")}</p>
-            )}
-          </section>
-
-          {/* CV-derived facts + onboarding answers */}
-          <section style={{ marginBottom: 18 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-              {t("cvFactsHeading")}
-            </h3>
-            {bundle.onboarding ? (
-              <>
-                <dl style={{ margin: "0 0 8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div>
-                    <dt style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.6 }}>
-                      {t("fields.targetRole")}
-                    </dt>
-                    <dd style={{ margin: 0, fontSize: 12 }}>{bundle.onboarding.targetRole ?? dash}</dd>
-                  </div>
-                  <div>
-                    <dt style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.6 }}>
-                      {t("fields.cvFileName")}
-                    </dt>
-                    <dd style={{ margin: 0, fontSize: 12 }}>{bundle.onboarding.cvFileName ?? dash}</dd>
-                  </div>
-                </dl>
-                {cvFacts.length > 0 ? (
-                  <dl style={{ margin: 0 }}>
-                    {cvFacts.map((fact) => (
-                      <div key={fact.key} style={{ marginBottom: 4 }}>
-                        <dt style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.6 }}>
-                          {fact.key}
-                        </dt>
-                        <dd style={{ margin: 0, fontSize: 12 }}>{fact.value || dash}</dd>
+        {state === "ready" && bundle && (
+          <>
+            {/* Grouped profile fields */}
+            {bundle.profile &&
+              FIELD_GROUPS.map((group) => (
+                <section className="admin-section" key={group.heading}>
+                  <h3 className="admin-section__title">{t(group.heading)}</h3>
+                  <dl className="admin-kv">
+                    {group.fields.map((key) => (
+                      <div className="admin-kv__item" key={key}>
+                        <dt className="admin-kv__key">{t(`fields.${key}`)}</dt>
+                        <dd style={{ margin: 0 }}>{renderValue(bundle.profile ? bundle.profile[key] : null)}</dd>
                       </div>
                     ))}
                   </dl>
-                ) : (
-                  <p style={{ fontSize: 12, opacity: 0.7 }}>{t("noData")}</p>
-                )}
+                </section>
+              ))}
+
+            {/* Qualifications — skills as chips, experience/education/certs itemised */}
+            {quals &&
+              (quals.skills.length > 0 ||
+                quals.experience.length > 0 ||
+                quals.education.length > 0 ||
+                quals.certifications.length > 0) && (
+                <section className="admin-section">
+                  <h3 className="admin-section__title">{t("qualificationsHeading")}</h3>
+
+                  {quals.skills.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("skillsLabel")}</div>
+                      <div className="admin-taglist">
+                        {quals.skills.map((skill, index) => (
+                          <span className="admin-tag" key={index}>
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {quals.experience.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("experienceLabel")}</div>
+                      {renderItems(quals.experience)}
+                    </>
+                  )}
+
+                  {quals.education.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("educationLabel")}</div>
+                      {renderItems(quals.education)}
+                    </>
+                  )}
+
+                  {quals.certifications.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("certificationsLabel")}</div>
+                      {renderItems(quals.certifications)}
+                    </>
+                  )}
+                </section>
+              )}
+
+            {/* CV-derived facts + onboarding conversation */}
+            {bundle.onboarding && (
+              <section className="admin-section">
+                <h3 className="admin-section__title">{t("cvFactsHeading")}</h3>
+                <dl className="admin-kv">
+                  <div className="admin-kv__item">
+                    <dt className="admin-kv__key">{t("fields.targetRole")}</dt>
+                    <dd style={{ margin: 0 }}>{renderValue(bundle.onboarding.targetRole)}</dd>
+                  </div>
+                  <div className="admin-kv__item">
+                    <dt className="admin-kv__key">{t("fields.cvFileName")}</dt>
+                    <dd style={{ margin: 0 }}>{renderValue(bundle.onboarding.cvFileName)}</dd>
+                  </div>
+                  {cvFacts.map((fact) => (
+                    <div className="admin-kv__item" key={fact.key}>
+                      <dt className="admin-kv__key">{fact.key}</dt>
+                      <dd style={{ margin: 0 }}>{renderValue(fact.value)}</dd>
+                    </div>
+                  ))}
+                </dl>
 
                 {conversation.length > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <h4 style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.7, margin: "0 0 6px" }}>
-                      {t("onboardingHeading")}
-                    </h4>
-                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  <>
+                    <div className="admin-subhead">{t("onboardingHeading")}</div>
+                    <ul className="admin-convo">
                       {conversation.map((turn, index) => (
-                        <li key={index} style={{ fontSize: 11, marginBottom: 3 }}>
-                          <strong>{turn.role}:</strong> {turn.text}
+                        <li
+                          key={index}
+                          className={
+                            turn.role === "user"
+                              ? "admin-convo__turn admin-convo__turn--user"
+                              : "admin-convo__turn admin-convo__turn--assistant"
+                          }
+                        >
+                          <span className="admin-convo__role">{turn.role}</span>
+                          {turn.text}
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </>
                 )}
-              </>
-            ) : (
-              <p style={{ fontSize: 12, opacity: 0.7 }}>{t("noData")}</p>
+              </section>
             )}
-          </section>
 
-          {/* Profile history / timeline */}
-          <section style={{ marginBottom: 18 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-              {t("historyHeading")}
-            </h3>
-            {bundle.history.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: 16 }}>
-                {bundle.history.map((event) => (
-                  <li key={event.id} style={{ fontSize: 11, marginBottom: 3 }}>
-                    <span style={{ opacity: 0.6 }}>
-                      {new Date(event.createdAt).toLocaleString()}
-                    </span>{" "}
-                    — {event.source}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ fontSize: 12, opacity: 0.7 }}>{t("noData")}</p>
+            {/* Profile history */}
+            {bundle.history.length > 0 && (
+              <section className="admin-section">
+                <h3 className="admin-section__title">{t("historyHeading")}</h3>
+                <div>
+                  {bundle.history.map((event) => (
+                    <div className="admin-item" key={event.id}>
+                      <div className="admin-item__sub">
+                        {new Date(event.createdAt).toLocaleString()} — {event.source}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
-          </section>
 
-          {/* Signals — all 11, reusing RecruiterSignalsPanel row styling + evidence */}
-          <section>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-              {t("signalsHeading")}
-            </h3>
-            {CATEGORY_ORDER.map((category) => {
-              const rows = bundle.signals.filter((signal) => signal.category === category);
-              if (rows.length === 0) {
-                return null;
-              }
-              return (
-                <div key={category} className="img3-signals-group" style={{ marginBottom: 12 }}>
-                  <h4
-                    className="img3-signals-group__heading"
-                    style={{ margin: "0 0 6px", fontSize: 11, textTransform: "uppercase", opacity: 0.7 }}
-                  >
-                    {categoryLabel(category)}
-                  </h4>
-
-                  {rows.map((signal) => {
-                    const hasContradiction = signal.contradictionFlags.length > 0;
-                    const assessed = signal.confidence > 0;
-                    return (
-                      <div key={signal.key} className="img3-signal-row" style={{ marginBottom: 8 }}>
-                        <div
-                          className="img3-signal-row__head"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 6,
-                            fontSize: 12
-                          }}
-                        >
-                          <span className="img3-signal-row__name">{signal.name}</span>
-                          {hasContradiction ? (
-                            <span
-                              className="img3-signal-row__badge"
-                              title={tSignals("contradiction")}
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: "#b91c1c",
-                                background: "#fee2e2",
-                                borderRadius: 4,
-                                padding: "1px 5px"
-                              }}
-                            >
-                              ⚠ {tSignals("contradiction")}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div
-                          className="img3-signal-bar"
-                          style={{
-                            height: 6,
-                            borderRadius: 999,
-                            background: "#e5e7eb",
-                            overflow: "hidden",
-                            margin: "3px 0"
-                          }}
-                        >
+            {/* Recruiter signals — grouped by category */}
+            <section className="admin-section admin-section--live">
+              <h3 className="admin-section__title">{t("signalsHeading")}</h3>
+              {CATEGORY_ORDER.map((category) => {
+                const rows = bundle.signals.filter((signal) => signal.category === category);
+                if (rows.length === 0) {
+                  return null;
+                }
+                return (
+                  <div className="admin-signal-group" key={category}>
+                    <div className="admin-subhead">{categoryLabel(category)}</div>
+                    {rows.map((signal) => {
+                      const hasContradiction = signal.contradictionFlags.length > 0;
+                      const assessed = signal.confidence > 0;
+                      const fillClass = !assessed
+                        ? "admin-signal__fill admin-signal__fill--none"
+                        : hasContradiction
+                          ? "admin-signal__fill admin-signal__fill--warn"
+                          : "admin-signal__fill";
+                      return (
+                        <div className="admin-signal" key={signal.key}>
+                          <div className="admin-signal__head">
+                            <span className="admin-signal__name">{signal.name}</span>
+                            {hasContradiction ? (
+                              <span className="admin-badge-warn" title={tSignals("contradiction")}>
+                                ⚠ {tSignals("contradiction")}
+                              </span>
+                            ) : (
+                              <span className="admin-signal__pct">{assessed ? `${signal.confidence}%` : ""}</span>
+                            )}
+                          </div>
+                          <div className="admin-signal__bar">
+                            <div className={fillClass} style={{ width: `${signal.confidence}%` }} />
+                          </div>
                           <div
-                            className="img3-signal-bar__fill"
-                            style={{
-                              width: `${signal.confidence}%`,
-                              height: "100%",
-                              borderRadius: 999,
-                              transition: "width 0.4s ease",
-                              background: hasContradiction ? "#f59e0b" : "#2563eb"
-                            }}
-                          />
-                        </div>
+                            className={
+                              assessed ? "admin-signal__value" : "admin-signal__value admin-signal__value--none"
+                            }
+                          >
+                            {assessed
+                              ? `${signal.inferredValue ?? dash} · ${signal.confidence}%`
+                              : tSignals("notAssessed")}
+                          </div>
 
-                        <span className="img3-signal-row__value" style={{ fontSize: 11, opacity: 0.75 }}>
-                          {assessed
-                            ? `${signal.inferredValue ?? dash} · ${signal.confidence}%`
-                            : tSignals("notAssessed")}
-                        </span>
+                          {signal.evidence.length > 0 && (
+                            <details className="admin-evidence">
+                              <summary>
+                                {t("evidenceHeading")} ({signal.evidence.length})
+                              </summary>
+                              <ul className="admin-evidence__list">
+                                {signal.evidence.map((item, index) => (
+                                  <li className="admin-evidence__item" key={index}>
+                                    <span className="admin-evidence__src">[{item.source}]</span> “{item.quote}”
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
 
-                        {/* Evidence — admin dashboard is the reveal surface */}
-                        {signal.evidence.length > 0 && (
-                          <details style={{ marginTop: 4 }}>
-                            <summary style={{ fontSize: 10, cursor: "pointer", opacity: 0.7 }}>
-                              {t("evidenceHeading")} ({signal.evidence.length})
-                            </summary>
-                            <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
-                              {signal.evidence.map((item, index) => (
-                                <li key={index} style={{ fontSize: 10, marginBottom: 2 }}>
-                                  <span style={{ opacity: 0.6 }}>[{item.source}]</span> “{item.quote}”
+                          {hasContradiction && (
+                            <ul className="admin-contradiction">
+                              {signal.contradictionFlags.map((flag, index) => (
+                                <li className="admin-contradiction__item" key={index}>
+                                  {flag.description}
                                 </li>
                               ))}
                             </ul>
-                          </details>
-                        )}
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </section>
 
-                        {/* Contradiction detail */}
-                        {hasContradiction && (
-                          <ul style={{ margin: "3px 0 0", paddingLeft: 16 }}>
-                            {signal.contradictionFlags.map((flag, index) => (
-                              <li key={index} style={{ fontSize: 10, color: "#b91c1c" }}>
-                                {flag.description}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </section>
-        </>
-      )}
+            {updatedTime && <div className="admin-updated">{t("updatedLabel", { time: updatedTime })}</div>}
+          </>
+        )}
+      </div>
     </aside>
   );
 }
