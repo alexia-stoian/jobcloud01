@@ -20,6 +20,7 @@
     "messages": "Messages",
     "notifications": "Notifications",
     "admin": "Admin",
+    "sourcing": "Sourcing",
     "careerGuide": "Guide de carriere",
     "notImplemented": "Pas encore implemente"
   },
@@ -253,8 +254,24 @@
     "updatedLabel": "En direct · mis à jour {time}",
     "noData": "Aucune donnée",
     "fieldEmpty": "—",
+    "sourcing": {
+      "title": "Sourcing recruteur",
+      "subtitle": "Importez un JSON de besoins recruteur pour classer tous les candidats et afficher le top 3.",
+      "uploadPrompt": "Importer le JSON des besoins recruteur",
+      "uploadHint": "Déposez ou choisissez un fichier .json décrivant le poste.",
+      "replaceHint": "Choisissez un autre fichier .json pour relancer le matching.",
+      "analyzing": "Analyse des candidats…",
+      "parseError": "Ce fichier n'est pas un JSON valide. Vérifiez le format et réessayez.",
+      "requestError": "Le matching a échoué. Veuillez réessayer.",
+      "noResults": "Aucun candidat correspondant ({count} évalués).",
+      "fallbackNote": "Classement déterministe (pas de texte IA — ANTHROPIC_API_KEY non défini).",
+      "fitLabel": "{percent}% d'adéquation",
+      "whyFitHeading": "Pourquoi ils conviennent",
+      "bestSkillsHeading": "Meilleures compétences",
+      "prosHeading": "Avantages",
+      "consHeading": "Inconvénients"
+    },
     "fields": {
-      "fullName": "Nom complet",
       "currentJobSituation": "Situation actuelle",
       "employmentObjective": "Objectif d'emploi",
       "primaryRole": "Rôle principal",

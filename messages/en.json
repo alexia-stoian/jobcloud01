@@ -20,6 +20,7 @@
     "messages": "Messages",
     "notifications": "Notifications",
     "admin": "Admin",
+    "sourcing": "Sourcing",
     "careerGuide": "Career guide",
     "notImplemented": "Not implemented yet"
   },
@@ -324,8 +325,24 @@
     "updatedLabel": "Live · updated {time}",
     "noData": "No data",
     "fieldEmpty": "—",
+    "sourcing": {
+      "title": "Recruiter sourcing",
+      "subtitle": "Upload a recruiter-needs JSON to rank every candidate and surface the top 3 fits.",
+      "uploadPrompt": "Upload recruiter-needs JSON",
+      "uploadHint": "Drop or choose a .json file describing the role.",
+      "replaceHint": "Choose another .json file to re-run matching.",
+      "analyzing": "Analyzing candidates…",
+      "parseError": "That file isn't valid JSON. Check the format and try again.",
+      "requestError": "Matching failed. Please try again.",
+      "noResults": "No candidates matched ({count} evaluated).",
+      "fallbackNote": "Deterministic ranking (no AI narrative — ANTHROPIC_API_KEY not set).",
+      "fitLabel": "{percent}% fit",
+      "whyFitHeading": "Why they fit",
+      "bestSkillsHeading": "Best skills",
+      "prosHeading": "Pros",
+      "consHeading": "Cons"
+    },
     "fields": {
-      "fullName": "Full name",
       "currentJobSituation": "Current situation",
       "employmentObjective": "Employment objective",
       "primaryRole": "Primary role",

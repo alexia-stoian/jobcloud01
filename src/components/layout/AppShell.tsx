@@ -11,7 +11,7 @@ import type { StaticImageData } from "next/image";
 import logo from "../../../images/logo.png";
 
 type NavItem = {
-  labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin";
+  labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin" | "sourcing";
   icon: string;
   href:
     | "/dashboard/unavailable/dashboard"
@@ -20,7 +20,8 @@ type NavItem = {
     | "/profile/summary"
     | "/dashboard/unavailable/messages"
     | "/dashboard/unavailable/notifications"
-    | "/admin";
+    | "/admin"
+    | "/admin/sourcing";
 };
 
 type Props = {
@@ -49,8 +50,12 @@ function isActive(pathname: string, href: string): boolean {
     return pathname.startsWith("/profile");
   }
 
+  if (href === "/admin/sourcing") {
+    return pathname.startsWith("/admin/sourcing");
+  }
+
   if (href === "/admin") {
-    return pathname.startsWith("/admin");
+    return pathname === "/admin" || (pathname.startsWith("/admin") && !pathname.startsWith("/admin/sourcing"));
   }
 
   return pathname === href;
@@ -96,7 +101,14 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
   }, [pathname, tApp]);
 
   const items = useMemo<NavItem[]>(
-    () => (isAdmin ? [...navItems, { labelKey: "admin", icon: "◈", href: "/admin" }] : navItems),
+    () =>
+      isAdmin
+        ? [
+            ...navItems,
+            { labelKey: "admin", icon: "◈", href: "/admin" },
+            { labelKey: "sourcing", icon: "⌗", href: "/admin/sourcing" }
+          ]
+        : navItems,
     [isAdmin]
   );
 

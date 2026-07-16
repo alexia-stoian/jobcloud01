@@ -20,6 +20,7 @@
     "messages": "Nachrichten",
     "notifications": "Benachrichtigungen",
     "admin": "Admin",
+    "sourcing": "Sourcing",
     "careerGuide": "Karriereberater",
     "notImplemented": "Noch nicht implementiert"
   },
@@ -253,8 +254,24 @@
     "updatedLabel": "Live · aktualisiert {time}",
     "noData": "Keine Daten",
     "fieldEmpty": "—",
+    "sourcing": {
+      "title": "Recruiter-Sourcing",
+      "subtitle": "Laden Sie eine Recruiter-Bedarfs-JSON hoch, um alle Kandidaten zu ranken und die Top 3 anzuzeigen.",
+      "uploadPrompt": "Recruiter-Bedarfs-JSON hochladen",
+      "uploadHint": "Legen Sie eine .json-Datei mit der Rollenbeschreibung ab oder wählen Sie eine aus.",
+      "replaceHint": "Wählen Sie eine andere .json-Datei, um das Matching erneut auszuführen.",
+      "analyzing": "Kandidaten werden analysiert…",
+      "parseError": "Diese Datei ist kein gültiges JSON. Bitte Format prüfen und erneut versuchen.",
+      "requestError": "Matching fehlgeschlagen. Bitte erneut versuchen.",
+      "noResults": "Keine passenden Kandidaten ({count} ausgewertet).",
+      "fallbackNote": "Deterministisches Ranking (kein KI-Text — ANTHROPIC_API_KEY nicht gesetzt).",
+      "fitLabel": "{percent}% Passung",
+      "whyFitHeading": "Warum sie passen",
+      "bestSkillsHeading": "Beste Fähigkeiten",
+      "prosHeading": "Pro",
+      "consHeading": "Kontra"
+    },
     "fields": {
-      "fullName": "Vollständiger Name",
       "currentJobSituation": "Aktuelle Situation",
       "employmentObjective": "Beschäftigungsziel",
       "primaryRole": "Primäre Rolle",
