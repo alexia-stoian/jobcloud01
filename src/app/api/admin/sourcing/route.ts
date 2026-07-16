@@ -9,9 +9,7 @@ import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** How many top candidates are sent to the LLM for a narrative report. */
-const TOP_N_FOR_LLM = 5;
-/** How many candidates are returned to the client. */
+/** How many candidates are returned to the client (each gets its own LLM report). */
 const RESULT_COUNT = 3;
 
 /**
@@ -58,12 +56,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return true;
   });
 
-  const topForLlm = distinct.slice(0, TOP_N_FOR_LLM);
+  // Generate LLM reports ONLY for the candidates we actually show (the top 3),
+  // each as its own parallel focused call — no wasted work on unshown candidates.
+  const topResults = distinct.slice(0, RESULT_COUNT);
 
-  const reports = await buildReports(needs, topForLlm);
+  const reports = await buildReports(needs, topResults);
   const usedLlm = Array.from(reports.values()).some((report) => report.grounded);
 
-  const results: SourcingResult[] = distinct.slice(0, RESULT_COUNT).map((scored) => {
+  const results: SourcingResult[] = topResults.map((scored) => {
     const report = reports.get(scored.bundle.userId);
     return {
       userId: scored.bundle.userId,

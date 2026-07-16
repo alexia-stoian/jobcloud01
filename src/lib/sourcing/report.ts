@@ -2,12 +2,14 @@
  * Fact-grounded candidate report — LLM narrative with deterministic fallback.
  *
  * ADMIN-ONLY / INTERNAL. Reuses the Anthropic `fetch` pattern from
- * `src/lib/cv/extract-phase1.ts`. Builds ONE prompt with the recruiter needs and
- * a compact, sanitized facts block per top candidate (only fields present in the
- * bundle), instructs the model to ground every statement strictly in those facts,
- * and parses the response defensively (with truncation salvage). When no API key
- * is present or the call/parse fails, a deterministic report is built from the
- * `ScoredCandidate` breakdown so the feature still ranks and explains from facts.
+ * `src/lib/cv/extract-phase1.ts`. Each top candidate is assessed with its OWN
+ * focused, sanitized prompt (only fields present in the bundle) run in PARALLEL,
+ * so total latency stays low and no single slow candidate blocks the rest — this
+ * avoids the request timeout that a single mega-prompt hit on extended-thinking
+ * models. The model must ground every statement strictly in the supplied facts.
+ * When no API key is present or a call/parse fails, a deterministic report is
+ * built from the `ScoredCandidate` breakdown so the feature still ranks and
+ * explains from facts.
  */
 
 import { env } from "@/lib/env";
@@ -44,7 +46,7 @@ function clamp(value: string | null | undefined, max = 200): string {
   return value.replace(/[\r\n]+/g, " ").trim().slice(0, max);
 }
 
-async function callAnthropic(prompt: string): Promise<string | null> {
+async function callAnthropic(prompt: string, maxTokens: number): Promise<string | null> {
   // Read the key server-side only. Strip ALL whitespace/newlines (defense against
   // a multi-line .env value silently corrupting the credential). The key is never
   // logged, never returned in any API response, and only ever travels from this
@@ -62,7 +64,7 @@ async function callAnthropic(prompt: string): Promise<string | null> {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 50000);
+  const timeout = setTimeout(() => controller.abort(), 55000);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -74,7 +76,11 @@ async function callAnthropic(prompt: string): Promise<string | null> {
       },
       body: JSON.stringify({
         model: anthropicModel,
-        max_tokens: 6000,
+        max_tokens: maxTokens,
+        // Disable extended thinking: this is a structured JSON-extraction task, so
+        // "thinking" only burns the token budget (truncating the JSON before it
+        // closes) and adds latency. Without it the model returns clean JSON fast.
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }]
       }),
       signal: controller.signal,
@@ -85,8 +91,14 @@ async function callAnthropic(prompt: string): Promise<string | null> {
       return null;
     }
     const data = (await response.json()) as AnthropicResponse;
-    const text = data.content?.find((part) => part.type === "text")?.text?.trim();
-    return text ?? null;
+    // Concatenate all text parts (defensive — normally a single text block once
+    // thinking is disabled).
+    const text = data.content
+      ?.filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("")
+      .trim();
+    return text && text.length > 0 ? text : null;
   } catch {
     return null;
   } finally {
@@ -134,83 +146,184 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
   };
 }
 
-function buildPrompt(needs: RecruiterNeeds, top: ScoredCandidate[]): string {
-  const facts = top.map((scored) => candidateFacts(scored));
-  return `You are a recruiter-sourcing assistant. Assess how well each candidate fits the recruiter's needs.
+function buildCandidatePrompt(needs: RecruiterNeeds, scored: ScoredCandidate): string {
+  const facts = candidateFacts(scored);
+  return `You are a recruiter-sourcing assistant. Assess how well ONE candidate fits the recruiter's needs.
 
 STRICT RULES:
 - Ground EVERY statement ONLY in the supplied facts. Do NOT invent skills, roles, dates, or experience.
-- If a required fact is missing for a candidate, explicitly say it is missing rather than assuming it.
+- If a required fact is missing, explicitly say it is missing rather than assuming it.
 - Do not reveal internal signal keys verbatim; you may paraphrase behavioral traits qualitatively.
-- Return STRICT JSON only — no markdown, no prose outside the JSON.
+- Return STRICT, VALID JSON only — a single object, no markdown, no prose outside the JSON.
+- Inside string values: write each field on ONE line (NO literal line breaks), and escape any double quotes. Separate paragraphs in "recommendation" with " " (a space) or "\\n", never a raw newline.
 
 RECRUITER NEEDS (JSON):
 ${JSON.stringify(needs)}
 
-CANDIDATES (JSON, facts only):
+CANDIDATE (JSON, facts only):
 ${JSON.stringify(facts)}
 
-Return a JSON array where each element is:
+Return a SINGLE JSON object:
 {
-  "userId": "<the candidate userId>",
+  "userId": "${scored.bundle.userId}",
   "fitPercent": <integer 0-100>,
   "verdict": "recommended" | "consider" | "not_recommended",
   "whyFit": "<2-4 sentence fact-grounded rationale>",
   "bestSkills": ["<most relevant skills the candidate actually has>"],
   "pros": ["<concrete strengths for this role>"],
   "cons": ["<concrete gaps or risks, incl. missing required facts>"],
-  "recommendation": "<a LONG, detailed hiring assessment of 3-5 paragraphs. Cover: (1) how the candidate's experience and skills map to the required skills and responsibilities; (2) education and language fit; (3) what the behavioral signals suggest about fit for this team's culture and autonomy level, paraphrased qualitatively; (4) concrete risks, gaps, or missing facts a recruiter must verify in an interview; (5) a clear final verdict on whether to advance this candidate and why. Ground every claim in the supplied facts; where a required fact is missing, say so explicitly.>"
-}
-Return ONE element per candidate, preserving their userId.`;
+  "recommendation": "<a detailed hiring assessment of 2-3 concise paragraphs. Cover: (1) how the candidate's experience and skills map to the required skills and responsibilities; (2) education and language fit; (3) what the behavioral signals suggest about fit for this team's culture and autonomy level, paraphrased qualitatively; (4) concrete risks, gaps, or missing facts a recruiter must verify in an interview, then a clear final verdict on whether to advance this candidate and why. Ground every claim in the supplied facts; where a required fact is missing, say so explicitly.>"
+}`;
 }
 
-function parseLlmReports(text: string): LlmReport[] | null {
-  const cleaned = text
+function parseSingleReport(text: string): LlmReport | null {
+  let cleaned = text
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
+  // If wrapped in an array, unwrap to the first object.
+  const objStart = cleaned.indexOf("{");
+  const objEnd = cleaned.lastIndexOf("}");
+  if (objStart > 0 || objEnd < cleaned.length - 1) {
+    if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
+      cleaned = cleaned.slice(objStart, objEnd + 1);
+    }
+  }
 
-  let parsed: unknown;
+  let obj: Record<string, unknown>;
   try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const salvaged = salvageArray(cleaned);
-    if (salvaged === null) {
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       return null;
     }
-    parsed = salvaged;
+    obj = parsed as Record<string, unknown>;
+  } catch {
+    // Common failure: the model wrote a multi-paragraph "recommendation" with
+    // LITERAL newlines/tabs inside the JSON string (invalid JSON). Escape control
+    // characters that appear inside string literals, then retry once.
+    try {
+      const parsed = JSON.parse(escapeControlCharsInStrings(cleaned));
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return null;
+      }
+      obj = parsed as Record<string, unknown>;
+    } catch {
+      // Last resort: the JSON was truncated (token cap) or otherwise malformed.
+      // Field-extract what we can so a usable AI report still comes through.
+      return salvageReport(cleaned);
+    }
   }
 
-  if (!Array.isArray(parsed)) {
+  const userId = typeof obj.userId === "string" ? obj.userId : "";
+  const fitPercent =
+    typeof obj.fitPercent === "number" && Number.isFinite(obj.fitPercent)
+      ? Math.round(Math.min(100, Math.max(0, obj.fitPercent)))
+      : 0;
+  return {
+    userId,
+    fitPercent,
+    whyFit: typeof obj.whyFit === "string" ? obj.whyFit : "",
+    bestSkills: toStringArray(obj.bestSkills),
+    pros: toStringArray(obj.pros),
+    cons: toStringArray(obj.cons),
+    verdict: toVerdict(obj.verdict, fitPercent),
+    recommendation: typeof obj.recommendation === "string" ? obj.recommendation.trim() : ""
+  };
+}
+
+/**
+ * Field-extract a report from malformed or TRUNCATED JSON (e.g. hit the token
+ * cap mid-`recommendation`). Pulls each known field with a targeted regex so a
+ * usable AI-grounded report survives even when `JSON.parse` cannot.
+ */
+function salvageReport(text: string): LlmReport | null {
+  const esc = escapeControlCharsInStrings(text);
+
+  const numField = (key: string): number => {
+    const m = esc.match(new RegExp(`"${key}"\\s*:\\s*(\\d+)`));
+    return m ? Math.round(Math.min(100, Math.max(0, Number(m[1])))) : 0;
+  };
+  const strField = (key: string): string => {
+    // Complete quoted value first; fall back to a truncated tail (no closing quote).
+    const full = esc.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+    const raw = full ? full[1] : (esc.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)$`))?.[1] ?? "");
+    return raw.replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
+  };
+  const arrField = (key: string): string[] => {
+    const m = esc.match(new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\]`));
+    if (!m) return [];
+    return Array.from(m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g))
+      .map((x) => x[1].replace(/\\"/g, '"').trim())
+      .filter(Boolean);
+  };
+
+  const whyFit = strField("whyFit");
+  if (whyFit.length === 0) {
     return null;
   }
+  const fitPercent = numField("fitPercent");
+  const verdictMatch = esc.match(/"verdict"\s*:\s*"(recommended|consider|not_recommended)"/);
+  return {
+    userId: strField("userId"),
+    fitPercent,
+    whyFit,
+    bestSkills: arrField("bestSkills"),
+    pros: arrField("pros"),
+    cons: arrField("cons"),
+    verdict: toVerdict(verdictMatch?.[1], fitPercent),
+    recommendation: strField("recommendation")
+  };
+}
 
-  const reports: LlmReport[] = [];
-  for (const raw of parsed) {
-    if (typeof raw !== "object" || raw === null) {
+/**
+ * Escape raw control characters (newline, carriage return, tab) that appear
+ * INSIDE JSON string literals. LLMs frequently emit multi-paragraph text with
+ * literal newlines inside a `"..."` value, which is invalid JSON and makes
+ * `JSON.parse` throw. Structural whitespace (outside strings) is left untouched.
+ */
+function escapeControlCharsInStrings(text: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        out += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inString = false;
+        continue;
+      }
+      if (ch === "\n") {
+        out += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        out += "\\r";
+        continue;
+      }
+      if (ch === "\t") {
+        out += "\\t";
+        continue;
+      }
+      out += ch;
       continue;
     }
-    const obj = raw as Record<string, unknown>;
-    const userId = typeof obj.userId === "string" ? obj.userId : null;
-    if (!userId) {
-      continue;
+    if (ch === '"') {
+      inString = true;
     }
-    const fitPercent =
-      typeof obj.fitPercent === "number" && Number.isFinite(obj.fitPercent)
-        ? Math.round(Math.min(100, Math.max(0, obj.fitPercent)))
-        : 0;
-    reports.push({
-      userId,
-      fitPercent,
-      whyFit: typeof obj.whyFit === "string" ? obj.whyFit : "",
-      bestSkills: toStringArray(obj.bestSkills),
-      pros: toStringArray(obj.pros),
-      cons: toStringArray(obj.cons),
-      verdict: toVerdict(obj.verdict, fitPercent),
-      recommendation: typeof obj.recommendation === "string" ? obj.recommendation.trim() : ""
-    });
+    out += ch;
   }
-  return reports.length > 0 ? reports : null;
+  return out;
 }
 
 function toStringArray(value: unknown): string[] {
@@ -218,58 +331,6 @@ function toStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean);
-}
-
-/** Best-effort recovery of a truncated top-level JSON array of objects. */
-function salvageArray(text: string): unknown[] | null {
-  const arrStart = text.indexOf("[");
-  if (arrStart === -1) {
-    return null;
-  }
-  const complete: string[] = [];
-  let depth = 0;
-  let objStart = -1;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = arrStart + 1; i < text.length; i++) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === "{") {
-      if (depth === 0) {
-        objStart = i;
-      }
-      depth++;
-    } else if (ch === "}") {
-      depth--;
-      if (depth === 0 && objStart !== -1) {
-        complete.push(text.slice(objStart, i + 1));
-        objStart = -1;
-      }
-    } else if (ch === "]" && depth === 0) {
-      break;
-    }
-  }
-
-  if (complete.length === 0) {
-    return null;
-  }
-  try {
-    return complete.map((chunk) => JSON.parse(chunk) as unknown);
-  } catch {
-    return null;
-  }
 }
 
 /** Deterministic, fact-derived report from a scored candidate's breakdown. */
@@ -395,8 +456,54 @@ function fallbackReport(needs: RecruiterNeeds, scored: ScoredCandidate): Candida
 }
 
 /**
- * Build one `CandidateReport` per top candidate. Uses the LLM when available and
- * parseable; otherwise falls back to a deterministic fact-derived report.
+ * Build one `CandidateReport` for a single candidate. Uses the LLM when
+ * available and parseable; otherwise falls back to a deterministic fact-derived
+ * report. Each candidate is a small, focused request so it stays well under the
+ * request timeout even for extended-thinking models.
+ */
+async function buildOneReport(
+  needs: RecruiterNeeds,
+  scored: ScoredCandidate
+): Promise<CandidateReport> {
+  const fallback = fallbackReport(needs, scored);
+  const prompt = buildCandidatePrompt(needs, scored);
+
+  // Try up to twice: LLM JSON output is occasionally malformed (e.g. an
+  // unescaped quote inside the narrative). A fresh generation almost always
+  // produces valid JSON, so one retry pushes the success rate very high while
+  // staying well within the request timeout.
+  let llm: LlmReport | null = null;
+  for (let attempt = 0; attempt < 2 && (!llm || llm.whyFit.trim().length === 0); attempt++) {
+    const raw = await callAnthropic(prompt, 4096);
+    llm = raw ? parseSingleReport(raw) : null;
+  }
+
+  if (!llm || llm.whyFit.trim().length === 0) {
+    return fallback;
+  }
+
+  return {
+    fitPercent: llm.fitPercent > 0 ? llm.fitPercent : scored.score,
+    whyFit: llm.whyFit.trim(),
+    bestSkills:
+      llm.bestSkills.length > 0
+        ? llm.bestSkills
+        : Array.from(
+            new Set([...scored.matchedRequiredSkills, ...scored.matchedNiceToHaveSkills])
+          ).slice(0, 8),
+    pros: llm.pros.length > 0 ? llm.pros : fallback.pros,
+    cons: llm.cons.length > 0 ? llm.cons : fallback.cons,
+    verdict: llm.verdict,
+    recommendation:
+      llm.recommendation.trim().length > 0 ? llm.recommendation.trim() : fallback.recommendation,
+    grounded: true
+  };
+}
+
+/**
+ * Build one `CandidateReport` per top candidate. Each candidate is generated in
+ * PARALLEL via its own focused LLM call, so total latency stays low and one slow
+ * candidate never blocks the others. Failed calls fall back deterministically.
  */
 export async function buildReports(
   needs: RecruiterNeeds,
@@ -407,40 +514,10 @@ export async function buildReports(
     return reports;
   }
 
-  const raw = await callAnthropic(buildPrompt(needs, top));
-  const llmReports = raw ? parseLlmReports(raw) : null;
-  const llmByUser = new Map<string, LlmReport>();
-  if (llmReports) {
-    for (const report of llmReports) {
-      llmByUser.set(report.userId, report);
-    }
-  }
-
-  for (const scored of top) {
-    const llm = llmByUser.get(scored.bundle.userId);
-    if (llm && llm.whyFit.trim().length > 0) {
-      const fallback = fallbackReport(needs, scored);
-      const fitPercent = llm.fitPercent > 0 ? llm.fitPercent : scored.score;
-      reports.set(scored.bundle.userId, {
-        fitPercent,
-        whyFit: llm.whyFit.trim(),
-        bestSkills:
-          llm.bestSkills.length > 0
-            ? llm.bestSkills
-            : Array.from(
-                new Set([...scored.matchedRequiredSkills, ...scored.matchedNiceToHaveSkills])
-              ).slice(0, 8),
-        pros: llm.pros.length > 0 ? llm.pros : fallback.pros,
-        cons: llm.cons.length > 0 ? llm.cons : fallback.cons,
-        verdict: llm.verdict,
-        recommendation:
-          llm.recommendation.trim().length > 0 ? llm.recommendation.trim() : fallback.recommendation,
-        grounded: true
-      });
-    } else {
-      reports.set(scored.bundle.userId, fallbackReport(needs, scored));
-    }
-  }
+  const built = await Promise.all(top.map((scored) => buildOneReport(needs, scored)));
+  top.forEach((scored, index) => {
+    reports.set(scored.bundle.userId, built[index]);
+  });
 
   return reports;
 }
