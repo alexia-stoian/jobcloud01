@@ -2501,6 +2501,51 @@ select {
 }
 .admin-subhead:first-child { margin-top: 0; }
 
+/* CV metadata tiles */
+.admin-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.admin-meta__tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  border: 1px solid var(--admin-border);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+.admin-meta__icon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  background: #fff;
+  border: 1px solid var(--admin-border);
+}
+.admin-meta__body { min-width: 0; }
+.admin-meta__label {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-faint);
+}
+.admin-meta__value {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--admin-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-meta__value--empty { color: var(--admin-faint); font-weight: 500; }
+
 .admin-item {
   border-left: 2px solid var(--admin-border);
   padding: 2px 0 2px 10px;

@@ -182,19 +182,57 @@ function groupQualifications(quals: QualificationBundle[]): {
   return { skills, experience, education, certifications };
 }
 
+/** camelCase / snake_case key → human "Title Case" label. */
+function humanizeKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Extracted-fact keys that are either already shown in the structured profile
+ * sections above, or are large blobs rendered elsewhere (qualifications live in
+ * their own section). Skipping them keeps "CV facts" focused on genuinely
+ * CV-specific extras rather than repeating the profile.
+ */
+const CV_FACT_SKIP = new Set([
+  "qualifications",
+  "fullName",
+  "primaryRole",
+  "currentJobSituation",
+  "employmentObjective",
+  "preferredLocation",
+  "contractPreference",
+  "workRate",
+  "workPermitStatus",
+  "salaryExpectation"
+]);
+
 function toKeyValueEntries(value: unknown): Array<{ key: string; value: string }> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return [];
   }
-  return Object.entries(value as Record<string, unknown>).map(([key, raw]) => ({
-    key,
-    value:
-      raw === null || raw === undefined
-        ? ""
-        : typeof raw === "object"
-          ? JSON.stringify(raw)
-          : String(raw)
-  }));
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([key]) => !CV_FACT_SKIP.has(key))
+    .map(([key, raw]) => {
+      let display = "";
+      if (raw === null || raw === undefined) {
+        display = "";
+      } else if (Array.isArray(raw)) {
+        // Show a count rather than dumping a giant JSON array.
+        display = raw.length > 0 ? `${raw.length}` : "";
+      } else if (typeof raw === "object") {
+        // Skip nested objects — too noisy for this summary row.
+        display = "";
+      } else {
+        display = String(raw).trim();
+      }
+      return { key: humanizeKey(key), value: display };
+    })
+    .filter((entry) => entry.value !== "");
 }
 
 function summarizeConversation(value: unknown): Array<{ role: string; text: string }> {
@@ -421,22 +459,56 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
             {bundle.onboarding && (
               <section className="admin-section">
                 <h3 className="admin-section__title">{t("cvFactsHeading")}</h3>
-                <dl className="admin-kv">
-                  <div className="admin-kv__item">
-                    <dt className="admin-kv__key">{t("fields.targetRole")}</dt>
-                    <dd style={{ margin: 0 }}>{renderValue(bundle.onboarding.targetRole)}</dd>
-                  </div>
-                  <div className="admin-kv__item">
-                    <dt className="admin-kv__key">{t("fields.cvFileName")}</dt>
-                    <dd style={{ margin: 0 }}>{renderValue(bundle.onboarding.cvFileName)}</dd>
-                  </div>
-                  {cvFacts.map((fact) => (
-                    <div className="admin-kv__item" key={fact.key}>
-                      <dt className="admin-kv__key">{fact.key}</dt>
-                      <dd style={{ margin: 0 }}>{renderValue(fact.value)}</dd>
+
+                {/* CV metadata as compact tiles */}
+                <div className="admin-meta">
+                  <div className="admin-meta__tile">
+                    <span className="admin-meta__icon" aria-hidden="true">📄</span>
+                    <div className="admin-meta__body">
+                      <div className="admin-meta__label">{t("fields.cvFileName")}</div>
+                      <div
+                        className={
+                          bundle.onboarding.cvFileName
+                            ? "admin-meta__value"
+                            : "admin-meta__value admin-meta__value--empty"
+                        }
+                        title={bundle.onboarding.cvFileName ?? undefined}
+                      >
+                        {bundle.onboarding.cvFileName ?? dash}
+                      </div>
                     </div>
-                  ))}
-                </dl>
+                  </div>
+                  <div className="admin-meta__tile">
+                    <span className="admin-meta__icon" aria-hidden="true">🎯</span>
+                    <div className="admin-meta__body">
+                      <div className="admin-meta__label">{t("fields.targetRole")}</div>
+                      <div
+                        className={
+                          bundle.onboarding.targetRole
+                            ? "admin-meta__value"
+                            : "admin-meta__value admin-meta__value--empty"
+                        }
+                        title={bundle.onboarding.targetRole ?? undefined}
+                      >
+                        {bundle.onboarding.targetRole ?? dash}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Any genuinely extra extracted facts (profile duplicates + blobs filtered out) */}
+                {cvFacts.length > 0 && (
+                  <>
+                    <div className="admin-subhead">{t("extractedFactsLabel")}</div>
+                    <div className="admin-taglist">
+                      {cvFacts.map((fact) => (
+                        <span className="admin-tag" key={fact.key}>
+                          {fact.key}: {fact.value}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 {conversation.length > 0 && (
                   <>
