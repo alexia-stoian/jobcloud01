@@ -210,5 +210,16 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 9 to break down)
 
+### Phase 10: Dynamic target-role binding: assistant detects target-role intent anywhere in conversation, updates Profile Target Roles field, and re-optimizes interview/cover-letter generation and memory to the new role
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*
