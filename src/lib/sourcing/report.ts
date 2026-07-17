@@ -132,9 +132,19 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
     })),
     preferences: {
       preferredLocation: clamp(bundle.preferences.preferredLocation, 80),
+      currentJobSituation: clamp(bundle.preferences.currentJobSituation, 80),
+      employmentObjective: clamp(bundle.preferences.employmentObjective, 120),
+      targetRoles: clamp(bundle.preferences.targetRoles, 80),
+      targetSeniority: clamp(bundle.preferences.targetSeniority, 60),
+      targetIndustries: clamp(bundle.preferences.targetIndustries, 80),
       preferredWorkModel: clamp(bundle.preferences.preferredWorkModel, 60),
       contractPreference: clamp(bundle.preferences.contractPreference, 60),
-      salaryExpectation: clamp(bundle.preferences.salaryExpectation, 60)
+      workRate: clamp(bundle.preferences.workRate, 40),
+      workPermitStatus: clamp(bundle.preferences.workPermitStatus, 60),
+      salaryExpectation: clamp(bundle.preferences.salaryExpectation, 60),
+      visaSponsorship: clamp(bundle.preferences.visaSponsorship, 60),
+      relocationWillingness: clamp(bundle.preferences.relocationWillingness, 60),
+      commuteRadius: clamp(bundle.preferences.commuteRadius, 40)
     },
     // Signals are summarized as direction + confidence only — never raw evidence.
     signals: bundle.signals

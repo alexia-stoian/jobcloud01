@@ -60,12 +60,19 @@ export interface CandidateEducation {
 /** The subset of profile preference fields used for matching. */
 export interface CandidatePreferences {
   preferredLocation: string | null;
-  preferredWorkModel: string | null;
-  contractPreference: string | null;
+  currentJobSituation: string | null;
+  employmentObjective: string | null;
   targetRoles: string | null;
   targetSeniority: string | null;
   targetIndustries: string | null;
+  preferredWorkModel: string | null;
+  contractPreference: string | null;
+  workRate: string | null;
+  workPermitStatus: string | null;
   salaryExpectation: string | null;
+  visaSponsorship: string | null;
+  relocationWillingness: string | null;
+  commuteRadius: string | null;
 }
 
 /**

@@ -235,12 +235,19 @@ async function buildBundle(user: { id: string; email: string }): Promise<Candida
       estimatedYearsExperience: 0,
       preferences: {
         preferredLocation: null,
-        preferredWorkModel: null,
-        contractPreference: null,
+        currentJobSituation: null,
+        employmentObjective: null,
         targetRoles: null,
         targetSeniority: null,
         targetIndustries: null,
-        salaryExpectation: null
+        preferredWorkModel: null,
+        contractPreference: null,
+        workRate: null,
+        workPermitStatus: null,
+        salaryExpectation: null,
+        visaSponsorship: null,
+        relocationWillingness: null,
+        commuteRadius: null
       },
       signals: signals.length > 0 ? signals : seedSignals()
     };
@@ -256,12 +263,19 @@ async function buildBundle(user: { id: string; email: string }): Promise<Candida
 
   const preferences: CandidatePreferences = {
     preferredLocation: summary.profile.preferredLocation,
-    preferredWorkModel: summary.profile.preferredWorkModel,
-    contractPreference: summary.profile.contractPreference,
+    currentJobSituation: summary.profile.currentJobSituation,
+    employmentObjective: summary.profile.employmentObjective,
     targetRoles: summary.profile.targetRoles,
     targetSeniority: summary.profile.targetSeniority,
     targetIndustries: summary.profile.targetIndustries,
-    salaryExpectation: summary.profile.salaryExpectation
+    preferredWorkModel: summary.profile.preferredWorkModel,
+    contractPreference: summary.profile.contractPreference,
+    workRate: summary.profile.workRate,
+    workPermitStatus: summary.profile.workPermitStatus,
+    salaryExpectation: summary.profile.salaryExpectation,
+    visaSponsorship: summary.profile.visaSponsorship,
+    relocationWillingness: summary.profile.relocationWillingness,
+    commuteRadius: summary.profile.commuteRadius
   };
 
   return {
