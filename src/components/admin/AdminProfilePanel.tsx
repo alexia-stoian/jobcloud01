@@ -142,7 +142,7 @@ function parseQualification(category: string, value: string): ParsedQual {
     .join(" – ");
 
   if (cat === "experience") {
-    const sub = [str("company"), str("location"), dates].filter(Boolean).join(" · ");
+    const sub = [str("company"), str("location"), dates || str("period")].filter(Boolean).join(" · ");
     return { kind: "item", title: str("title") ?? value, sub: sub || undefined, desc: str("description") };
   }
   if (cat === "diploma" || cat === "education" || cat === "degree") {
