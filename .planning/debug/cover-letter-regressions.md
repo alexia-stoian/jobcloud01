@@ -1,9 +1,26 @@
 ---
-status: fixing
+status: resolved
 trigger: "Systematic regression debugging — cover-letter feature in the AI assistant lost most capabilities (profile use, word count, memory retrieval, resize/tone/proofread/add-remove/strengthen commands)"
 created: 2026-07-17
 updated: 2026-07-17
 ---
+
+## Resolution (2026-07-17)
+
+Root cause: the SERVICES phase was wired to a degraded subset of the cover-letter
+subsystem — capable code existed but was dead or only reachable in profile-collection.
+Fixed in commit `8b2db98` (forward profile qualifications + requested word count into
+the prompt; route the services edit branch through the shared `handleArtifactEditWorkflow`;
+add a recency retrieval fallback for "my/last cover letter"). Verified: `npm run build`
+0 errors; 30/30 relevant assistant/target-role tests pass; Phase 10 work intact.
+
+**Deferred (user decision):** the two `onboarding-assistant-cover-letter*.test.ts` files
+were already RED before this work (since `a396031`) and assert a never-built
+`profile.editorDraft.coverLetterCache` storage design that conflicts with the
+`storedArtifact` model used everywhere else. Per user choice, left as documented-deferred
+failures — NOT rewritten and NOT used as a gate. Restored behavior is exercised by the
+passing `assistant-services` + `onboarding-target-role-detection` suites instead.
+
 
 ## Current Focus
 
