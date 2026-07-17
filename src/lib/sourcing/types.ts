@@ -26,6 +26,8 @@ export interface RecruiterNeeds {
   location?: string;
   workModel?: string;
   contract?: string;
+  /** Recruiter's salary band, human-readable (e.g. "60000–80000 CHF (annual)"). */
+  salary?: string;
   notes?: string;
   /**
    * Optional preferences over the canonical 11 signal keys. Only keys present in

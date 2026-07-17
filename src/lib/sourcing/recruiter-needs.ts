@@ -190,6 +190,21 @@ function normalizeNestedNeeds(source: Record<string, unknown>): RecruiterNeeds {
     if (remote) needs.workModel = remote.replace(/_/g, " ");
   }
 
+  // Recruiter salary band (nested { annual_min, annual_max, currency, type }).
+  const salary = obj(source.salary);
+  if (salary) {
+    const num = (v: unknown): number | undefined =>
+      typeof v === "number" && Number.isFinite(v) ? v : undefined;
+    const min = num(salary.annual_min);
+    const max = num(salary.annual_max);
+    const currency = clampString(salary.currency) ?? "";
+    const type = clampString(salary.type) ?? "annual";
+    if (min !== undefined || max !== undefined) {
+      const range = [min, max].filter((v) => v !== undefined).join("–");
+      needs.salary = `${range} ${currency} (${type})`.replace(/\s+/g, " ").trim().slice(0, MAX_STRING_LENGTH);
+    }
+  }
+
   // Assemble notes + signal hints from tasks, intake notes, and company context.
   const noteParts: string[] = [];
   const tasks = obj(source.tasks_responsibilities);
@@ -265,6 +280,9 @@ function normalizeFlatNeeds(source: Record<string, unknown>): RecruiterNeeds {
 
   const contract = clampString(source.contract);
   if (contract !== undefined) needs.contract = contract;
+
+  const salary = clampString(source.salary);
+  if (salary !== undefined) needs.salary = salary;
 
   const notes = clampString(source.notes);
   if (notes !== undefined) needs.notes = notes;
