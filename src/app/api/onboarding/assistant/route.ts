@@ -496,14 +496,39 @@ ${localeInstruction}`;
       // we are already in an active mock-interview (practice) so plain answers
       // continue the interview instead of being treated as cover-letter requests.
       const servicesLowerMsg = userMessage.toLowerCase();
+
+      // A lingering interview "practice" mode must NOT permanently hijack every
+      // message. It is only cleared after Q3 is ANSWERED, so a user who abandons a
+      // mock (or gets Q3 asked but never answers) stays in practice mode forever —
+      // and every message that doesn't literally contain "cover letter" is routed
+      // to the interview handler, making the whole cover-letter toolset (resize,
+      // tone, proofread, add/remove, strengthen, word-count) unreachable. When the
+      // user clearly wants an artifact service (generate/retrieve/edit a cover
+      // letter), treat that as leaving the interview: route to the service AND clear
+      // the stale practice mode so subsequent short edit commands work too.
+      const wantsArtifactService =
+        isCoverLetterRequest(userMessage) ||
+        detectRetrievalIntent(userMessage).isRetrievalRequest ||
+        detectEditIntent(userMessage).detected;
+
+      const explicitInterviewRequest =
+        /\b(interview|mock)\b/.test(servicesLowerMsg) ||
+        (servicesLowerMsg.includes("practice") &&
+          (servicesLowerMsg.includes("question") || servicesLowerMsg.includes("interview")));
+
+      const lingeringPractice = state.services?.interviewPrep?.currentMode === "practice";
+
       const isServicesInterviewMsg =
         !servicesLowerMsg.includes("cover letter") &&
         !servicesLowerMsg.includes("cover-letter") &&
-        (/\b(interview|mock)\b/.test(servicesLowerMsg) ||
-          (servicesLowerMsg.includes("practice") &&
-            (servicesLowerMsg.includes("question") ||
-              servicesLowerMsg.includes("interview"))) ||
-          state.services?.interviewPrep?.currentMode === "practice");
+        (explicitInterviewRequest || (lingeringPractice && !wantsArtifactService));
+
+      // Exit a stale interview when the user switches to an artifact service, so the
+      // stale practice mode no longer captures follow-up edit commands.
+      if (lingeringPractice && wantsArtifactService && !explicitInterviewRequest) {
+        state = updateServiceState(state, "interview-prep", { currentMode: undefined });
+        newState = state;
+      }
 
       if (!isServicesInterviewMsg && offTopicDetection.isOffTopic) {
         answer = generateOffTopicRedirect(offTopicDetection.category);

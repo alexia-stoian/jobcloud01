@@ -21,6 +21,34 @@ were already RED before this work (since `a396031`) and assert a never-built
 failures — NOT rewritten and NOT used as a gate. Restored behavior is exercised by the
 passing `assistant-services` + `onboarding-target-role-detection` suites instead.
 
+## Follow-up root cause #2 (2026-07-17): lingering interview practice mode hijacked cover-letter commands
+
+The first fix wired the services-phase branches correctly, but the user still had "no
+possibilities" and no word-count expansion. Live data (candidateProfile.assistantState)
+confirmed the real cause: **users were STUCK in interview `practice` mode.**
+
+- `interviewPrep.currentMode` is only cleared after Q3 is ANSWERED (route.ts interview handler,
+  `else` branch → `nextMode = undefined`). Abandoning a mock — or getting Q3 asked but never
+  answering — leaves `currentMode: "practice"` forever. DB showed e.g. one session with
+  `questionsAsked: 3, currentMode: "practice"` (Q3 asked, not answered) and another at `qAsked: 2`.
+- In the services phase, `isServicesInterviewMsg` treats ANY message with `currentMode === "practice"`
+  (that doesn't literally say "cover letter") as an interview answer, so it skips the off-topic /
+  retrieval / edit / cover-letter / CV branches. Result: "make it longer", "more formal",
+  "make it stronger", "proofread this", "add a paragraph about X" were all hijacked into the
+  interview handler → the entire cover-letter edit toolset + word-count expansion was unreachable.
+
+**Fix (route.ts services phase):** a lingering practice mode no longer permanently hijacks.
+Computed `wantsArtifactService = isCoverLetterRequest || detectRetrievalIntent || detectEditIntent`.
+`isServicesInterviewMsg` now = explicit interview request OR (lingering practice AND NOT
+wantsArtifactService). When the user switches to an artifact service while in a stale practice
+mode, the stale `currentMode` is cleared (`updateServiceState(..., { currentMode: undefined })`)
+so follow-up short edit commands work too. Explicit interview requests still win; genuine
+interview answers still continue an active interview.
+
+Verification: `assistant-services` + `mock-interview` + `onboarding-target-role-detection`
+= 44/44 pass; `npm run build` 0 errors. Tradeoff noted: a genuine interview answer that happens
+to match an imperative edit phrasing could exit the interview — acceptable vs. permanent lock-out.
+
 
 ## Current Focus
 
