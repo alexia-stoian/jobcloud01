@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/admin";
-import { buildProfileSummary } from "@/lib/profile/summary-builder";
-import { loadSignalStateWithMeta } from "@/lib/ai/signals/signal-dal";
+import { loadAdminUserBundle } from "@/lib/admin/user-bundle";
 
 /**
  * Admin-only full profile + 11-signals bundle for a single user.
@@ -14,6 +12,8 @@ import { loadSignalStateWithMeta } from "@/lib/ai/signals/signal-dal";
  * Returns the complete candidate profile (fields, qualifications, history),
  * onboarding answers/CV facts, and all 11 recruiter signals. A valid userId with
  * no profile still returns `200` with `profile: null` and seeded (11) signals.
+ * The bundle is assembled by the shared `loadAdminUserBundle()` — the same source
+ * the Recruiter Sourcing aggregator reads from.
  */
 export async function GET(
   _request: Request,
@@ -26,56 +26,11 @@ export async function GET(
 
   const { userId } = await params;
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { email: true }
-  });
+  const bundle = await loadAdminUserBundle(userId);
 
-  if (!user) {
+  if (!bundle) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const profile = await db.candidateProfile.findUnique({
-    where: { userId },
-    include: {
-      qualifications: true,
-      historyEvents: { orderBy: { createdAt: "desc" } }
-    }
-  });
-
-  const onboarding = await db.onboardingSession.findUnique({
-    where: { userId },
-    select: {
-      targetRole: true,
-      currentStep: true,
-      cvFileName: true,
-      cvExtractedFacts: true,
-      conversationHistory: true,
-      lastInteractedAt: true
-    }
-  });
-
-  const { signals, inputCount, updatedAt } = await loadSignalStateWithMeta(userId);
-
-  const summary = profile
-    ? buildProfileSummary({
-        profile,
-        qualifications: profile.qualifications,
-        history: profile.historyEvents
-      })
-    : null;
-
-  const name = summary?.profile.fullName?.trim() || user.email.split("@")[0];
-
-  return NextResponse.json({
-    user: { id: userId, email: user.email, name },
-    profile: summary?.profile ?? null,
-    completion: summary?.completion ?? null,
-    qualifications: summary?.qualifications ?? [],
-    history: summary?.history ?? [],
-    onboarding: onboarding ?? null,
-    signals,
-    inputCount,
-    updatedAt
-  });
+  return NextResponse.json(bundle);
 }

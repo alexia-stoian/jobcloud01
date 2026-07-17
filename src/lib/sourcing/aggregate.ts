@@ -13,8 +13,7 @@
  */
 
 import { db } from "@/lib/db";
-import { buildProfileSummary } from "@/lib/profile/summary-builder";
-import { loadSignalStateWithMeta } from "@/lib/ai/signals/signal-dal";
+import { loadAdminUserBundle } from "@/lib/admin/user-bundle";
 import { seedSignals } from "@/lib/ai/signals/signal-definitions";
 import type {
   CandidateBundle,
@@ -213,20 +212,17 @@ function parseQualifications(qualifications: RawQualification[]): {
 }
 
 async function buildBundle(user: { id: string; email: string }): Promise<CandidateBundle> {
-  const profile = await db.candidateProfile.findUnique({
-    where: { userId: user.id },
-    include: {
-      qualifications: true,
-      historyEvents: { orderBy: { createdAt: "desc" } }
-    }
-  });
+  // Sourcing reads each candidate through the SAME loader the Admin "Profile"
+  // button uses, so it always reflects exactly what the Admin page extracts from
+  // the completed Profile page.
+  const admin = await loadAdminUserBundle(user.id);
 
-  const { signals } = await loadSignalStateWithMeta(user.id);
+  const signals = admin && admin.signals.length > 0 ? admin.signals : seedSignals();
 
-  if (!profile) {
+  if (!admin || !admin.profile) {
     return {
       userId: user.id,
-      name: user.email.split("@")[0],
+      name: admin?.user.name ?? user.email.split("@")[0],
       primaryRole: null,
       skills: [],
       languages: [],
@@ -249,46 +245,41 @@ async function buildBundle(user: { id: string; email: string }): Promise<Candida
         relocationWillingness: null,
         commuteRadius: null
       },
-      signals: signals.length > 0 ? signals : seedSignals()
+      signals
     };
   }
 
-  const summary = buildProfileSummary({
-    profile,
-    qualifications: profile.qualifications,
-    history: profile.historyEvents
-  });
-
-  const parsed = parseQualifications(summary.qualifications);
+  const profile = admin.profile;
+  const parsed = parseQualifications(admin.qualifications);
 
   const preferences: CandidatePreferences = {
-    preferredLocation: summary.profile.preferredLocation,
-    currentJobSituation: summary.profile.currentJobSituation,
-    employmentObjective: summary.profile.employmentObjective,
-    targetRoles: summary.profile.targetRoles,
-    targetSeniority: summary.profile.targetSeniority,
-    targetIndustries: summary.profile.targetIndustries,
-    preferredWorkModel: summary.profile.preferredWorkModel,
-    contractPreference: summary.profile.contractPreference,
-    workRate: summary.profile.workRate,
-    workPermitStatus: summary.profile.workPermitStatus,
-    salaryExpectation: summary.profile.salaryExpectation,
-    visaSponsorship: summary.profile.visaSponsorship,
-    relocationWillingness: summary.profile.relocationWillingness,
-    commuteRadius: summary.profile.commuteRadius
+    preferredLocation: profile.preferredLocation,
+    currentJobSituation: profile.currentJobSituation,
+    employmentObjective: profile.employmentObjective,
+    targetRoles: profile.targetRoles,
+    targetSeniority: profile.targetSeniority,
+    targetIndustries: profile.targetIndustries,
+    preferredWorkModel: profile.preferredWorkModel,
+    contractPreference: profile.contractPreference,
+    workRate: profile.workRate,
+    workPermitStatus: profile.workPermitStatus,
+    salaryExpectation: profile.salaryExpectation,
+    visaSponsorship: profile.visaSponsorship,
+    relocationWillingness: profile.relocationWillingness,
+    commuteRadius: profile.commuteRadius
   };
 
   return {
     userId: user.id,
-    name: summary.profile.fullName?.trim() || user.email.split("@")[0],
-    primaryRole: summary.profile.primaryRole,
+    name: admin.user.name,
+    primaryRole: profile.primaryRole,
     skills: parsed.skills,
     languages: parsed.languages,
     experience: parsed.experience,
     education: parsed.education,
     estimatedYearsExperience: parsed.estimatedYearsExperience,
     preferences,
-    signals: signals.length > 0 ? signals : seedSignals()
+    signals
   };
 }
 
