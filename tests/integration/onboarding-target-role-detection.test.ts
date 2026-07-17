@@ -249,4 +249,46 @@ describe("onboarding assistant target-role detection (Wave 0 scaffold — RED un
       expect.objectContaining({ data: expect.objectContaining({ targetRole: "Data Analyst" }) })
     );
   });
+
+  // (f) REQUIRED — a practice-mode request whose message passes the INTENT_HINT pre-filter
+  //     forwards inPractice: true into the detector, so the outgoing Anthropic request body
+  //     carries the practice/interview-answer discrimination instruction.
+  test("practice mode forwards inPractice into the detector prompt", async () => {
+    dbMock.candidateProfile.findUnique.mockImplementation(async () =>
+      baseProfile({ assistantState: servicesState("practice") })
+    );
+
+    let detectorSystem: string | null = null;
+    const fm = vi.fn((_url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string) ?? "{}") as {
+        system?: string;
+        messages?: Array<{ content: string }>;
+      };
+      const isDetectorCall = typeof body.system === "string" && body.system.includes("STRICT JSON");
+      if (isDetectorCall) {
+        detectorSystem = body.system ?? null;
+      }
+      const text = isDetectorCall
+        ? JSON.stringify({ role: null })
+        : "Here is a helpful assistant answer for you.";
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ content: [{ type: "text", text }] })
+      } as Response);
+    });
+    vi.stubGlobal("fetch", fm);
+
+    const res = await post("I want to switch to a Product Manager role");
+    expect(res.status).toBe(200);
+
+    // The detector was invoked (pre-filter passed) and carried the practice discrimination
+    // instruction — proving the route derived inPractice: true from currentMode === "practice".
+    expect(detectorSystem).not.toBeNull();
+    expect(detectorSystem).toContain("interview/practice question");
+
+    // A merely-mentioned role in practice must not switch.
+    expect(dbMock.onboardingSession.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ targetRole: expect.any(String) }) })
+    );
+  });
 });

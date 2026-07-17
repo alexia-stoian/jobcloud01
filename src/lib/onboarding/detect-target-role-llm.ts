@@ -19,9 +19,13 @@
  * First-person intent gate. Only turns that plausibly express a first-person career intent
  * pass this pre-filter; everything else skips the network entirely. This inverts the old
  * "regex decides" into "regex gates, LLM decides".
+ *
+ * Covers EN/DE/FR first-person intent markers so non-English users still reach the LLM
+ * classifier (the locked EN/DE/FR scope). The gate is deliberately permissive — the LLM
+ * makes the final decision — so a broad match here is safe.
  */
 const INTENT_HINT =
-  /\b(i\s+(?:want|aim|plan|hope|wish|would\s+like|'?d\s+like|intend)|i'?m\s+(?:targeting|aiming|looking|pursuing|switching|moving|transitioning)|my\s+goal|aiming\s+for|switch\s+to|move\s+into|optimize\s+for|target(?:ing)?\s+role)\b/i;
+  /(?:\bi\s+(?:want|aim|plan|hope|wish|would\s+like|'?d\s+like|intend)\b|\bi'?m\s+(?:targeting|aiming|looking|pursuing|switching|moving|transitioning)\b|\bmy\s+goal\b|\baiming\s+for\b|\bswitch\s+to\b|\bmove\s+into\b|\boptimize\s+for\b|\btarget(?:ing)?\s+role\b|\bich\s+(?:möchte|will|strebe|plane|wünsche|möchte\s+gern)\b|\bmein\s+ziel\b|\bwechseln\s+zu\b|\bwerden\s+möchte\b|\bje\s+(?:veux|voudrais|souhaite|vise|compte|aimerais|désire)\b|\bmon\s+objectif\b|\bpasser\s+à|\bdevenir\b)/i;
 
 /** Maximum length of a returned role string (chars). Bounds prompt-injection surface. */
 const MAX_ROLE_LENGTH = 60;
