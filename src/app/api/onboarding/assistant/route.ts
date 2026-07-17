@@ -6,7 +6,8 @@ import * as artifactDAL from "@/lib/artifacts/dal";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
-import { detectTargetRoleFromMessage, getTargetRoleQuestion } from "@/lib/onboarding/detect-target-role";
+import { getTargetRoleQuestion, getTargetRoleAck } from "@/lib/onboarding/detect-target-role";
+import { detectTargetRoleIntent } from "@/lib/onboarding/detect-target-role-llm";
 import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected, updateServiceState } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
@@ -220,8 +221,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // ===== STEP 2: GLOBAL - Check for target role in EVERY message across ALL phases =====
-    // This ensures we capture career goals as soon as they're stated, regardless of phase
-    const detectedGlobalTargetRole = detectTargetRoleFromMessage(userMessage);
+    // This ensures we capture career goals as soon as they're stated, regardless of phase.
+    // Detection runs EXACTLY once per request here via the LLM intent detector, which only
+    // fires on explicit first-person intent and is practice-safe (D-01, D-04).
+    let roleAck: string | null = null;
+    const detectedGlobalTargetRole = await detectTargetRoleIntent({
+      message: userMessage,
+      inPractice: state.services?.interviewPrep?.currentMode === "practice",
+      apiKey: anthropicApiKey,
+      model: anthropicModel
+    });
     if (detectedGlobalTargetRole && onboardingSession) {
       console.log("[GLOBAL] Detected targetRole in message:", detectedGlobalTargetRole);
       try {
@@ -244,6 +253,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }) || profile;
           console.log("[GLOBAL] Reloaded profile.targetRoles:", profile.targetRoles);
         }
+        // Silent update, then acknowledge in the user's language (D-02).
+        roleAck = getTargetRoleAck(locale, detectedGlobalTargetRole);
       } catch (error: unknown) {
         console.error("[GLOBAL] ERROR updating targetRole:", error);
       }
@@ -285,40 +296,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Transition out of greeting phase
       newState = transitionPhase(state, greeting.nextPhase);
     } else if (state.currentPhase === "profile-collection") {
-      // Check if user is stating a target role (career goal)
-      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
-      
-      // Debug: Log current state
-      console.log("[Profile Collection] Current onboardingSession?.targetRole before update:", onboardingSession?.targetRole);
-      console.log("[Profile Collection] Detected targetRole:", detectedTargetRole);
-      console.log("[Profile Collection] onboardingSession exists:", !!onboardingSession);
-      
-      // If target role is detected, update it directly in the onboarding session
-      if (detectedTargetRole && onboardingSession) {
-        console.log("[Profile Collection] About to update targetRole for user:", session.user.id);
-        
-        try {
-          // Update onboarding session directly
-          const updatedSession = await db.onboardingSession.update({
-            where: { userId: session.user.id },
-            data: { targetRole: detectedTargetRole }
-          });
-          onboardingSession = updatedSession;
-          console.log("[Profile Collection] SUCCESS: Updated onboardingSession.targetRole to:", updatedSession.targetRole);
-          console.log("[Profile Collection] Updated session ID:", updatedSession.id);
-          
-          // Also update profile's targetRoles field for consistency
-          if (profile) {
-            await db.candidateProfile.update({
-              where: { id: profile.id },
-              data: { targetRoles: detectedTargetRole }
-            });
-            console.log("[Profile Collection] Also updated profile.targetRoles");
-          }
-        } catch (error: unknown) {
-          console.error("[Profile Collection] ERROR during targetRole update:", error);
-        }
-      } else if (!onboardingSession?.targetRole && userMessage.length > 10) {
+      // Detection + persistence happen once in the GLOBAL block above. Here we only keep
+      // the CV-upload clarifying-question flow: if no target role is set yet after a CV
+      // upload, ask what role they're targeting.
+      if (!onboardingSession?.targetRole && userMessage.length > 10) {
         // If target role is still not set after CV upload, ask for it
         if (onboardingSession?.cvExtractedFacts && Object.keys(onboardingSession.cvExtractedFacts).length > 0) {
           // CV was already extracted, ask what they want to become
@@ -498,32 +479,7 @@ ${localeInstruction}`;
     } else if (state.currentPhase === "services") {
       console.log("[DEBUG] In services phase. Message:", userMessage.substring(0, 100));
       
-      // ===== CHECK FOR TARGET ROLE IN EVERY MESSAGE =====
-      // This ensures that even if user mentions a career goal in the services phase,
-      // we capture it (e.g., "give me PM interview questions")
-      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
-      if (detectedTargetRole && onboardingSession) {
-        console.log("[Service Phase] Detected targetRole:", detectedTargetRole);
-        
-        // Step 1: Update onboarding session directly
-        const updatedSession = await db.onboardingSession.update({
-          where: { userId: session.user.id },
-          data: { targetRole: detectedTargetRole }
-        });
-        console.log("[Service Phase] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
-        onboardingSession = updatedSession;
-        
-        // Step 2: Update profile's targetRoles field too
-        if (profile) {
-          await db.candidateProfile.update({
-            where: { userId: session.user.id },
-            data: { targetRoles: detectedTargetRole }
-          });
-        }
-        
-        console.log("[Service Phase] Updated session.targetRole now:", onboardingSession.targetRole);
-      }
-      
+      // Target-role detection + persistence happen once in the GLOBAL block above.
       // Check for off-topic queries first (Wave 5)
       const offTopicDetection = detectOffTopic(userMessage);
       console.log("[DEBUG] Off-topic detection:", offTopicDetection.isOffTopic);
@@ -960,6 +916,12 @@ ${localeInstruction}`;
       cvFacts: onboardingSession?.cvExtractedFacts,
       sessionId: onboardingSession?.id
     });
+
+    // Prepend the localized acknowledgement once, at the final return site, so it survives
+    // any branch that assigned `answer` wholesale (D-02).
+    if (roleAck) {
+      answer = `${roleAck}\n\n${answer}`;
+    }
 
     return NextResponse.json({ answer });
   } catch (error) {
