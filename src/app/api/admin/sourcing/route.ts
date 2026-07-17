@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { parseRecruiterNeeds } from "@/lib/sourcing/recruiter-needs";
 import { aggregateCandidates } from "@/lib/sourcing/aggregate";
-import { rankCandidates } from "@/lib/sourcing/score";
-import { buildReports } from "@/lib/sourcing/report";
+import { rankCandidates, buildMatchChecklist, buildConciseSummary } from "@/lib/sourcing/score";
+import { buildReports, computeCommute } from "@/lib/sourcing/report";
 import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
 
 export const runtime = "nodejs";
@@ -63,6 +63,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   const reports = await buildReports(needs, topResults);
   const usedLlm = Array.from(reports.values()).some((report) => report.grounded);
 
+  // Public-transport commute per shown candidate so the Location line can count
+  // as met when the candidate can commute to the job within their radius.
+  const commutes = await Promise.all(
+    topResults.map((scored) =>
+      computeCommute(needs.location, scored.bundle.preferences.preferredLocation, scored.bundle.preferences.commuteRadius)
+    )
+  );
+  const withinRadiusById = new Map<string, boolean>();
+  topResults.forEach((scored, index) => {
+    withinRadiusById.set(scored.bundle.userId, commutes[index]?.withinRadius === true);
+  });
+
   const results: SourcingResult[] = topResults.map((scored) => {
     const report = reports.get(scored.bundle.userId);
     return {
@@ -74,7 +86,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       pros: report?.pros ?? [],
       cons: report?.cons ?? [],
       verdict: report?.verdict ?? "not_recommended",
-      recommendation: report?.recommendation ?? ""
+      recommendation: report?.recommendation ?? "",
+      checklist: buildMatchChecklist(needs, scored, withinRadiusById.get(scored.bundle.userId)),
+      summary: buildConciseSummary(needs, scored)
     };
   });
 

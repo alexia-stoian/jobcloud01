@@ -268,6 +268,7 @@
       "fallbackNote": "Deterministisches Ranking (KI-Text nicht verfügbar — Anthropic-API-Schlüssel fehlt oder ist ungültig).",
       "fitLabel": "{percent}% Passung",
       "whyFitHeading": "Warum sie passen",
+      "checklistHeading": "Anforderungen",
       "bestSkillsHeading": "Beste Fähigkeiten",
       "prosHeading": "Pro",
       "consHeading": "Kontra",

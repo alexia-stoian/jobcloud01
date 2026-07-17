@@ -135,6 +135,16 @@ export interface ScoredCandidate {
 /** Hiring recommendation verdict for a candidate. */
 export type SourcingVerdict = "recommended" | "consider" | "not_recommended";
 
+/** Whether a single recruiter requirement is satisfied by a candidate. */
+export type MatchStatus = "met" | "partial" | "unmet";
+
+/** One recruiter requirement paired with the candidate's met/unmet status. */
+export interface MatchChecklistItem {
+  /** The requirement itself (e.g. "Skill: Kubernetes", "Language: German B2"). */
+  label: string;
+  status: MatchStatus;
+}
+
 /** The fact-grounded report rendered for a top candidate. */
 export interface CandidateReport {
   fitPercent: number;
@@ -161,6 +171,10 @@ export interface SourcingResult {
   cons: string[];
   verdict: SourcingVerdict;
   recommendation: string;
+  /** Deterministic met/unmet list of every recruiter requirement from the JSON. */
+  checklist: MatchChecklistItem[];
+  /** Very concise (<=50 word) verdict on the recruiter's most-wanted skills. */
+  summary: string;
 }
 
 /** The API response shape for `POST /api/admin/sourcing`. */

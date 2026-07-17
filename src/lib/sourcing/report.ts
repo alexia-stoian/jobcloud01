@@ -166,7 +166,7 @@ async function transitMinutes(from: string, to: string): Promise<number | null> 
  * preferred location to the job location and compare it to their commute radius.
  * Uses the free Swiss transport API; returns null when it can't be computed.
  */
-async function computeCommute(
+export async function computeCommute(
   jobLocation: string | undefined,
   preferredLocation: string | null,
   commuteRadius: string | null
