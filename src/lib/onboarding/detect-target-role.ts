@@ -92,3 +92,18 @@ export function getTargetRoleQuestion(locale: "en" | "de" | "fr"): string {
   };
   return questions[locale] || questions.en;
 }
+
+/**
+ * Localized acknowledgement shown after silently switching the active target role
+ * (locked decision D-02). The already-normalized `role` string is interpolated verbatim —
+ * it is NOT translated. Falls back to `en` for an unknown locale, mirroring
+ * `getTargetRoleQuestion`.
+ */
+export function getTargetRoleAck(locale: "en" | "de" | "fr", role: string): string {
+  const acks = {
+    en: `Got it — I'll optimize everything for ${role} now. 🎯`,
+    de: `Verstanden — ich optimiere ab jetzt alles für ${role}. 🎯`,
+    fr: `C'est noté — j'optimise désormais tout pour ${role}. 🎯`
+  };
+  return acks[locale] || acks.en;
+}
