@@ -23,6 +23,21 @@ export interface CoverLetterHandlerResponse {
 }
 
 /**
+ * Extract an explicit target word count from a cover-letter request, e.g.
+ * "~400 words", "around 350 words", "make it 500 words". Returns undefined when
+ * no plausible word count is present so generation falls back to its default range.
+ */
+export function parseRequestedWordCount(message: string): number | undefined {
+  const match = message.toLowerCase().match(/(\d{2,4})\s*(?:-?\s*word|words?)\b/);
+  if (!match) {
+    return undefined;
+  }
+  const value = Number.parseInt(match[1], 10);
+  // Guard against nonsense (e.g. a salary or year captured as "words").
+  return Number.isFinite(value) && value >= 80 && value <= 2000 ? value : undefined;
+}
+
+/**
  * Main handler for cover letter requests
  * Detects job info, generates letter, formats response
  */
@@ -71,6 +86,11 @@ Once you share these details, I'll create a personalized cover letter that highl
     }
   }
 
+  // Honour an explicit target length in the request (e.g. "~400 words", "make it
+  // 350 words"). Undefined when the user gave no number, in which case the prompt
+  // falls back to the optimal 250-400 word range.
+  const targetWordCount = parseRequestedWordCount(message);
+
   try {
     // Generate the cover letter
     const response = await generateCoverLetter(
@@ -81,7 +101,8 @@ Once you share these details, I'll create a personalized cover letter that highl
           description: jobInfo.description
         },
         userProfile: profile,
-        cvData
+        cvData,
+        targetWordCount
       },
       apiKey,
       model

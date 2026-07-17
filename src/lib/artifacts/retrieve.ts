@@ -71,6 +71,23 @@ export async function findRecentByQuestion(
 }
 
 /**
+ * Find the most recent artifact of a given type for a user, regardless of company.
+ * Used as a fallback when the user asks for "my last cover letter" without naming a
+ * company, so the assistant can still recall it from memory.
+ *
+ * @param userId - User ID
+ * @param type - Artifact type (defaults to cover_letter)
+ * @returns Most recent artifact of that type or null
+ */
+export async function findMostRecentByType(
+  userId: string,
+  type: 'cover_letter' | 'job_posting' | 'interview_qa' = 'cover_letter'
+): Promise<StoredArtifactData | null> {
+  const artifacts = await dal.findByUserAndType(userId, type);
+  return artifacts[0] ?? null;
+}
+
+/**
  * Format artifact for display with cheerful personality
  * 
  * @param artifact - The artifact to display
@@ -196,6 +213,18 @@ export function detectRetrievalIntent(message: string): {
       requestType: 'company',
     };
   }
-  
+
+  // Recency recall without a company, e.g. "show my last cover letter", "get my
+  // previous cover letter", "pull up my cover letter". No query means "most recent".
+  if (
+    /\b(last|previous|recent|latest|my)\b[\sa-z]*\bcover\s*letter\b/.test(lowerMsg) &&
+    /\b(show|retrieve|remind|get|find|display|pull|see|recall|read|open|my)\b/.test(lowerMsg)
+  ) {
+    return {
+      isRetrievalRequest: true,
+      requestType: 'company',
+    };
+  }
+
   return { isRetrievalRequest: false };
 }

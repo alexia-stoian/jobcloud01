@@ -241,6 +241,18 @@ function buildCoverLetterPrompt(request: CoverLetterRequest): string {
   }
   prompt += `\n`;
 
+  // Skills and experience recorded on the candidate's profile (loaded with the
+  // qualifications relation). These carry the real evidence the letter should draw
+  // on, so include them even when no separate CV extraction is available.
+  const profileQualifications = (userProfile as { qualifications?: Array<{ category?: string | null; value: string }> }).qualifications;
+  if (profileQualifications && profileQualifications.length > 0) {
+    prompt += `CANDIDATE SKILLS & EXPERIENCE (from profile):\n`;
+    prompt += profileQualifications
+      .map((q) => `- ${q.category ? `${q.category}: ` : ""}${q.value}`)
+      .join("\n");
+    prompt += `\n\n`;
+  }
+
   if (cvData) {
     prompt += `CANDIDATE EXPERIENCE:\n`;
     prompt += `Name: ${cvData.fullName || "Not provided"}\n`;
@@ -267,7 +279,11 @@ function buildCoverLetterPrompt(request: CoverLetterRequest): string {
 
   prompt += `REQUIREMENTS:\n`;
   prompt += `- Professional cover letter format (salutation, 3-4 paragraphs, closing)\n`;
-  prompt += `- 250-400 words (optimal length)\n`;
+  if (targetWordCount) {
+    prompt += `- Length: approximately ${targetWordCount} words. This is a hard requirement — get close to ${targetWordCount} words, not merely "in range".\n`;
+  } else {
+    prompt += `- 250-400 words (optimal length)\n`;
+  }
   prompt += `- Tailored to the specific role and company\n`;
   prompt += `- Include relevant experience from candidate's background\n`;
   prompt += `- Show enthusiasm and genuine interest\n`;
