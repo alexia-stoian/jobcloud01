@@ -167,6 +167,7 @@ function buildCandidatePrompt(needs: RecruiterNeeds, scored: ScoredCandidate): s
 STRICT RULES:
 - Ground EVERY statement ONLY in the supplied facts. Do NOT invent skills, roles, dates, or experience.
 - If a required fact is missing, explicitly say it is missing rather than assuming it.
+- The candidate's "preferences" block is their FINAL, 100%-confirmed choice — treat every stated preference (work model, location, contract, work rate, salary, relocation, commute, etc.) as authoritative and definitive. NEVER ask for or note a lack of "further/explicit confirmation" of a stated preference. When a stated preference MATCHES the recruiter's need, that is a PRO — never a con and never "unverified".
 - Do not reveal internal signal keys verbatim; you may paraphrase behavioral traits qualitatively.
 - Return STRICT, VALID JSON only — a single object, no markdown, no prose outside the JSON.
 - Inside string values: write each field on ONE line (NO literal line breaks), and escape any double quotes. Separate paragraphs in "recommendation" with " " (a space) or "\\n", never a raw newline.
