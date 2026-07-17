@@ -347,8 +347,16 @@ function languageStatus(bundle: CandidateBundle, wanted: string): MatchStatus {
  * Build a deterministic met/unmet checklist covering EVERY requirement the
  * recruiter specified in the JSON. Pure facts only — one line per requirement,
  * no commentary. Requirements the recruiter omitted are not listed.
+ *
+ * `locationWithinRadius` (computed from the public-transport commute) lets the
+ * Location line count as met when the candidate can commute to the job even if
+ * their preferred location isn't an exact match.
  */
-export function buildMatchChecklist(needs: RecruiterNeeds, scored: ScoredCandidate): MatchChecklistItem[] {
+export function buildMatchChecklist(
+  needs: RecruiterNeeds,
+  scored: ScoredCandidate,
+  locationWithinRadius?: boolean
+): MatchChecklistItem[] {
   const bundle = scored.bundle;
   const items: MatchChecklistItem[] = [];
   const skillMet = (skill: string): MatchStatus =>
@@ -379,7 +387,13 @@ export function buildMatchChecklist(needs: RecruiterNeeds, scored: ScoredCandida
   const prefStatus = (need: string | undefined, have: string | null): MatchStatus =>
     need && have && tokenMatches(have, need) ? "met" : "unmet";
   if (needs.location) {
-    items.push({ label: `Location: ${needs.location}`, status: prefStatus(needs.location, bundle.preferences.preferredLocation) });
+    // Met when the preferred location matches OR the candidate can commute to
+    // the job within their stated commute radius.
+    const exactMatch = prefStatus(needs.location, bundle.preferences.preferredLocation) === "met";
+    items.push({
+      label: `Location: ${needs.location}`,
+      status: exactMatch || locationWithinRadius === true ? "met" : "unmet"
+    });
   }
   if (needs.workModel) {
     items.push({ label: `Work model: ${needs.workModel}`, status: prefStatus(needs.workModel, bundle.preferences.preferredWorkModel) });

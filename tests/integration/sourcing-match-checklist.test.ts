@@ -104,6 +104,17 @@ describe("buildMatchChecklist", () => {
     const checklist = buildMatchChecklist(needs, scored(needs, bundle));
     expect(checklist).toEqual([{ label: "Skill: React", status: "met" }]);
   });
+
+  test("location is met when within commute radius despite a different preferred location", () => {
+    const bundle = makeBundle({
+      preferences: { ...makeBundle({}).preferences, preferredLocation: "Winterthur" }
+    });
+    const needs: RecruiterNeeds = { location: "Zurich" };
+    const withinRadius = buildMatchChecklist(needs, scored(needs, bundle), true);
+    const outsideRadius = buildMatchChecklist(needs, scored(needs, bundle), false);
+    expect(withinRadius).toEqual([{ label: "Location: Zurich", status: "met" }]);
+    expect(outsideRadius).toEqual([{ label: "Location: Zurich", status: "unmet" }]);
+  });
 });
 
 describe("buildConciseSummary", () => {
