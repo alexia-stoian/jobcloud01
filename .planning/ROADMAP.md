@@ -212,14 +212,15 @@ Plans:
 
 ### Phase 10: Dynamic target-role binding: assistant detects target-role intent anywhere in conversation, updates Profile Target Roles field, and re-optimizes interview/cover-letter generation and memory to the new role
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Replace the brittle regex target-role detector with an LLM intent classifier that, anywhere in the assistant conversation (including interview/practice turns), recognizes explicit first-person intent to pursue a role, silently overwrites the single active target role in both `CandidateProfile.targetRoles` and `OnboardingSession.targetRole`, acknowledges the switch in the reply (EN/DE/FR), and lets all future generation (interview questions, cover letters, guidance, memory) optimize to the new role — without regenerating existing artifacts.
+**Requirements**: TRB-01, TRB-02, TRB-03, TRB-04, TRB-05, TRB-06
 **Depends on:** Phase 9
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 10 to break down)
+- [ ] 10-1-PLAN.md — LLM target-role detector (keyword-gated, practice-aware, normalize + null-on-failure), localized EN/DE/FR acknowledgement helper, and failing integration test scaffold
+- [ ] 10-2-PLAN.md — Rewire the single GLOBAL detection site to the async detector, delete duplicate detect blocks, wire the acknowledgement, remove dead regex functions, fix the standalone mock-interview fallback, and green the tests + build
 
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*
