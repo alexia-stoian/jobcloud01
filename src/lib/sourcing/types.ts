@@ -173,6 +173,8 @@ export interface SourcingResult {
   recommendation: string;
   /** Deterministic met/unmet list of every recruiter requirement from the JSON. */
   checklist: MatchChecklistItem[];
+  /** Very concise (<=50 word) verdict on the recruiter's most-wanted skills. */
+  summary: string;
 }
 
 /** The API response shape for `POST /api/admin/sourcing`. */

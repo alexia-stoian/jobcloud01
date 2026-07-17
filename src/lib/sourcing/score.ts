@@ -354,9 +354,6 @@ export function buildMatchChecklist(needs: RecruiterNeeds, scored: ScoredCandida
   const skillMet = (skill: string): MatchStatus =>
     bundle.skills.some((have) => tokenMatches(have, skill)) ? "met" : "unmet";
 
-  for (const skill of needs.mustHaveSkills ?? []) {
-    items.push({ label: `Must-have: ${skill}`, status: skillMet(skill) });
-  }
   for (const skill of needs.requiredSkills ?? []) {
     items.push({ label: `Skill: ${skill}`, status: skillMet(skill) });
   }
@@ -392,4 +389,42 @@ export function buildMatchChecklist(needs: RecruiterNeeds, scored: ScoredCandida
   }
 
   return items;
+}
+
+/** Max words in the concise verdict summary. */
+const SUMMARY_MAX_WORDS = 50;
+
+/**
+ * A very concise, deterministic verdict (<= 50 words) highlighting whether the
+ * recruiter's MOST-wanted skills are present. Uses `mustHaveSkills` when the
+ * recruiter flagged any, otherwise the required skills. Returns "" when the
+ * recruiter specified no priority skills.
+ */
+export function buildConciseSummary(needs: RecruiterNeeds, scored: ScoredCandidate): string {
+  const bundle = scored.bundle;
+  const priority =
+    needs.mustHaveSkills && needs.mustHaveSkills.length > 0
+      ? needs.mustHaveSkills
+      : needs.requiredSkills ?? [];
+  if (priority.length === 0) {
+    return "";
+  }
+
+  const met: string[] = [];
+  const missing: string[] = [];
+  for (const skill of priority) {
+    (bundle.skills.some((have) => tokenMatches(have, skill)) ? met : missing).push(skill);
+  }
+
+  const parts: string[] = [];
+  if (met.length > 0) {
+    parts.push(`Has ${met.join(", ")}`);
+  }
+  if (missing.length > 0) {
+    parts.push(`${met.length > 0 ? "missing" : "Missing"} ${missing.join(", ")}`);
+  }
+  const sentence = `${parts.join("; ")}.`;
+
+  const words = sentence.split(/\s+/);
+  return words.length > SUMMARY_MAX_WORDS ? `${words.slice(0, SUMMARY_MAX_WORDS).join(" ")}…` : sentence;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildMatchChecklist, scoreCandidate } from "@/lib/sourcing/score";
+import { buildMatchChecklist, buildConciseSummary, scoreCandidate } from "@/lib/sourcing/score";
 import { seedSignals } from "@/lib/ai/signals/signal-definitions";
 import type { CandidateBundle, CandidateLanguage, RecruiterNeeds, ScoredCandidate } from "@/lib/sourcing/types";
 
@@ -69,7 +69,8 @@ describe("buildMatchChecklist", () => {
     const checklist = buildMatchChecklist(needs, scored(needs, bundle));
     const byLabel = Object.fromEntries(checklist.map((item) => [item.label, item.status]));
 
-    expect(byLabel["Must-have: React"]).toBe("met");
+    // Must-have skills are surfaced in the concise summary, NOT the checklist.
+    expect(byLabel["Must-have: React"]).toBeUndefined();
     expect(byLabel["Skill: Node.js"]).toBe("met");
     expect(byLabel["Skill: Kubernetes"]).toBe("unmet");
     expect(byLabel["Nice-to-have: GraphQL"]).toBe("unmet");
@@ -102,5 +103,36 @@ describe("buildMatchChecklist", () => {
     const needs: RecruiterNeeds = { requiredSkills: ["React"] };
     const checklist = buildMatchChecklist(needs, scored(needs, bundle));
     expect(checklist).toEqual([{ label: "Skill: React", status: "met" }]);
+  });
+});
+
+describe("buildConciseSummary", () => {
+  test("highlights met and missing must-have skills", () => {
+    const bundle = makeBundle({ skills: ["React", "Node.js"] });
+    const needs: RecruiterNeeds = { mustHaveSkills: ["React", "Kubernetes"] };
+    const summary = buildConciseSummary(needs, scored(needs, bundle));
+    expect(summary).toBe("Has React; missing Kubernetes.");
+  });
+
+  test("falls back to required skills when no must-haves are set", () => {
+    const bundle = makeBundle({ skills: ["Python"] });
+    const needs: RecruiterNeeds = { requiredSkills: ["Python", "SQL"] };
+    const summary = buildConciseSummary(needs, scored(needs, bundle));
+    expect(summary).toBe("Has Python; missing SQL.");
+  });
+
+  test("caps the summary at 50 words", () => {
+    const many = Array.from({ length: 60 }, (_, i) => `Skill${i}`);
+    const bundle = makeBundle({ skills: [] });
+    const needs: RecruiterNeeds = { mustHaveSkills: many };
+    const summary = buildConciseSummary(needs, scored(needs, bundle));
+    expect(summary.split(/\s+/).length).toBeLessThanOrEqual(50);
+    expect(summary.endsWith("…")).toBe(true);
+  });
+
+  test("returns empty string when no priority skills are specified", () => {
+    const bundle = makeBundle({ skills: ["React"] });
+    const needs: RecruiterNeeds = { languages: ["English"] };
+    expect(buildConciseSummary(needs, scored(needs, bundle))).toBe("");
   });
 });

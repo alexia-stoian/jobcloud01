@@ -26,7 +26,6 @@ export function SourcingPage(): React.ReactElement {
   const [results, setResults] = useState<SourcingResult[]>([]);
   const [usedLlm, setUsedLlm] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
-  const [selected, setSelected] = useState<SourcingResult | null>(null);
 
   // Restore the last completed run on mount (persists across page changes/refresh).
   useEffect(() => {
@@ -79,7 +78,6 @@ export function SourcingPage(): React.ReactElement {
       setStatus("loading");
       setErrorKey(null);
       setResults([]);
-      setSelected(null);
 
       let payload: unknown;
       try {
@@ -199,6 +197,10 @@ export function SourcingPage(): React.ReactElement {
                     <div className="sourcing-card__bar-fill" style={{ width: `${result.fitPercent}%` }} />
                   </div>
 
+                  {result.summary ? (
+                    <p className="sourcing-card__summary">{result.summary}</p>
+                  ) : null}
+
                   {result.checklist && result.checklist.length > 0 ? (
                     <div className="sourcing-card__section">
                       <h3 className="sourcing-card__heading">{t("checklistHeading")}</h3>
@@ -215,31 +217,11 @@ export function SourcingPage(): React.ReactElement {
                     </div>
                   ) : null}
 
-                  {result.whyFit ? (
-                    <div className="sourcing-card__section">
-                      <h3 className="sourcing-card__heading">{t("whyFitHeading")}</h3>
-                      <p className="sourcing-card__why">{result.whyFit}</p>
-                    </div>
-                  ) : null}
-
-                  {result.bestSkills.length > 0 ? (
-                    <div className="sourcing-card__section">
-                      <h3 className="sourcing-card__heading">{t("bestSkillsHeading")}</h3>
-                      <div className="sourcing-card__chips">
-                        {result.bestSkills.map((skill) => (
-                          <span key={skill} className="admin-chip">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
                   {result.pros.length > 0 ? (
                     <div className="sourcing-card__section">
                       <h3 className="sourcing-card__heading">{t("prosHeading")}</h3>
                       <ul className="sourcing-card__list sourcing-card__list--pros">
-                        {result.pros.map((pro, i) => (
+                        {result.pros.slice(0, 3).map((pro, i) => (
                           <li key={i}>{pro}</li>
                         ))}
                       </ul>
@@ -250,116 +232,16 @@ export function SourcingPage(): React.ReactElement {
                     <div className="sourcing-card__section">
                       <h3 className="sourcing-card__heading">{t("consHeading")}</h3>
                       <ul className="sourcing-card__list sourcing-card__list--cons">
-                        {result.cons.map((con, i) => (
+                        {result.cons.slice(0, 3).map((con, i) => (
                           <li key={i}>{con}</li>
                         ))}
                       </ul>
                     </div>
                   ) : null}
-
-                  {result.recommendation ? (
-                    <button
-                      type="button"
-                      className="sourcing-card__report-btn"
-                      onClick={() => setSelected(result)}
-                    >
-                      <span aria-hidden="true">▤</span> {t("viewReport")}
-                    </button>
-                  ) : null}
                 </li>
               ))}
             </ul>
           )}
-        </>
-      ) : null}
-
-      {selected ? (
-        <>
-          <div
-            className="sourcing-scrim"
-            role="button"
-            tabIndex={0}
-            aria-label={t("closeReport")}
-            onClick={() => setSelected(null)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " " || e.key === "Escape") setSelected(null);
-            }}
-          />
-          <aside className="sourcing-panel" aria-label={t("reportPanelLabel")}>
-            <header className="sourcing-panel__header">
-              <div>
-                <h2 className="sourcing-panel__name">{selected.name}</h2>
-                <span className={`sourcing-verdict sourcing-verdict--${selected.verdict}`}>
-                  {verdictLabel(selected.verdict)} · {t("fitLabel", { percent: selected.fitPercent })}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="sourcing-panel__close"
-                onClick={() => setSelected(null)}
-                aria-label={t("closeReport")}
-              >
-                ✕
-              </button>
-            </header>
-
-            <div className="sourcing-panel__body">
-              <h3 className="sourcing-panel__heading">{t("recommendationHeading")}</h3>
-              {selected.recommendation
-                .split(/\n{2,}|(?<=\.) (?=[A-Z])/)
-                .reduce<string[]>((acc, sentence) => {
-                  // Group sentences into ~3-sentence paragraphs for readability.
-                  const last = acc[acc.length - 1];
-                  if (last && last.split(". ").length < 3) {
-                    acc[acc.length - 1] = `${last} ${sentence}`.trim();
-                  } else {
-                    acc.push(sentence.trim());
-                  }
-                  return acc;
-                }, [])
-                .filter(Boolean)
-                .map((para, i) => (
-                  <p key={i} className="sourcing-panel__para">
-                    {para}
-                  </p>
-                ))}
-
-              {selected.bestSkills.length > 0 ? (
-                <>
-                  <h3 className="sourcing-panel__heading">{t("bestSkillsHeading")}</h3>
-                  <div className="sourcing-card__chips">
-                    {selected.bestSkills.map((skill) => (
-                      <span key={skill} className="admin-chip">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-
-              {selected.pros.length > 0 ? (
-                <>
-                  <h3 className="sourcing-panel__heading">{t("prosHeading")}</h3>
-                  <ul className="sourcing-card__list sourcing-card__list--pros">
-                    {selected.pros.map((pro, i) => (
-                      <li key={i}>{pro}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-
-              {selected.cons.length > 0 ? (
-                <>
-                  <h3 className="sourcing-panel__heading">{t("consHeading")}</h3>
-                  <ul className="sourcing-card__list sourcing-card__list--cons">
-                    {selected.cons.map((con, i) => (
-                      <li key={i}>{con}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          </aside>
         </>
       ) : null}
     </section>

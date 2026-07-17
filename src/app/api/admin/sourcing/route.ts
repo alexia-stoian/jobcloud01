@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { parseRecruiterNeeds } from "@/lib/sourcing/recruiter-needs";
 import { aggregateCandidates } from "@/lib/sourcing/aggregate";
-import { rankCandidates, buildMatchChecklist } from "@/lib/sourcing/score";
+import { rankCandidates, buildMatchChecklist, buildConciseSummary } from "@/lib/sourcing/score";
 import { buildReports } from "@/lib/sourcing/report";
 import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
 
@@ -75,7 +75,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       cons: report?.cons ?? [],
       verdict: report?.verdict ?? "not_recommended",
       recommendation: report?.recommendation ?? "",
-      checklist: buildMatchChecklist(needs, scored)
+      checklist: buildMatchChecklist(needs, scored),
+      summary: buildConciseSummary(needs, scored)
     };
   });
 
