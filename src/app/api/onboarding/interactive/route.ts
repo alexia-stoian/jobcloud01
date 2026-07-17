@@ -166,16 +166,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "session_invalid" }, { status: 401 });
   }
 
+  // The structured "Which role should we optimize your profile for first?"
+  // question writes `primaryRole`, but it is semantically the candidate's TARGET
+  // role. Mirror it into `targetRoles` (the Profile > Preferences field) when that
+  // field is still empty, so choosing a role here populates Target Roles too.
+  // Only-when-empty avoids clobbering an explicitly-answered `targetRoles`
+  // (the post-CV flow asks it separately) or a later manual edit. This endpoint
+  // only handles structured Q&A answers — CV extraction uses a different route —
+  // so it never mirrors a CV-derived current role.
+  const writeData: Record<string, string> = { [field]: value };
+  if (field === "primaryRole") {
+    const existing = await db.candidateProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { targetRoles: true }
+    });
+    const hasTargetRoles = typeof existing?.targetRoles === "string" && existing.targetRoles.trim().length > 0;
+    if (!hasTargetRoles) {
+      writeData.targetRoles = value;
+    }
+  }
+
   const profile = await db.candidateProfile.upsert({
     where: { userId: session.user.id },
     create: {
       userId: session.user.id,
       locale: "en",
       assistantState: JSON.parse(JSON.stringify(createInitialAssistantState())),
-      [field]: value
+      ...writeData
     },
     update: {
-      [field]: value
+      ...writeData
     }
   });
 
