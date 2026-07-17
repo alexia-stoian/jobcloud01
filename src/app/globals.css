@@ -3242,6 +3242,42 @@ select {
   color: var(--admin-danger);
 }
 
+/* Requirement met/unmet checklist */
+.sourcing-card__checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sourcing-check {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--admin-ink);
+}
+.sourcing-check__icon {
+  flex: 0 0 auto;
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+}
+.sourcing-check--met .sourcing-check__icon {
+  color: var(--admin-ok);
+}
+.sourcing-check--partial .sourcing-check__icon {
+  color: var(--admin-warn, #b8860b);
+}
+.sourcing-check--unmet .sourcing-check__icon {
+  color: var(--admin-danger);
+}
+.sourcing-check--unmet .sourcing-check__label {
+  color: var(--admin-faint);
+}
+
 /* Verdict badge */
 .sourcing-verdict {
   display: inline-flex;

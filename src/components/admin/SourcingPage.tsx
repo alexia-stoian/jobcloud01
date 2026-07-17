@@ -199,6 +199,22 @@ export function SourcingPage(): React.ReactElement {
                     <div className="sourcing-card__bar-fill" style={{ width: `${result.fitPercent}%` }} />
                   </div>
 
+                  {result.checklist && result.checklist.length > 0 ? (
+                    <div className="sourcing-card__section">
+                      <h3 className="sourcing-card__heading">{t("checklistHeading")}</h3>
+                      <ul className="sourcing-card__checklist">
+                        {result.checklist.map((item, i) => (
+                          <li key={i} className={`sourcing-check sourcing-check--${item.status}`}>
+                            <span className="sourcing-check__icon" aria-hidden="true">
+                              {item.status === "met" ? "✓" : item.status === "partial" ? "≈" : "✗"}
+                            </span>
+                            <span className="sourcing-check__label">{item.label}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
                   {result.whyFit ? (
                     <div className="sourcing-card__section">
                       <h3 className="sourcing-card__heading">{t("whyFitHeading")}</h3>

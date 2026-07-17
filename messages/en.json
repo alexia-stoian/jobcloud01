@@ -339,6 +339,7 @@
       "fallbackNote": "Deterministic ranking shown (AI narrative unavailable — the Anthropic API key is missing or invalid).",
       "fitLabel": "{percent}% fit",
       "whyFitHeading": "Why they fit",
+      "checklistHeading": "Requirements",
       "bestSkillsHeading": "Best skills",
       "prosHeading": "Pros",
       "consHeading": "Cons",

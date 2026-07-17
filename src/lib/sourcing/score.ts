@@ -9,6 +9,8 @@
 
 import type {
   CandidateBundle,
+  MatchChecklistItem,
+  MatchStatus,
   RecruiterNeeds,
   ScoreBreakdown,
   ScoredCandidate
@@ -305,4 +307,89 @@ export function rankCandidates(needs: RecruiterNeeds, bundles: CandidateBundle[]
       }
       return a.bundle.name.localeCompare(b.bundle.name);
     });
+}
+
+/** Does the candidate's education satisfy one wanted education requirement? */
+function educationMatches(bundle: CandidateBundle, want: string): boolean {
+  const haystack = normalize(
+    bundle.education.map((entry) => `${entry.title} ${entry.field ?? ""} ${entry.school ?? ""}`).join(" ")
+  );
+  if (haystack.length === 0) {
+    return false;
+  }
+  const keywords = normalize(want)
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3);
+  if (keywords.length === 0) {
+    return false;
+  }
+  return keywords.some((keyword) => haystack.includes(keyword));
+}
+
+/** Met/partial/unmet status for one required language against the candidate. */
+function languageStatus(bundle: CandidateBundle, wanted: string): MatchStatus {
+  const requirement = parseLanguageString(wanted);
+  const candidate = bundle.languageProficiencies.find((lang) => tokenMatches(lang.name, requirement.name));
+  if (!candidate) {
+    return "unmet";
+  }
+  if (!requirement.cefr) {
+    return "met";
+  }
+  const candidateLevel = candidate.cefr ?? normalizeProficiency(candidate.levelText);
+  if (candidateLevel && PROFICIENCY_RANK[candidateLevel] >= PROFICIENCY_RANK[requirement.cefr]) {
+    return "met";
+  }
+  return "partial";
+}
+
+/**
+ * Build a deterministic met/unmet checklist covering EVERY requirement the
+ * recruiter specified in the JSON. Pure facts only — one line per requirement,
+ * no commentary. Requirements the recruiter omitted are not listed.
+ */
+export function buildMatchChecklist(needs: RecruiterNeeds, scored: ScoredCandidate): MatchChecklistItem[] {
+  const bundle = scored.bundle;
+  const items: MatchChecklistItem[] = [];
+  const skillMet = (skill: string): MatchStatus =>
+    bundle.skills.some((have) => tokenMatches(have, skill)) ? "met" : "unmet";
+
+  for (const skill of needs.mustHaveSkills ?? []) {
+    items.push({ label: `Must-have: ${skill}`, status: skillMet(skill) });
+  }
+  for (const skill of needs.requiredSkills ?? []) {
+    items.push({ label: `Skill: ${skill}`, status: skillMet(skill) });
+  }
+  for (const skill of needs.niceToHaveSkills ?? []) {
+    items.push({ label: `Nice-to-have: ${skill}`, status: skillMet(skill) });
+  }
+
+  if (typeof needs.minYearsExperience === "number") {
+    items.push({
+      label: `Experience: ${needs.minYearsExperience}+ yrs`,
+      status: bundle.estimatedYearsExperience >= needs.minYearsExperience ? "met" : "unmet"
+    });
+  }
+
+  for (const education of needs.education ?? []) {
+    items.push({ label: `Education: ${education}`, status: educationMatches(bundle, education) ? "met" : "unmet" });
+  }
+
+  for (const language of needs.languages ?? []) {
+    items.push({ label: `Language: ${language}`, status: languageStatus(bundle, language) });
+  }
+
+  const prefStatus = (need: string | undefined, have: string | null): MatchStatus =>
+    need && have && tokenMatches(have, need) ? "met" : "unmet";
+  if (needs.location) {
+    items.push({ label: `Location: ${needs.location}`, status: prefStatus(needs.location, bundle.preferences.preferredLocation) });
+  }
+  if (needs.workModel) {
+    items.push({ label: `Work model: ${needs.workModel}`, status: prefStatus(needs.workModel, bundle.preferences.preferredWorkModel) });
+  }
+  if (needs.contract) {
+    items.push({ label: `Contract: ${needs.contract}`, status: prefStatus(needs.contract, bundle.preferences.contractPreference) });
+  }
+
+  return items;
 }
