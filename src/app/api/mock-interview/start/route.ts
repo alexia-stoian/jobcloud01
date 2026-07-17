@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // 5. Generate first question
     const firstQuestion = await generateFirstQuestion(
       interviewType as InterviewType,
-      targetRole || profile.primaryRole || null,
+      targetRole || profile.targetRoles || profile.primaryRole || null,
       profileContext,
       profile.locale
     );
