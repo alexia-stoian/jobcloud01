@@ -189,11 +189,13 @@ function parseQualification(category: string, value: string): ParsedQual {
 /** Group qualifications into skills (tags) + itemised categories. */
 function groupQualifications(quals: QualificationBundle[]): {
   skills: string[];
+  languages: string[];
   experience: ParsedQual[];
   education: ParsedQual[];
   certifications: ParsedQual[];
 } {
   const skills: string[] = [];
+  const languages: string[] = [];
   const experience: ParsedQual[] = [];
   const education: ParsedQual[] = [];
   const certifications: ParsedQual[] = [];
@@ -201,7 +203,11 @@ function groupQualifications(quals: QualificationBundle[]): {
     const cat = q.category.toLowerCase();
     const parsed = parseQualification(q.category, q.value);
     if (parsed.kind === "tag") {
-      skills.push(parsed.text);
+      if (cat === "language") {
+        languages.push(parsed.text);
+      } else {
+        skills.push(parsed.text);
+      }
     } else if (cat === "experience") {
       experience.push(parsed);
     } else if (cat === "diploma" || cat === "education" || cat === "degree") {
@@ -210,7 +216,7 @@ function groupQualifications(quals: QualificationBundle[]): {
       certifications.push(parsed);
     }
   }
-  return { skills, experience, education, certifications };
+  return { skills, languages, experience, education, certifications };
 }
 
 /** camelCase / snake_case key → human "Title Case" label. */
@@ -332,6 +338,12 @@ function buildCvDocument(bundle: ApiBundle): string {
   if (quals.skills.length > 0) {
     push("SKILLS");
     push(quals.skills.join(", "));
+    push();
+  }
+
+  if (quals.languages.length > 0) {
+    push("LANGUAGES");
+    push(quals.languages.join(", "));
     push();
   }
 
@@ -520,6 +532,7 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
             {/* Qualifications — skills as chips, experience/education/certs itemised */}
             {quals &&
               (quals.skills.length > 0 ||
+                quals.languages.length > 0 ||
                 quals.experience.length > 0 ||
                 quals.education.length > 0 ||
                 quals.certifications.length > 0) && (
@@ -533,6 +546,19 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
                         {quals.skills.map((skill, index) => (
                           <span className="admin-tag" key={index}>
                             {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {quals.languages.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("languagesLabel")}</div>
+                      <div className="admin-taglist">
+                        {quals.languages.map((language, index) => (
+                          <span className="admin-tag" key={index}>
+                            {language}
                           </span>
                         ))}
                       </div>

@@ -32,6 +32,7 @@ describe("language proficiency normalization", () => {
     expect(normalizeProficiency("Conversational")).toBe("B1");
     expect(normalizeProficiency("Elementary")).toBe("A2");
     expect(normalizeProficiency("Beginner")).toBe("A1");
+    expect(normalizeProficiency("Expert")).toBe("C2");
   });
 
   test("recognizes the LinkedIn proficiency scale", () => {

@@ -44,7 +44,7 @@ const PHRASE_TO_LEVEL: Array<{ pattern: RegExp; level: CefrLevel }> = [
   { pattern: /limited\s*working(\s*proficiency)?/i, level: "B1" },
   { pattern: /elementary(\s*proficiency)?/i, level: "A2" },
   // Descriptive labels.
-  { pattern: /mastery|proficient|proficiency/i, level: "C2" },
+  { pattern: /mastery|proficient|proficiency|expert/i, level: "C2" },
   { pattern: /fluent|fluency|courant|flie(ß|ss)end|corrente/i, level: "C1" },
   { pattern: /advanced|fortgeschritten|avanc(é|e)/i, level: "C1" },
   { pattern: /upper[\s-]*intermediate/i, level: "B2" },
