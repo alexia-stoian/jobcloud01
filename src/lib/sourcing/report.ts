@@ -191,6 +191,25 @@ async function computeCommute(
   };
 }
 
+/**
+ * Extract the start and end YEAR of an experience entry from any of its date
+ * fields or free-text period. Tenure continuity is assessed by year only — exact
+ * months/days are intentionally not required.
+ */
+function experienceYears(entry: {
+  startDate?: string;
+  endDate?: string;
+  isCurrentRole?: boolean;
+  period?: string;
+}): { startYear: string; endYear: string } {
+  const blob = `${entry.startDate ?? ""} ${entry.endDate ?? ""} ${entry.period ?? ""}`;
+  const years = blob.match(/\b(?:19|20)\d{2}\b/g) ?? [];
+  const isCurrent = entry.isCurrentRole === true || /present|current|now|ongoing|today/i.test(blob);
+  const startYear = years[0] ?? "";
+  const endYear = isCurrent ? "present" : years.length > 1 ? years[years.length - 1] : years[0] ?? "";
+  return { startYear, endYear };
+}
+
 /** Build the compact, sanitized facts block for one candidate. */
 function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
   const { bundle } = scored;
@@ -201,15 +220,16 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
     estimatedYearsExperience: bundle.estimatedYearsExperience,
     skills: bundle.skills.slice(0, 40).map((skill) => clamp(skill, 60)),
     languages: bundle.languages.slice(0, 20).map((lang) => clamp(lang, 40)),
-    experience: bundle.experience.slice(0, 12).map((entry) => ({
-      title: clamp(entry.title, 120),
-      company: clamp(entry.company, 120),
-      startDate: clamp(entry.startDate, 20),
-      endDate: entry.isCurrentRole ? "present" : clamp(entry.endDate, 20),
-      // Free-text tenure carried from the Admin profile when explicit dates are
-      // absent (editor-saved profiles store only the period string).
-      period: clamp(entry.period, 40)
-    })),
+    experience: bundle.experience.slice(0, 12).map((entry) => {
+      const { startYear, endYear } = experienceYears(entry);
+      return {
+        title: clamp(entry.title, 120),
+        company: clamp(entry.company, 120),
+        // Tenure continuity is assessed by start/end YEAR only ("present" = current).
+        startYear,
+        endYear
+      };
+    }),
     education: bundle.education.slice(0, 8).map((entry) => ({
       title: clamp(entry.title, 120),
       school: clamp(entry.school, 120),
@@ -257,6 +277,7 @@ STRICT RULES:
 - If a required fact is missing, explicitly say it is missing rather than assuming it.
 - The candidate's "preferences" block (location, work model, contract, work rate, salary, work permit, visa sponsorship, relocation, commute, target role/seniority/industries, current situation, employment objective) IS the candidate's FINAL, 100%-CONFIRMED decision — this section itself is the final confirmation. Treat every non-empty value in it as authoritative fact that needs NO further checking. You MUST NOT request, recommend, imply, or note any need to "confirm", "clarify", "verify", "validate", "double-check", "discuss", "align on", or "reconfirm" any stated preference — the assistant must never require additional confirmation of it. Never list a stated preference, or its match with the recruiter's need, as a con, risk, gap, caveat, or open question. When a stated preference matches the recruiter's need, that is a PRO. (Only a genuinely EMPTY/absent preference may be noted as "not provided".)
 - COMMUTE CHECK (public transport only, NEVER by car): If a "commute" fact is present, it holds the real PUBLIC-TRANSPORT travel time (publicTransportMinutes) between the candidate's preferred location and the job location, plus their commute radius (maxCommuteMinutes) and a withinRadius flag. If withinRadius is false, record the commute as a CON and let it lower fitPercent; if true, record it as a PRO. State the actual minutes and the comparison explicitly. If no "commute" fact is present but preferred location, job location and commute radius exist, estimate the public-transport commute yourself and apply the same rule; if any of those are missing, say so instead of guessing.
+- TENURE: Judge tenure and continuity using ONLY each experience's startYear and endYear ("present" = current role). Years are sufficient — do NOT flag missing exact months/days, "only period ranges", or "start/end dates not fully specified" as a gap or con.
 - Do not reveal internal signal keys verbatim; you may paraphrase behavioral traits qualitatively.
 - Return STRICT, VALID JSON only — a single object, no markdown, no prose outside the JSON.
 - Inside string values: write each field on ONE line (NO literal line breaks), and escape any double quotes. Separate paragraphs in "recommendation" with " " (a space) or "\\n", never a raw newline.
