@@ -36,7 +36,7 @@ export async function GET(): Promise<NextResponse> {
     id: row.id,
     name: row.profile?.fullName?.trim() || row.email.split("@")[0],
     email: row.email,
-    targetRole: row.profile?.targetRoles ?? row.profile?.primaryRole ?? null,
+    targetRole: row.profile?.primaryRole ?? row.profile?.targetRoles ?? null,
     isComplete: row.profile?.isMinimallyComplete ?? false
   }));
 
