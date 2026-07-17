@@ -83,7 +83,9 @@ function estimateYears(start: string | undefined, end: string | undefined, isCur
   if (!start) {
     return 0;
   }
-  const startTime = Date.parse(start.length === 7 ? `${start}-01` : start);
+  const normalize = (value: string): string =>
+    value.length === 4 ? `${value}-01-01` : value.length === 7 ? `${value}-01` : value;
+  const startTime = Date.parse(normalize(start));
   if (Number.isNaN(startTime)) {
     return 0;
   }
@@ -91,11 +93,35 @@ function estimateYears(start: string | undefined, end: string | undefined, isCur
   if (isCurrent || !end) {
     endTime = Date.now();
   } else {
-    const parsed = Date.parse(end.length === 7 ? `${end}-01` : end);
+    const parsed = Date.parse(normalize(end));
     endTime = Number.isNaN(parsed) ? Date.now() : parsed;
   }
   const years = (endTime - startTime) / (365.25 * 24 * 60 * 60 * 1000);
   return years > 0 ? years : 0;
+}
+
+/**
+ * Parse a free-text experience "period" string (e.g. "2020-01 - Present",
+ * "2017-09 - 2019-06", "2018 – 2021", "2020 to Present") into start/end tokens.
+ * Splits only on a range separator surrounded by spaces so the dashes inside a
+ * date like "2020-01" are preserved.
+ */
+function parsePeriod(period: string): { start?: string; end?: string; isCurrent: boolean } {
+  const normalized = period.trim();
+  if (normalized.length === 0) {
+    return { isCurrent: false };
+  }
+  const parts = normalized.split(/\s+(?:[-–—]|to|bis|à)\s+/i);
+  const isCurrentText = (value: string): boolean =>
+    /present|current|now|ongoing|today|heute|aktuell|présent|actuel|en cours/i.test(value);
+  if (parts.length >= 2) {
+    const start = parts[0].trim();
+    const endRaw = parts[1].trim();
+    const isCurrent = isCurrentText(endRaw);
+    return { start: start || undefined, end: isCurrent ? undefined : endRaw || undefined, isCurrent };
+  }
+  const isCurrent = isCurrentText(normalized);
+  return { start: isCurrent ? undefined : normalized, isCurrent };
 }
 
 /**
@@ -137,6 +163,7 @@ function parseQualifications(qualifications: RawQualification[]): {
       const startDate = obj ? str(obj, "startDate") : undefined;
       const endDate = obj ? str(obj, "endDate") : undefined;
       const isCurrentRole = obj ? obj.isCurrentRole === true : false;
+      const period = obj ? str(obj, "period") : undefined;
       experience.push({
         title: (obj && str(obj, "title")) ?? qual.value,
         company: obj ? str(obj, "company") : undefined,
@@ -146,7 +173,16 @@ function parseQualifications(qualifications: RawQualification[]): {
         isCurrentRole,
         description: obj ? str(obj, "description") : undefined
       });
-      totalYears += estimateYears(startDate, endDate, isCurrentRole);
+      if (startDate) {
+        totalYears += estimateYears(startDate, endDate, isCurrentRole);
+      } else if (period) {
+        // Profiles saved via the editor store only a free-text "period" (dates
+        // are dropped) — parse it so the years estimate stays accurate.
+        const p = parsePeriod(period);
+        if (p.start) {
+          totalYears += estimateYears(p.start, p.end, p.isCurrent || isCurrentRole);
+        }
+      }
       continue;
     }
 
