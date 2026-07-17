@@ -1,14 +1,25 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { SourcingResponse, SourcingResult, SourcingVerdict } from "@/lib/sourcing/types";
 
 type Status = "idle" | "loading" | "done" | "error";
 
+/** Persist the last completed sourcing run so the page survives navigation + refresh. */
+const SOURCING_STORAGE_KEY = "jobscout24.sourcing-results.v1";
+
+type PersistedSourcing = {
+  fileName: string | null;
+  results: SourcingResult[];
+  usedLlm: boolean;
+  candidateCount: number;
+};
+
 export function SourcingPage(): React.ReactElement {
   const t = useTranslations("admin.sourcing");
   const inputRef = useRef<HTMLInputElement>(null);
+  const hydratedRef = useRef(false);
   const [status, setStatus] = useState<Status>("idle");
   const [errorKey, setErrorKey] = useState<"parse" | "request" | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -16,6 +27,41 @@ export function SourcingPage(): React.ReactElement {
   const [usedLlm, setUsedLlm] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
   const [selected, setSelected] = useState<SourcingResult | null>(null);
+
+  // Restore the last completed run on mount (persists across page changes/refresh).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SOURCING_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as PersistedSourcing;
+        if (Array.isArray(saved.results) && saved.results.length > 0) {
+          setResults(saved.results);
+          setFileName(saved.fileName ?? null);
+          setUsedLlm(Boolean(saved.usedLlm));
+          setCandidateCount(saved.candidateCount ?? 0);
+          setStatus("done");
+        }
+      }
+    } catch {
+      // Ignore corrupted/unavailable storage — fall back to the empty state.
+    }
+    hydratedRef.current = true;
+  }, []);
+
+  // Persist the results whenever a run completes.
+  useEffect(() => {
+    if (!hydratedRef.current) {
+      return;
+    }
+    try {
+      if (status === "done" && results.length > 0) {
+        const snapshot: PersistedSourcing = { fileName, results, usedLlm, candidateCount };
+        window.localStorage.setItem(SOURCING_STORAGE_KEY, JSON.stringify(snapshot));
+      }
+    } catch {
+      // Ignore quota/serialization errors — persistence is best-effort.
+    }
+  }, [status, results, fileName, usedLlm, candidateCount]);
 
   const verdictLabel = useCallback(
     (verdict: SourcingVerdict): string =>
