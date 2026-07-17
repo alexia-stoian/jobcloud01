@@ -244,6 +244,24 @@ function normalizeNestedNeeds(source: Record<string, unknown>): RecruiterNeeds {
   const merged = { ...derived, ...(explicit ?? {}) };
   if (Object.keys(merged).length > 0) needs.preferredSignals = merged;
 
+  // Knockout criteria = "cannot be missing" requirements. Collect the skills the
+  // recruiter marks as must-haves (contains_all / in on a skills field) so they
+  // can be weighted more heavily than ordinary required skills.
+  if (Array.isArray(source.knockout_criteria)) {
+    const must: string[] = [];
+    for (const entry of source.knockout_criteria) {
+      const e = obj(entry);
+      if (!e) continue;
+      const field = (clampString(e.field) ?? "").toLowerCase();
+      if (field.includes("skill")) {
+        const vals = coerceStringArray(e.value);
+        if (vals) must.push(...vals);
+      }
+    }
+    const dedup = Array.from(new Set(must)).slice(0, MAX_ARRAY_ITEMS);
+    if (dedup.length > 0) needs.mustHaveSkills = dedup;
+  }
+
   return needs;
 }
 
@@ -262,6 +280,9 @@ function normalizeFlatNeeds(source: Record<string, unknown>): RecruiterNeeds {
 
   const niceToHaveSkills = coerceStringArray(source.niceToHaveSkills);
   if (niceToHaveSkills !== undefined) needs.niceToHaveSkills = niceToHaveSkills;
+
+  const mustHaveSkills = coerceStringArray(source.mustHaveSkills);
+  if (mustHaveSkills !== undefined) needs.mustHaveSkills = mustHaveSkills;
 
   const minYearsExperience = coerceYears(source.minYearsExperience);
   if (minYearsExperience !== undefined) needs.minYearsExperience = minYearsExperience;

@@ -20,6 +20,11 @@ export interface RecruiterNeeds {
   seniority?: string;
   requiredSkills?: string[];
   niceToHaveSkills?: string[];
+  /**
+   * Critical "cannot be missing" skills the recruiter flags as most important
+   * (e.g. knockout criteria). These are weighted more heavily than requiredSkills.
+   */
+  mustHaveSkills?: string[];
   minYearsExperience?: number;
   education?: string[];
   languages?: string[];
@@ -94,6 +99,7 @@ export interface CandidateBundle {
 
 /** Per-component contribution to a candidate's deterministic fit score. */
 export interface ScoreBreakdown {
+  mustHave: number;
   requiredSkills: number;
   niceToHaveSkills: number;
   experience: number;

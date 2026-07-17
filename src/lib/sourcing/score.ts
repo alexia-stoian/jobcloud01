@@ -16,6 +16,7 @@ import type {
 
 /** Relative weights per component (only active components are normalized over). */
 const WEIGHTS = {
+  mustHave: 45,
   requiredSkills: 30,
   niceToHaveSkills: 10,
   experience: 15,
@@ -173,6 +174,7 @@ function positiveSignalBonus(bundle: CandidateBundle): number {
  */
 export function scoreCandidate(needs: RecruiterNeeds, bundle: CandidateBundle): ScoredCandidate {
   const breakdown: ScoreBreakdown = {
+    mustHave: 0,
     requiredSkills: 0,
     niceToHaveSkills: 0,
     experience: 0,
@@ -184,6 +186,17 @@ export function scoreCandidate(needs: RecruiterNeeds, bundle: CandidateBundle): 
 
   let weightedSum = 0;
   let activeWeight = 0;
+
+  // Must-have ("cannot be missing") skills the recruiter flagged as most
+  // important — weighted highest so missing them heavily lowers the fit.
+  const mustHaveSkills = needs.mustHaveSkills ?? [];
+  if (mustHaveSkills.length > 0) {
+    const mustMatch = matchSkills(bundle.skills, mustHaveSkills);
+    const fraction = mustMatch.matched.length / mustHaveSkills.length;
+    breakdown.mustHave = fraction;
+    weightedSum += fraction * WEIGHTS.mustHave;
+    activeWeight += WEIGHTS.mustHave;
+  }
 
   const requiredSkills = needs.requiredSkills ?? [];
   const requiredMatch = matchSkills(bundle.skills, requiredSkills);
