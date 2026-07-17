@@ -42,6 +42,8 @@ export interface CandidateExperience {
   startDate?: string;
   endDate?: string;
   isCurrentRole?: boolean;
+  /** Free-text tenure (e.g. "2020-01 - Present") when explicit dates are absent. */
+  period?: string;
   description?: string;
 }
 

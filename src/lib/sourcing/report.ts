@@ -120,7 +120,10 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
       title: clamp(entry.title, 120),
       company: clamp(entry.company, 120),
       startDate: clamp(entry.startDate, 20),
-      endDate: entry.isCurrentRole ? "present" : clamp(entry.endDate, 20)
+      endDate: entry.isCurrentRole ? "present" : clamp(entry.endDate, 20),
+      // Free-text tenure carried from the Admin profile when explicit dates are
+      // absent (editor-saved profiles store only the period string).
+      period: clamp(entry.period, 40)
     })),
     education: bundle.education.slice(0, 8).map((entry) => ({
       title: clamp(entry.title, 120),
@@ -130,7 +133,8 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
     preferences: {
       preferredLocation: clamp(bundle.preferences.preferredLocation, 80),
       preferredWorkModel: clamp(bundle.preferences.preferredWorkModel, 60),
-      contractPreference: clamp(bundle.preferences.contractPreference, 60)
+      contractPreference: clamp(bundle.preferences.contractPreference, 60),
+      salaryExpectation: clamp(bundle.preferences.salaryExpectation, 60)
     },
     // Signals are summarized as direction + confidence only — never raw evidence.
     signals: bundle.signals

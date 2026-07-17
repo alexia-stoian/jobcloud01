@@ -171,6 +171,7 @@ function parseQualifications(qualifications: RawQualification[]): {
         startDate,
         endDate,
         isCurrentRole,
+        period,
         description: obj ? str(obj, "description") : undefined
       });
       if (startDate) {
