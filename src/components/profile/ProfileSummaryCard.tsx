@@ -57,6 +57,7 @@ type StructuredQualificationPayload = {
   company?: string | null;
   title?: string | null;
   isCurrentRole?: boolean;
+  period?: string | null;
   description?: string | null;
   achievements?: string[];
 };
@@ -246,7 +247,7 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
           jobTitle: parsed.title,
           company: parsed.company ?? "",
           location: parsed.location ?? "",
-          period: formatDateRange(parsed.startDate, parsed.endDate, parsed.isCurrentRole),
+          period: formatDateRange(parsed.startDate, parsed.endDate, parsed.isCurrentRole) || (parsed.period ?? ""),
           details: detailParts.join("\n")
         });
       }
