@@ -106,6 +106,91 @@ async function callAnthropic(prompt: string, maxTokens: number): Promise<string 
   }
 }
 
+/** A computed public-transport commute between the candidate and the job. */
+type CommuteInfo = {
+  from: string;
+  to: string;
+  publicTransportMinutes: number;
+  maxCommuteMinutes: number | null;
+  withinRadius: boolean | null;
+};
+
+/** Parse a commute radius like "60 min", "1h", "90 minutes" into minutes. */
+function parseRadiusMinutes(radius: string | null | undefined): number | null {
+  if (!radius) {
+    return null;
+  }
+  const s = radius.toLowerCase();
+  let mins = 0;
+  const h = s.match(/(\d+)\s*(?:h|hour|hr)/);
+  const m = s.match(/(\d+)\s*(?:m|min)/);
+  if (h) mins += Number(h[1]) * 60;
+  if (m) mins += Number(m[1]);
+  if (mins === 0) {
+    const n = s.match(/\d+/);
+    if (n) mins = Number(n[0]); // bare number → assume minutes
+  }
+  return mins > 0 ? mins : null;
+}
+
+/** Real public-transport travel time (minutes) via the free Swiss transport API. */
+async function transitMinutes(from: string, to: string): Promise<number | null> {
+  try {
+    const url = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(
+      from
+    )}&to=${encodeURIComponent(to)}&limit=1`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as {
+      connections?: Array<{ from?: { departureTimestamp?: number }; to?: { arrivalTimestamp?: number } }>;
+    };
+    const conn = data.connections?.[0];
+    const dep = conn?.from?.departureTimestamp;
+    const arr = conn?.to?.arrivalTimestamp;
+    if (typeof dep === "number" && typeof arr === "number" && arr > dep) {
+      return Math.round((arr - dep) / 60);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compute the candidate's PUBLIC-TRANSPORT commute (never by car) from their
+ * preferred location to the job location and compare it to their commute radius.
+ * Uses the free Swiss transport API; returns null when it can't be computed.
+ */
+async function computeCommute(
+  jobLocation: string | undefined,
+  preferredLocation: string | null,
+  commuteRadius: string | null
+): Promise<CommuteInfo | null> {
+  const to = (jobLocation ?? "").trim();
+  const from = (preferredLocation ?? "").trim();
+  if (!to || !from) {
+    return null;
+  }
+  // Use the city/town token (before any canton/country suffix) for station lookup.
+  const minutes = await transitMinutes(from.split(",")[0].trim(), to.split(",")[0].trim());
+  if (minutes === null) {
+    return null;
+  }
+  const radius = parseRadiusMinutes(commuteRadius);
+  return {
+    from,
+    to,
+    publicTransportMinutes: minutes,
+    maxCommuteMinutes: radius,
+    withinRadius: radius !== null ? minutes <= radius : null
+  };
+}
+
 /** Build the compact, sanitized facts block for one candidate. */
 function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
   const { bundle } = scored;
@@ -160,14 +245,18 @@ function candidateFacts(scored: ScoredCandidate): Record<string, unknown> {
   };
 }
 
-function buildCandidatePrompt(needs: RecruiterNeeds, scored: ScoredCandidate): string {
+function buildCandidatePrompt(needs: RecruiterNeeds, scored: ScoredCandidate, commute: CommuteInfo | null): string {
   const facts = candidateFacts(scored);
+  if (commute) {
+    facts.commute = commute;
+  }
   return `You are a recruiter-sourcing assistant. Assess how well ONE candidate fits the recruiter's needs.
 
 STRICT RULES:
 - Ground EVERY statement ONLY in the supplied facts. Do NOT invent skills, roles, dates, or experience.
 - If a required fact is missing, explicitly say it is missing rather than assuming it.
 - The candidate's "preferences" block is their FINAL, 100%-confirmed choice — treat every stated preference (work model, location, contract, work rate, salary, relocation, commute, etc.) as authoritative and definitive. NEVER ask for or note a lack of "further/explicit confirmation" of a stated preference. When a stated preference MATCHES the recruiter's need, that is a PRO — never a con and never "unverified".
+- COMMUTE CHECK (public transport only, NEVER by car): If a "commute" fact is present, it holds the real PUBLIC-TRANSPORT travel time (publicTransportMinutes) between the candidate's preferred location and the job location, plus their commute radius (maxCommuteMinutes) and a withinRadius flag. If withinRadius is false, record the commute as a CON and let it lower fitPercent; if true, record it as a PRO. State the actual minutes and the comparison explicitly. If no "commute" fact is present but preferred location, job location and commute radius exist, estimate the public-transport commute yourself and apply the same rule; if any of those are missing, say so instead of guessing.
 - Do not reveal internal signal keys verbatim; you may paraphrase behavioral traits qualitatively.
 - Return STRICT, VALID JSON only — a single object, no markdown, no prose outside the JSON.
 - Inside string values: write each field on ONE line (NO literal line breaks), and escape any double quotes. Separate paragraphs in "recommendation" with " " (a space) or "\\n", never a raw newline.
@@ -512,7 +601,12 @@ async function buildOneReport(
   scored: ScoredCandidate
 ): Promise<CandidateReport> {
   const fallback = fallbackReport(needs, scored);
-  const prompt = buildCandidatePrompt(needs, scored);
+  const commute = await computeCommute(
+    needs.location,
+    scored.bundle.preferences.preferredLocation,
+    scored.bundle.preferences.commuteRadius
+  );
+  const prompt = buildCandidatePrompt(needs, scored, commute);
 
   // Try up to twice: LLM JSON output is occasionally malformed (e.g. an
   // unescaped quote inside the narrative). A fresh generation almost always
