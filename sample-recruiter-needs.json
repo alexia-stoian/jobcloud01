@@ -1,0 +1,18 @@
+{
+  "role": "Senior Data Analyst",
+  "seniority": "senior",
+  "requiredSkills": ["Python", "SQL", "Power BI"],
+  "niceToHaveSkills": ["dbt", "Snowflake", "Tableau"],
+  "minYearsExperience": 4,
+  "education": ["BSc Computer Science or related quantitative field"],
+  "languages": ["English", "German"],
+  "location": "Zurich",
+  "workModel": "hybrid",
+  "contract": "permanent",
+  "notes": "Must be comfortable owning dashboards end-to-end and communicating insights to non-technical stakeholders.",
+  "preferredSignals": {
+    "technical_growth_driven": "high",
+    "sustained_vs_fading_effort": "high",
+    "true_vs_claimed_proficiency": "high"
+  }
+}

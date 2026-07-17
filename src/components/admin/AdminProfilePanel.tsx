@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { SignalCategory, SignalRecord } from "@/lib/ai/signals/signal-definitions";
+import { formatProficiency } from "@/lib/languages/proficiency";
 
 /**
  * Admin-only right-side profile + signals panel.
@@ -132,8 +133,27 @@ type ParsedQual =
  * education / certifications are JSON blobs) into a display-friendly shape. */
 function parseQualification(category: string, value: string): ParsedQual {
   const cat = category.toLowerCase();
-  if (cat === "skill" || cat === "language" || cat === "tool") {
+  if (cat === "skill" || cat === "tool") {
     return { kind: "tag", text: value };
+  }
+  if (cat === "language") {
+    // Languages are stored as a JSON blob { language, proficiency, cefr }.
+    // Render a clean "English — C1 (Advanced)" tag with the level normalized to
+    // a canonical CEFR label; fall back to the raw string if it isn't a blob.
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      const name = typeof parsed.language === "string" ? parsed.language : value;
+      const rawLevel =
+        typeof parsed.cefr === "string" && parsed.cefr.length > 0
+          ? parsed.cefr
+          : typeof parsed.proficiency === "string"
+            ? parsed.proficiency
+            : "";
+      const level = formatProficiency(rawLevel);
+      return { kind: "tag", text: level ? `${name} — ${level}` : name };
+    } catch {
+      return { kind: "tag", text: value };
+    }
   }
   let obj: Record<string, unknown> | null = null;
   try {
@@ -169,11 +189,13 @@ function parseQualification(category: string, value: string): ParsedQual {
 /** Group qualifications into skills (tags) + itemised categories. */
 function groupQualifications(quals: QualificationBundle[]): {
   skills: string[];
+  languages: string[];
   experience: ParsedQual[];
   education: ParsedQual[];
   certifications: ParsedQual[];
 } {
   const skills: string[] = [];
+  const languages: string[] = [];
   const experience: ParsedQual[] = [];
   const education: ParsedQual[] = [];
   const certifications: ParsedQual[] = [];
@@ -181,7 +203,11 @@ function groupQualifications(quals: QualificationBundle[]): {
     const cat = q.category.toLowerCase();
     const parsed = parseQualification(q.category, q.value);
     if (parsed.kind === "tag") {
-      skills.push(parsed.text);
+      if (cat === "language") {
+        languages.push(parsed.text);
+      } else {
+        skills.push(parsed.text);
+      }
     } else if (cat === "experience") {
       experience.push(parsed);
     } else if (cat === "diploma" || cat === "education" || cat === "degree") {
@@ -190,7 +216,7 @@ function groupQualifications(quals: QualificationBundle[]): {
       certifications.push(parsed);
     }
   }
-  return { skills, experience, education, certifications };
+  return { skills, languages, experience, education, certifications };
 }
 
 /** camelCase / snake_case key → human "Title Case" label. */
@@ -312,6 +338,12 @@ function buildCvDocument(bundle: ApiBundle): string {
   if (quals.skills.length > 0) {
     push("SKILLS");
     push(quals.skills.join(", "));
+    push();
+  }
+
+  if (quals.languages.length > 0) {
+    push("LANGUAGES");
+    push(quals.languages.join(", "));
     push();
   }
 
@@ -500,6 +532,7 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
             {/* Qualifications — skills as chips, experience/education/certs itemised */}
             {quals &&
               (quals.skills.length > 0 ||
+                quals.languages.length > 0 ||
                 quals.experience.length > 0 ||
                 quals.education.length > 0 ||
                 quals.certifications.length > 0) && (
@@ -513,6 +546,19 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
                         {quals.skills.map((skill, index) => (
                           <span className="admin-tag" key={index}>
                             {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {quals.languages.length > 0 && (
+                    <>
+                      <div className="admin-subhead">{t("languagesLabel")}</div>
+                      <div className="admin-taglist">
+                        {quals.languages.map((language, index) => (
+                          <span className="admin-tag" key={index}>
+                            {language}
                           </span>
                         ))}
                       </div>

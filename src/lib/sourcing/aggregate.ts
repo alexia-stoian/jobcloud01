@@ -15,10 +15,12 @@
 import { db } from "@/lib/db";
 import { loadAdminUserBundle } from "@/lib/admin/user-bundle";
 import { seedSignals } from "@/lib/ai/signals/signal-definitions";
+import { formatProficiency, normalizeProficiency } from "@/lib/languages/proficiency";
 import type {
   CandidateBundle,
   CandidateEducation,
   CandidateExperience,
+  CandidateLanguage,
   CandidatePreferences
 } from "./types";
 
@@ -60,18 +62,25 @@ const LANGUAGE_CODE_MAP: Record<string, string> = {
 
 /**
  * Language qualifications are stored either as a plain string or a JSON blob
- * like `{"language":"EN","proficiency":"expert"}`. Extract the readable language
- * name and expand 2-letter codes so downstream display + matching are clean.
+ * like `{"language":"EN","proficiency":"C1","cefr":"C1"}`. Extract the readable
+ * language name (expanding 2-letter codes) and the proficiency, normalizing the
+ * level onto the canonical CEFR scale so downstream matching is level-aware.
  */
-function parseLanguageValue(value: string): string | null {
+function parseLanguageValue(value: string): CandidateLanguage | null {
   const blob = parseBlob(value);
-  const raw = blob ? str(blob, "language") ?? str(blob, "name") : value;
-  const trimmed = (raw ?? "").trim();
+  const rawName = blob ? str(blob, "language") ?? str(blob, "name") : value;
+  const trimmed = (rawName ?? "").trim();
   if (trimmed.length === 0) {
     return null;
   }
-  const expanded = LANGUAGE_CODE_MAP[trimmed.toLowerCase()];
-  return expanded ?? trimmed;
+  const expanded = LANGUAGE_CODE_MAP[trimmed.toLowerCase()] ?? trimmed;
+
+  // Prefer an already-canonical `cefr` field; otherwise normalize `proficiency`.
+  const cefrField = blob ? str(blob, "cefr") : undefined;
+  const levelText = blob ? str(blob, "proficiency") ?? cefrField ?? null : null;
+  const cefr = normalizeProficiency(cefrField ?? levelText);
+
+  return { name: expanded, levelText: levelText ?? null, cefr };
 }
 
 /**
@@ -131,12 +140,14 @@ function parsePeriod(period: string): { start?: string; end?: string; isCurrent:
 function parseQualifications(qualifications: RawQualification[]): {
   skills: string[];
   languages: string[];
+  languageProficiencies: CandidateLanguage[];
   experience: CandidateExperience[];
   education: CandidateEducation[];
   estimatedYearsExperience: number;
 } {
   const skills: string[] = [];
   const languages: string[] = [];
+  const languageProficiencies: CandidateLanguage[] = [];
   const experience: CandidateExperience[] = [];
   const education: CandidateEducation[] = [];
   let totalYears = 0;
@@ -146,8 +157,11 @@ function parseQualifications(qualifications: RawQualification[]): {
 
     if (cat === "language") {
       const lang = parseLanguageValue(qual.value);
-      if (lang && !languages.some((l) => l.toLowerCase() === lang.toLowerCase())) {
-        languages.push(lang);
+      if (lang && !languageProficiencies.some((l) => l.name.toLowerCase() === lang.name.toLowerCase())) {
+        languageProficiencies.push(lang);
+        // Display string carries the normalized level, e.g. "English — C1 (Advanced)".
+        const label = formatProficiency(lang.cefr ?? lang.levelText);
+        languages.push(label ? `${lang.name} — ${label}` : lang.name);
       }
       continue;
     }
@@ -205,6 +219,7 @@ function parseQualifications(qualifications: RawQualification[]): {
   return {
     skills,
     languages,
+    languageProficiencies,
     experience,
     education,
     estimatedYearsExperience: Math.round(totalYears * 10) / 10
@@ -226,6 +241,7 @@ async function buildBundle(user: { id: string; email: string }): Promise<Candida
       primaryRole: null,
       skills: [],
       languages: [],
+      languageProficiencies: [],
       experience: [],
       education: [],
       estimatedYearsExperience: 0,
@@ -275,6 +291,7 @@ async function buildBundle(user: { id: string; email: string }): Promise<Candida
     primaryRole: profile.primaryRole,
     skills: parsed.skills,
     languages: parsed.languages,
+    languageProficiencies: parsed.languageProficiencies,
     experience: parsed.experience,
     education: parsed.education,
     estimatedYearsExperience: parsed.estimatedYearsExperience,

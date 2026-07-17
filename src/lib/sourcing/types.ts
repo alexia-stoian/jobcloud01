@@ -10,6 +10,7 @@
  */
 
 import type { SignalRecord } from "@/lib/ai/signals/signal-definitions";
+import type { CefrLevel } from "@/lib/languages/proficiency";
 
 /**
  * The parsed, sanitized recruiter-needs criteria. Every field is optional; a
@@ -62,6 +63,16 @@ export interface CandidateEducation {
   graduationDate?: string;
 }
 
+/** A parsed language entry with its proficiency normalized to a canonical level. */
+export interface CandidateLanguage {
+  /** Readable language name (2-letter codes expanded, e.g. "English"). */
+  name: string;
+  /** The raw proficiency text as stored on the profile, or `null` when absent. */
+  levelText: string | null;
+  /** The canonical CEFR-scale level, or `null` when unrecognizable / absent. */
+  cefr: CefrLevel | null;
+}
+
 /** The subset of profile preference fields used for matching. */
 export interface CandidatePreferences {
   preferredLocation: string | null;
@@ -90,6 +101,8 @@ export interface CandidateBundle {
   primaryRole: string | null;
   skills: string[];
   languages: string[];
+  /** Structured languages with normalized proficiency, used for level-aware matching. */
+  languageProficiencies: CandidateLanguage[];
   experience: CandidateExperience[];
   education: CandidateEducation[];
   estimatedYearsExperience: number;

@@ -5,9 +5,7 @@ import { useTranslations } from "next-intl";
 
 type LanguageRow = {
   language: string;
-  proficiencyStandard: string;
   level: string;
-  usageContext: string;
 };
 
 type WorkExperienceRow = {
@@ -57,7 +55,6 @@ type StructuredQualificationPayload = {
   company?: string | null;
   title?: string | null;
   isCurrentRole?: boolean;
-  period?: string | null;
   description?: string | null;
   achievements?: string[];
 };
@@ -143,7 +140,7 @@ function hasMeaningfulSkillRows(rows: SkillRow[]): boolean {
 }
 
 function hasMeaningfulLanguageRows(rows: LanguageRow[]): boolean {
-  return rows.some((row) => [row.language, row.proficiencyStandard, row.level, row.usageContext].some(hasText));
+  return rows.some((row) => [row.language, row.level].some(hasText));
 }
 
 function hasMeaningfulCertificationRows(rows: CertificationRow[]): boolean {
@@ -178,17 +175,12 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
       if (parsed && hasText(parsed.language)) {
         languages.push({
           language: parsed.language,
-          proficiencyStandard: "",
-          level: parsed.proficiency ?? "",
-          usageContext:
-            typeof parsed.yearsOfExperience === "number" ? `${parsed.yearsOfExperience} years of use` : ""
+          level: parsed.proficiency ?? ""
         });
       } else {
         languages.push({
           language: qual.value,
-          proficiencyStandard: "",
-          level: "",
-          usageContext: ""
+          level: ""
         });
       }
     } else if (qual.category === "certification") {
@@ -247,7 +239,7 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
           jobTitle: parsed.title,
           company: parsed.company ?? "",
           location: parsed.location ?? "",
-          period: formatDateRange(parsed.startDate, parsed.endDate, parsed.isCurrentRole) || (parsed.period ?? ""),
+          period: formatDateRange(parsed.startDate, parsed.endDate, parsed.isCurrentRole),
           details: detailParts.join("\n")
         });
       }
@@ -310,7 +302,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   const [languageRows, setLanguageRows] = useState<LanguageRow[]>(
     extractedLanguages.length > 0
       ? extractedLanguages
-      : [{ language: profile.locale.toUpperCase(), proficiencyStandard: "", level: "", usageContext: "" }]
+      : [{ language: profile.locale.toUpperCase(), level: "" }]
   );
   const [workExperienceRows, setWorkExperienceRows] = useState<WorkExperienceRow[]>(
     extractedWorkExperience.length > 0
@@ -369,7 +361,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   const addLanguageRow = (): void => {
     setLanguageRows((current) => [
       ...current,
-      { language: "", proficiencyStandard: "", level: "", usageContext: "" },
+      { language: "", level: "" },
     ]);
   };
 
@@ -938,30 +930,12 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                     />
                   </label>
                   <label>
-                    {t("summaryProficiencyStandard")}
-                    <input
-                      type="text"
-                      value={row.proficiencyStandard}
-                      onChange={(event) => updateLanguageRow(index, "proficiencyStandard", event.target.value)}
-                      placeholder={t("summaryProficiencyStandardPlaceholder")}
-                    />
-                  </label>
-                  <label>
                     {t("summaryLevel")}
                     <input
                       type="text"
                       value={row.level}
                       onChange={(event) => updateLanguageRow(index, "level", event.target.value)}
                       placeholder={t("summaryLevelPlaceholder")}
-                    />
-                  </label>
-                  <label>
-                    {t("summaryUsageContext")}
-                    <input
-                      type="text"
-                      value={row.usageContext}
-                      onChange={(event) => updateLanguageRow(index, "usageContext", event.target.value)}
-                      placeholder={t("summaryUsageContextPlaceholder")}
                     />
                   </label>
                 </div>

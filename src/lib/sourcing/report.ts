@@ -612,6 +612,105 @@ function fallbackReport(needs: RecruiterNeeds, scored: ScoredCandidate): Candida
 }
 
 /**
+ * Preference dimensions the recruiter specified in the JSON AND the candidate
+ * already satisfies. A satisfied stated preference is a 100%-confirmed fact, not
+ * a gap, so it must never appear as a con. Matching mirrors the deterministic
+ * `scorePreferences` logic (case-insensitive, either value contains the other).
+ */
+function metPreferenceTerms(needs: RecruiterNeeds, scored: ScoredCandidate): string[] {
+  const prefs = scored.bundle.preferences;
+  const norm = (value: string): string => value.trim().toLowerCase();
+  const matches = (need: string, have: string): boolean => {
+    const a = norm(need);
+    const b = norm(have);
+    if (a.length === 0 || b.length === 0) return false;
+    return a === b || a.includes(b) || b.includes(a);
+  };
+
+  const dimensions: Array<{ need?: string; have: string | null; topics: string[] }> = [
+    {
+      need: needs.location,
+      have: prefs.preferredLocation,
+      topics: ["location", "located", "based", "relocat", "commut", "onsite", "on-site", "on site"]
+    },
+    {
+      need: needs.workModel,
+      have: prefs.preferredWorkModel,
+      topics: [
+        "work model",
+        "work-model",
+        "remote",
+        "hybrid",
+        "onsite",
+        "on-site",
+        "on site",
+        "in-office",
+        "in office",
+        "work from home",
+        "work-from-home"
+      ]
+    },
+    {
+      need: needs.contract,
+      have: prefs.contractPreference,
+      topics: [
+        "contract",
+        "permanent",
+        "temporary",
+        "freelance",
+        "full-time",
+        "full time",
+        "part-time",
+        "part time",
+        "fixed-term",
+        "fixed term"
+      ]
+    }
+  ];
+
+  const terms: string[] = [];
+  for (const dim of dimensions) {
+    if (dim.need && dim.have && matches(dim.need, dim.have)) {
+      terms.push(...dim.topics, norm(dim.need), norm(dim.have));
+    }
+  }
+  return Array.from(new Set(terms.filter((term) => term.length > 0)));
+}
+
+/**
+ * Drop any con that references a preference dimension the candidate already
+ * satisfies (location, work model, contract). These are confirmed matches, not
+ * gaps, so they must not be surfaced as cons regardless of what the LLM wrote.
+ *
+ * Exported for unit testing.
+ */
+export function stripSatisfiedPreferenceCons(
+  cons: string[],
+  needs: RecruiterNeeds,
+  scored: ScoredCandidate
+): string[] {
+  const terms = metPreferenceTerms(needs, scored);
+  if (terms.length === 0) return cons;
+  return cons.filter((con) => {
+    const lower = con.toLowerCase();
+    return !terms.some((term) => lower.includes(term));
+  });
+}
+
+/**
+ * Apply the satisfied-preference filter to a cons list, keeping the existing
+ * "no gaps" placeholder when the filter removes every con.
+ */
+function withPreferenceFilter(
+  cons: string[],
+  needs: RecruiterNeeds,
+  scored: ScoredCandidate
+): string[] {
+  const filtered = stripSatisfiedPreferenceCons(cons, needs, scored);
+  return filtered.length > 0 ? filtered : ["No obvious gaps derived from recorded facts."];
+}
+
+/**
  * Build one `CandidateReport` for a single candidate. Uses the LLM when
  * available and parseable; otherwise falls back to a deterministic fact-derived
  * report. Each candidate is a small, focused request so it stays well under the
@@ -640,8 +739,13 @@ async function buildOneReport(
   }
 
   if (!llm || llm.whyFit.trim().length === 0) {
-    return fallback;
+    return {
+      ...fallback,
+      cons: withPreferenceFilter(fallback.cons, needs, scored)
+    };
   }
+
+  const mergedCons = llm.cons.length > 0 ? llm.cons : fallback.cons;
 
   return {
     fitPercent: llm.fitPercent > 0 ? llm.fitPercent : scored.score,
@@ -653,7 +757,7 @@ async function buildOneReport(
             new Set([...scored.matchedRequiredSkills, ...scored.matchedNiceToHaveSkills])
           ).slice(0, 8),
     pros: llm.pros.length > 0 ? llm.pros : fallback.pros,
-    cons: llm.cons.length > 0 ? llm.cons : fallback.cons,
+    cons: withPreferenceFilter(mergedCons, needs, scored),
     verdict: llm.verdict,
     recommendation:
       llm.recommendation.trim().length > 0 ? llm.recommendation.trim() : fallback.recommendation,
