@@ -170,14 +170,20 @@ function normalizeNestedNeeds(source: Record<string, unknown>): RecruiterNeeds {
     const edu = mapEducationMinimum(hard.education_minimum);
     if (edu) needs.education = [edu];
 
-    // languages: array of { language, level, importance } — extract + dedupe.
+    // languages: array of { language, level, importance } — keep name + level
+    // (e.g. "English C1") so scoring can match the required proficiency.
     if (Array.isArray(hard.languages)) {
       const langs: string[] = [];
       for (const entry of hard.languages) {
         const e = obj(entry);
         const lang = e ? clampString(e.language) : clampString(entry);
-        if (lang && !langs.some((l) => l.toLowerCase() === lang.toLowerCase())) {
-          langs.push(lang);
+        if (!lang) {
+          continue;
+        }
+        const level = e ? clampString(e.level) : undefined;
+        const combined = level ? `${lang} ${level}` : lang;
+        if (!langs.some((l) => l.toLowerCase() === combined.toLowerCase())) {
+          langs.push(combined);
         }
       }
       if (langs.length > 0) needs.languages = langs.slice(0, MAX_ARRAY_ITEMS);

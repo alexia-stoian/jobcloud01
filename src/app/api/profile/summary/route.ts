@@ -3,6 +3,7 @@ import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { buildProfileSummary } from "@/lib/profile/summary-builder";
 import { computeCompletion } from "@/lib/profile/completion-gate";
+import { normalizeProficiency } from "@/lib/languages/proficiency";
 
 type ProfileDraftPayload = {
   profileHeadline?: string;
@@ -16,7 +17,7 @@ type ProfileDraftPayload = {
   workExperienceRows?: Array<{ jobTitle: string; company: string; location: string; period: string; details: string }>;
   educationRows?: Array<{ degree: string; school: string; location: string; years: string }>;
   skillRows?: Array<{ skill: string; proficiency: string; lastUsed: string }>;
-  languageRows?: Array<{ language: string; proficiencyStandard: string; level: string; usageContext: string }>;
+  languageRows?: Array<{ language: string; level: string }>;
   certificationRows?: Array<{ name: string; issuer: string; year: string }>;
   currentJobSituation?: string;
   employmentObjective?: string;
@@ -52,13 +53,13 @@ function buildQualificationsFromDraft(draft: ProfileDraftPayload) {
 
   for (const row of draft.languageRows ?? []) {
     if (!row.language?.trim()) continue;
+    const level = normalizeString(row.level);
     qualifications.push({
       category: "language",
       value: JSON.stringify({
         language: row.language.trim(),
-        proficiency: normalizeString(row.level),
-        proficiencyStandard: normalizeString(row.proficiencyStandard),
-        usageContext: normalizeString(row.usageContext)
+        proficiency: level,
+        cefr: normalizeProficiency(level)
       })
     });
   }

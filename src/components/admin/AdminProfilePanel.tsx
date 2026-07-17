@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { SignalCategory, SignalRecord } from "@/lib/ai/signals/signal-definitions";
+import { formatProficiency } from "@/lib/languages/proficiency";
 
 /**
  * Admin-only right-side profile + signals panel.
@@ -132,8 +133,27 @@ type ParsedQual =
  * education / certifications are JSON blobs) into a display-friendly shape. */
 function parseQualification(category: string, value: string): ParsedQual {
   const cat = category.toLowerCase();
-  if (cat === "skill" || cat === "language" || cat === "tool") {
+  if (cat === "skill" || cat === "tool") {
     return { kind: "tag", text: value };
+  }
+  if (cat === "language") {
+    // Languages are stored as a JSON blob { language, proficiency, cefr }.
+    // Render a clean "English — C1 (Advanced)" tag with the level normalized to
+    // a canonical CEFR label; fall back to the raw string if it isn't a blob.
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      const name = typeof parsed.language === "string" ? parsed.language : value;
+      const rawLevel =
+        typeof parsed.cefr === "string" && parsed.cefr.length > 0
+          ? parsed.cefr
+          : typeof parsed.proficiency === "string"
+            ? parsed.proficiency
+            : "";
+      const level = formatProficiency(rawLevel);
+      return { kind: "tag", text: level ? `${name} — ${level}` : name };
+    } catch {
+      return { kind: "tag", text: value };
+    }
   }
   let obj: Record<string, unknown> | null = null;
   try {

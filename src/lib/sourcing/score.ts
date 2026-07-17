@@ -13,6 +13,7 @@ import type {
   ScoreBreakdown,
   ScoredCandidate
 } from "./types";
+import { PROFICIENCY_RANK, normalizeProficiency, parseLanguageString } from "@/lib/languages/proficiency";
 
 /** Relative weights per component (only active components are normalized over). */
 const WEIGHTS = {
@@ -93,17 +94,40 @@ function scoreEducation(bundle: CandidateBundle, wanted: string[]): number {
   return wanted.length > 0 ? matched / wanted.length : 0;
 }
 
+/**
+ * Score language fit, accounting for the required proficiency LEVEL.
+ *
+ * Each recruiter requirement (e.g. "English C1", "German B2") is parsed into a
+ * language name + a canonical level. A candidate's language is compared by name;
+ * when the requirement specifies a level, the candidate's normalized level must
+ * meet or exceed it for full credit. A present-but-below-level language earns
+ * half credit; a missing language earns none.
+ */
 function scoreLanguages(bundle: CandidateBundle, wanted: string[]): number {
   if (wanted.length === 0) {
     return 0;
   }
-  let matched = 0;
+  let total = 0;
   for (const want of wanted) {
-    if (bundle.languages.some((lang) => tokenMatches(lang, want))) {
-      matched += 1;
+    const requirement = parseLanguageString(want);
+    const candidate = bundle.languageProficiencies.find((lang) => tokenMatches(lang.name, requirement.name));
+    if (!candidate) {
+      continue;
+    }
+    if (!requirement.cefr) {
+      // No level required — a name match is full credit.
+      total += 1;
+      continue;
+    }
+    const candidateLevel = candidate.cefr ?? normalizeProficiency(candidate.levelText);
+    if (candidateLevel && PROFICIENCY_RANK[candidateLevel] >= PROFICIENCY_RANK[requirement.cefr]) {
+      total += 1;
+    } else {
+      // Speaks the language but below (or with an unknown) required level.
+      total += 0.5;
     }
   }
-  return matched / wanted.length;
+  return total / wanted.length;
 }
 
 function scorePreferences(needs: RecruiterNeeds, bundle: CandidateBundle): { active: boolean; fraction: number } {
