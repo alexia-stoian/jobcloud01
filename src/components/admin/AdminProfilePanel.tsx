@@ -97,19 +97,30 @@ type FieldKey = keyof ProfileBundle;
 const FIELD_GROUPS: ReadonlyArray<{ heading: string; fields: FieldKey[] }> = [
   {
     heading: "careerGoalHeading",
-    fields: ["employmentObjective", "primaryRole", "targetRoles", "targetSeniority", "targetIndustries"]
+    fields: ["primaryRole"]
   },
   {
     heading: "preferencesHeading",
-    fields: ["preferredLocation", "preferredWorkModel", "contractPreference", "workRate", "commuteRadius", "relocationWillingness"]
-  },
-  {
-    heading: "eligibilityHeading",
-    fields: ["workPermitStatus", "visaSponsorship", "salaryExpectation"]
+    fields: [
+      "preferredLocation",
+      "currentJobSituation",
+      "employmentObjective",
+      "targetRoles",
+      "targetSeniority",
+      "targetIndustries",
+      "preferredWorkModel",
+      "contractPreference",
+      "workRate",
+      "workPermitStatus",
+      "salaryExpectation",
+      "visaSponsorship",
+      "relocationWillingness",
+      "commuteRadius"
+    ]
   },
   {
     heading: "situationHeading",
-    fields: ["currentJobSituation", "locale"]
+    fields: ["locale"]
   }
 ];
 
