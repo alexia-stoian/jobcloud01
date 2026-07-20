@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 type LanguageRow = {
@@ -96,7 +96,69 @@ type ProfileDraft = {
   visaSponsorship: string;
   relocationWillingness: string;
   commuteRadius: string;
+  sectorPreferences?: { fields: Array<{ key: string; value: string }> };
 };
+
+/** One localized MCQ option for a persisted sector field (D-08). */
+type SectorFieldOption = { value: string; label: string };
+
+/** One persisted sector preference field read from `sectorPreferences` (D-05). */
+type SectorFieldDef = {
+  key: string;
+  label: string;
+  question: string;
+  options: SectorFieldOption[];
+  value: string;
+};
+
+/** Maximum sector-specific fields rendered on Preferences (D-04). */
+const MAX_SECTOR_FIELDS = 3;
+
+/**
+ * Read the (<=3) persisted sector field definitions from a profile's
+ * `sectorPreferences`. Returns an empty array for the engineer/default `{}` store
+ * or any malformed shape, so the caller renders NO sector block for those users
+ * (Pitfall 5). Labels/questions/options come straight from the store (D-08) and
+ * are rendered as plain strings — never dangerouslySetInnerHTML (T-12-14).
+ */
+function readSectorFieldDefs(sectorPreferences: unknown): SectorFieldDef[] {
+  if (!sectorPreferences || typeof sectorPreferences !== "object") return [];
+  const rawFields = (sectorPreferences as { fields?: unknown }).fields;
+  if (!Array.isArray(rawFields)) return [];
+  const defs: SectorFieldDef[] = [];
+  for (const raw of rawFields) {
+    if (defs.length >= MAX_SECTOR_FIELDS) break;
+    const record = (raw ?? {}) as {
+      key?: unknown;
+      label?: unknown;
+      question?: unknown;
+      options?: unknown;
+      value?: unknown;
+    };
+    const key = typeof record.key === "string" ? record.key : "";
+    const label = typeof record.label === "string" ? record.label : "";
+    if (!key || !label) continue;
+    const options = Array.isArray(record.options)
+      ? record.options
+          .map((opt) => {
+            const option = (opt ?? {}) as { value?: unknown; label?: unknown };
+            return {
+              value: typeof option.value === "string" ? option.value : "",
+              label: typeof option.label === "string" ? option.label : ""
+            };
+          })
+          .filter((option) => option.label.length > 0)
+      : [];
+    defs.push({
+      key,
+      label,
+      question: typeof record.question === "string" ? record.question : "",
+      options,
+      value: typeof record.value === "string" ? record.value : ""
+    });
+  }
+  return defs;
+}
 
 const PROFILE_DRAFT_STORAGE_KEY = "jobscout24.profile-summary-draft.v1";
 
@@ -269,6 +331,7 @@ type Props = {
     commuteRadius: string | null;
     locale: string;
     editorDraft: Record<string, unknown> | null;
+    sectorPreferences?: unknown;
   };
   qualifications?: Array<{ category: string; value: string }>;
   draftScopeId: string;
@@ -345,6 +408,17 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   const [visaSponsorship, setVisaSponsorship] = useState<string>(profile.visaSponsorship ?? "");
   const [relocationWillingness, setRelocationWillingness] = useState<string>(profile.relocationWillingness ?? "");
   const [commuteRadius, setCommuteRadius] = useState<string>(profile.commuteRadius ?? "");
+
+  // Dynamic sector-specific fields (D-05): the server-owned defs are read from the
+  // persisted store and are stable across renders; only their VALUES are editable.
+  const sectorFieldDefs = useMemo(() => readSectorFieldDefs(profile.sectorPreferences), [profile.sectorPreferences]);
+  const [sectorValues, setSectorValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(sectorFieldDefs.map((field) => [field.key, field.value]))
+  );
+
+  const updateSectorValue = (key: string, value: string): void => {
+    setSectorValues((current) => ({ ...current, [key]: value }));
+  };
 
   const [birthDate, setBirthDate] = useState<string>("");
   const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>({
@@ -471,6 +545,17 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
       if (typeof draft.visaSponsorship === "string") setVisaSponsorship(draft.visaSponsorship);
       if (typeof draft.relocationWillingness === "string") setRelocationWillingness(draft.relocationWillingness);
       if (typeof draft.commuteRadius === "string") setCommuteRadius(draft.commuteRadius);
+      if (draft.sectorPreferences && Array.isArray(draft.sectorPreferences.fields)) {
+        const restored: Record<string, string> = {};
+        for (const field of draft.sectorPreferences.fields) {
+          if (field && typeof field.key === "string" && typeof field.value === "string") {
+            restored[field.key] = field.value;
+          }
+        }
+        if (Object.keys(restored).length > 0) {
+          setSectorValues((current) => ({ ...current, ...restored }));
+        }
+      }
       didHydrateRef.current = true;
     } catch {
       // Ignore malformed local drafts and continue with defaults.
@@ -506,6 +591,10 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
       visaSponsorship,
       relocationWillingness,
       commuteRadius,
+      sectorPreferences:
+        sectorFieldDefs.length > 0
+          ? { fields: sectorFieldDefs.map((field) => ({ key: field.key, value: sectorValues[field.key] ?? "" })) }
+          : undefined,
     };
 
     window.localStorage.setItem(profileDraftStorageKey, JSON.stringify(draft));
@@ -537,6 +626,8 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
     visaSponsorship,
     relocationWillingness,
     commuteRadius,
+    sectorFieldDefs,
+    sectorValues,
   ]);
 
   useEffect(() => {
@@ -570,7 +661,11 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
       salaryExpectation,
       visaSponsorship,
       relocationWillingness,
-      commuteRadius
+      commuteRadius,
+      sectorPreferences:
+        sectorFieldDefs.length > 0
+          ? { fields: sectorFieldDefs.map((field) => ({ key: field.key, value: sectorValues[field.key] ?? "" })) }
+          : undefined
     };
 
     const timeoutId = window.setTimeout(() => {
@@ -612,7 +707,9 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
     salaryExpectation,
     visaSponsorship,
     relocationWillingness,
-    commuteRadius
+    commuteRadius,
+    sectorFieldDefs,
+    sectorValues
   ]);
 
   return (
@@ -1118,6 +1215,34 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
               />
             </label>
           </div>}
+          {!collapsedSections.preferences && sectorFieldDefs.length > 0 && (
+            <div className="profile-fields-grid">
+              {sectorFieldDefs.map((field) => {
+                const currentValue = sectorValues[field.key] ?? "";
+                const isCustom = currentValue.length > 0 && !field.options.some((option) => option.value === currentValue);
+                return (
+                  <label key={field.key}>
+                    {field.label}
+                    <select value={currentValue} onChange={(event) => updateSectorValue(field.key, event.target.value)}>
+                      <option value="">{t("summaryOptional")}</option>
+                      {field.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                      {isCustom && <option value={currentValue}>{currentValue}</option>}
+                    </select>
+                    <input
+                      type="text"
+                      value={isCustom ? currentValue : ""}
+                      onChange={(event) => updateSectorValue(field.key, event.target.value)}
+                      placeholder={t("summaryOptional")}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </section>
       </form>
     </article>
