@@ -98,7 +98,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const locale = resolveLocale(request.nextUrl.searchParams.get("locale"));
+  const locale = resolveLocale(new URL(request.url).searchParams.get("locale"));
   const candidate = await getPendingCandidate(session.user.id);
   if (!candidate) {
     return NextResponse.json({ done: true });
