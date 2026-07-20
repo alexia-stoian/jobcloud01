@@ -349,7 +349,11 @@
       "recommendationHeading": "Hiring assessment",
       "verdictRecommended": "Recommended",
       "verdictConsider": "Consider",
-      "verdictNotRecommended": "Not recommended"
+      "verdictNotRecommended": "Not recommended",
+      "profileButton": "Profile",
+      "qaHeading": "Questions & answers",
+      "answerLabel": "Answer: {answer}",
+      "beforeAfterLabel": "{before}% -> {now}%"
     },
     "fields": {
       "currentJobSituation": "Current situation",
@@ -371,5 +375,10 @@
       "targetRole": "Target role",
       "cvFileName": "CV file"
     }
+  },
+  "sourcing": {
+    "recruiterInterested": "🎉 Great news — a recruiter is interested in you! Answer a few quick questions to stand out.",
+    "thankYou": "🙌 Thanks so much! If the recruiter chooses you, you'll be contacted. 🎉",
+    "questionProgress": "Question {current} of {total}"
   }
 }

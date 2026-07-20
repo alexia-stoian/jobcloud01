@@ -278,7 +278,11 @@
       "recommendationHeading": "Évaluation d'embauche",
       "verdictRecommended": "Recommandé",
       "verdictConsider": "À considérer",
-      "verdictNotRecommended": "Non recommandé"
+      "verdictNotRecommended": "Non recommandé",
+      "profileButton": "Profil",
+      "qaHeading": "Questions et réponses",
+      "answerLabel": "Réponse : {answer}",
+      "beforeAfterLabel": "{before}% -> {now}%"
     },
     "fields": {
       "currentJobSituation": "Situation actuelle",
@@ -300,5 +304,10 @@
       "targetRole": "Poste cible",
       "cvFileName": "Fichier CV"
     }
+  },
+  "sourcing": {
+    "recruiterInterested": "🎉 Bonne nouvelle — un recruteur s'intéresse à vous ! Répondez à quelques questions rapides pour vous démarquer.",
+    "thankYou": "🙌 Merci beaucoup ! Si le recruteur vous choisit, vous serez contacté. 🎉",
+    "questionProgress": "Question {current} sur {total}"
   }
 }
