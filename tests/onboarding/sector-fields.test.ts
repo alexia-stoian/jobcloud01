@@ -25,54 +25,7 @@ vi.mock("@/lib/sourcing/anthropic", async (importOriginal) => {
 
 import { classifySectorAndGenerateFields } from "@/lib/onboarding/sector-fields";
 import type { SectorFieldSet } from "@/lib/onboarding/sector-fields";
-
-/**
- * Wave 0 shared fixture: build a raw model response string for a non-engineer
- * sector. Optionally wrap in a ```json fence to prove fence tolerance.
- */
-function makeSectorFixture(
-  overrides?: Partial<{
-    sector: string;
-    usesDefaultFields: boolean;
-    fields: Array<{
-      key: string;
-      label: string;
-      question: string;
-      options: Array<{ value: string; label: string }>;
-    }>;
-    fenced: boolean;
-  }>
-): string {
-  const payload = {
-    sector: overrides?.sector ?? "education",
-    usesDefaultFields: overrides?.usesDefaultFields ?? false,
-    fields:
-      overrides?.fields ??
-      [
-        {
-          key: "teaching_level",
-          label: "Niveau d'enseignement",
-          question: "À quel niveau aimes-tu enseigner ? 🍎",
-          options: [
-            { value: "primaire", label: "École primaire 🎒" },
-            { value: "secondaire", label: "Lycée 📚" },
-            { value: "superieur", label: "Université 🎓" }
-          ]
-        },
-        {
-          key: "subject_area",
-          label: "Matière préférée",
-          question: "Quelle matière te fait vibrer ? ✨",
-          options: [
-            { value: "maths", label: "Mathématiques ➗" },
-            { value: "sciences", label: "Sciences 🔬" }
-          ]
-        }
-      ]
-  };
-  const json = JSON.stringify(payload);
-  return overrides?.fenced ? "```json\n" + json + "\n```" : json;
-}
+import { makeSectorFixture } from "./_fixtures";
 
 describe("classifySectorAndGenerateFields", () => {
   beforeEach(() => {
