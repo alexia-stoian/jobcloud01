@@ -23,7 +23,7 @@ must_haves:
     - "POST captures the answer (chosen option value or free text), silently judges an open answer via the LLM (satisfiedNeed), advances orderIndex, and NEVER returns any correctness signal."
     - "The flow is bounded to <=5 questions; after the last answer it runs the re-score with the visible-increase clamp, persists fitAfter + status='completed', and returns the cheerful thank-you + 'you'll be contacted', then exits Sourcing mode."
     - "Every read/write is scoped to session.user.id owning the SourcingCandidate; a candidate can never reach another user's question-set."
-    - "OnboardingCvUploadForm prioritizes pending sourcing questions on load (before loadInteractiveQuestion), renders them through the existing option-button UI, shows the notify banner, and never routes sourcing answers through Phase 10 target-role/interview detection."
+    - "OnboardingCvUploadForm prioritizes pending sourcing questions on load — the interactive init effect is gated on the async sourcing check completing so it cannot fire first — renders them through the existing option-button UI via a synthetic stable `field` set on BOTH the history entry and currentQuestion, tags option clicks as chosenValue and custom input as freeText, bypasses the off-track nudge in sourcing mode, shows the notify banner, and never routes sourcing answers through Phase 10 target-role/interview detection."
     - "An integration test proves >=60 triggers delivery, one-at-a-time 5-option MCQ, correctness never revealed, <=5 cap, answers persist with a visible before->now increase, and Phase 10 routing is bypassed; npm run build passes 0 errors."
   artifacts:
     - src/app/api/onboarding/sourcing-questions/route.ts
@@ -31,7 +31,7 @@ must_haves:
     - tests/integration/sourcing-delivery.test.ts
   key_links:
     - "GET → getPendingCandidate(session.user.id) → stripPublicOptions(next question) + notice on first; POST → recordAnswer(...) (+ silent LLM judge for free text) → on completion rescoreFromAnswers({ fitBefore, goodAnswers, llmAfter }) → completeCandidate({ candidateId, fitAfter })."
-    - "OnboardingCvUploadForm load sequence: fetch GET sourcing-questions FIRST; if a question exists, render it + banner and short-circuit loadInteractiveQuestion (OnboardingCvUploadForm.tsx:283); sourcing answers POST to the dedicated endpoint, never /assistant."
+    - "OnboardingCvUploadForm load sequence: fetch GET sourcing-questions FIRST and gate the interactive init effect (OnboardingCvUploadForm.tsx:706-713) on that check completing; if a question exists, render it + banner via a synthetic `sourcing:<questionId>` field set on BOTH the history entry and currentQuestion and short-circuit loadInteractiveQuestion (OnboardingCvUploadForm.tsx:283); option clicks POST { questionId, chosenValue }, the custom input POSTs { questionId, freeText }, to the dedicated endpoint, never /assistant, with off-track nudging bypassed."
     - "goodAnswers = count(correct chosen options) + count(satisfiedNeed open answers); the re-score LLM call uses callAnthropic from anthropic.ts (11-1)."
 ---
 
@@ -184,24 +184,54 @@ schema, message-file, or Phase 10 route change.
     (`OnboardingCvUploadForm.tsx:283`/`:706-713`): fetch `GET /api/onboarding/sourcing-questions`
     (`cache: "no-store"`); if it returns a `question`, enter a local `sourcingMode` (state
     flag), push the `notice` (when present) as an assistant banner message and the question +
-    its 5 options into `history` using the SAME `ChatMessage`/option shape the interactive
-    flow already renders (`OnboardingCvUploadForm.tsx:740-770`), and DO NOT call
-    `loadInteractiveQuestion` while in sourcing mode. Route answer submission: when
-    `sourcingMode` is active, `submitAnswerValue`/the option-button handler POSTs to
+    its 5 options into `history` using the SAME `ChatMessage`/option shape the interactive flow
+    already renders (`OnboardingCvUploadForm.tsx:740-770`), and DO NOT call
+    `loadInteractiveQuestion` while in sourcing mode.
+    - **Synthetic stable `field` (options-render gotcha):** the option UI renders options ONLY
+      when `entry.field === currentQuestion?.field` (`OnboardingCvUploadForm.tsx:742`). Sourcing
+      questions have no interactive `field`, so mint ONE synthetic stable field value (e.g.
+      `sourcing:<questionId>`) and set it on BOTH the pushed `history` entry AND `currentQuestion`
+      (call `setCurrentQuestion` with a synthetic `InteractiveQuestion`-shaped object carrying
+      that same `field`), so the option buttons AND the custom input actually render. Reuse the
+      same synthetic-field pattern for each subsequent sourcing question.
+    - **Distinguishing `chosenValue` vs `freeText` (both call `submitAnswerValue(value)`):** the
+      option buttons (`:756`) and the custom input (`:772`) BOTH funnel through
+      `submitAnswerValue(value)`, which cannot itself tell them apart. In sourcing mode, tag the
+      SOURCE explicitly rather than inferring from the value: the option-button `onClick` marks
+      the submission as `"option"` (posting `{ questionId, chosenValue }`) and the custom-input
+      submit marks it as `"freeText"` (posting `{ questionId, freeText }`) — never inferred by
+      matching the submitted value against option labels (a free-text answer could coincide with
+      a label).
+    - **Init-effect race:** the mount effect fires `loadInteractiveQuestion` when
+      `history.length === 0` (`:706-713`); the sourcing GET is async. Gate that interactive init
+      effect on the sourcing-pending check having COMPLETED (e.g. a `sourcingChecked` ref/state
+      that flips only after the sourcing GET resolves), so the interactive flow can never fire
+      before the sourcing GET resolves — and, when sourcing is pending, does not fire at all.
+    - **Off-track nudge bypass:** `submitAnswerValue` runs `isClearlyOffTrackAnswer` /
+      `appendOffTrackNudge` (`:352-353`) which intercept free-form answers; in `sourcingMode`
+      this MUST be bypassed so open free-text sourcing answers are never intercepted/nudged —
+      short-circuit those two calls when `sourcingMode` is active.
+    Route answer submission: when `sourcingMode` is active, POST to
     `/api/onboarding/sourcing-questions` (`{ questionId, chosenValue }` for an option,
-    `{ questionId, freeText }` for the custom answer) instead of `/interactive` or
-    `/assistant`; on `{ done: false }` fetch the next question via GET; on `{ done: true }`
-    render the `message` (thank-you), clear `sourcingMode`, and fall back to the normal
-    assistant/interactive flow. Never surface correctness (there is none in the response) and
-    never pass sourcing text through the target-role/interview handlers. Keep all existing
-    interactive/CV behavior unchanged when there is no pending sourcing question.
+    `{ questionId, freeText }` for the custom answer) instead of `/interactive` or `/assistant`;
+    on `{ done: false }` fetch the next question via GET (reusing the synthetic-field render);
+    on `{ done: true }` render the `message` (thank-you), clear `sourcingMode`, and fall back to
+    the normal assistant/interactive flow. Never surface correctness (there is none in the
+    response) and never pass sourcing text through the target-role/interview handlers. Keep all
+    existing interactive/CV behavior unchanged when there is no pending sourcing question.
   - **Verify**:
     <automated>npx tsc --noEmit</automated>
-    Plus: grep confirms the form fetches `/api/onboarding/sourcing-questions` and that the
-    sourcing submit path posts to it (not `/assistant`).
-  - **Done**: On load, a candidate with pending questions sees the notify banner and answers
-    them one at a time via the existing option buttons; when done, the thank-you shows and the
-    normal assistant resumes. Candidates with no pending set see no change.
+    Plus: grep confirms the form fetches `/api/onboarding/sourcing-questions`, that the sourcing
+    submit path posts to it (not `/assistant`), that a `sourcingMode` flag and a synthetic
+    `sourcing:`-prefixed `field` are set, that the interactive init effect is gated on the
+    sourcing check completing, and that `isClearlyOffTrackAnswer`/`appendOffTrackNudge` are
+    bypassed in sourcing mode.
+  - **Done**: On load, the sourcing GET resolves BEFORE the interactive init effect can fire; a
+    candidate with pending questions sees the notify banner and answers one at a time via the
+    existing option buttons (options render because a synthetic stable `field` is set on both the
+    history entry and `currentQuestion`), with option clicks tagged `chosenValue` and the custom
+    input tagged `freeText`, and off-track nudging bypassed; when done, the thank-you shows and
+    the normal assistant resumes. Candidates with no pending set see no change.
 
 - **T3 — Full-loop integration test**
   - **Files**: `tests/integration/sourcing-delivery.test.ts`
@@ -292,8 +322,10 @@ invoked here; the candidate message keys (Plan 2) are consumed by T1's notice/th
 T2's banner. The queued rows (Plan 2) are the data source. No orphaned code.
 
 **Non-regression**: No schema, message-file, or Phase 10 route change; the onboarding form's
-existing interactive/CV flow is untouched when no sourcing set is pending; `npm run build`
-stays 0 errors and Phase 10 target-role/interview/cover-letter behavior is unaffected.
+existing interactive/CV flow is untouched when no sourcing set is pending — the interactive
+init effect only fires after the sourcing check resolves and finds nothing, and the off-track
+nudge remains active outside sourcing mode; `npm run build` stays 0 errors and Phase 10
+target-role/interview/cover-letter behavior is unaffected.
 
 ---
 
@@ -304,8 +336,11 @@ stays 0 errors and Phase 10 target-role/interview/cover-letter behavior is unaff
 - [ ] `POST` captures answers, silently judges open text, advances, and returns no correctness.
 - [ ] After <=5 answers the endpoint re-scores with the visible-increase clamp, persists
       `fitAfter` + `status="completed"`, and returns the thank-you + "you'll be contacted".
-- [ ] `OnboardingCvUploadForm` prioritizes pending sourcing questions on load, renders them via
-      the existing option buttons + notify banner, and never routes them through Phase 10.
+- [ ] `OnboardingCvUploadForm` prioritizes pending sourcing questions on load (interactive init
+      effect gated on the sourcing check completing), renders them via the existing option
+      buttons + notify banner using a synthetic stable `field` on both the history entry and
+      currentQuestion, tags option clicks as `chosenValue` and custom input as `freeText`,
+      bypasses the off-track nudge, and never routes them through Phase 10.
 - [ ] `sourcing-delivery.test.ts` proves trigger, one-at-a-time MCQ, no correctness leak, <=5
       cap, visible before->now increase, owner scoping, and Phase 10 bypass.
 - [ ] `npx tsc --noEmit` and `npm run build` pass 0 errors.

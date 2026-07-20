@@ -26,7 +26,7 @@ must_haves:
     - "generateGapQuestions(needs, result) turns ONLY unmet/partial checklist items into <=5 grounded MCQs, each with exactly one correct option, three distractors, a shuffled option order, and an appended open 'write your own answer' option, with server-only isCorrect/isOpen flags retained on the returned objects."
     - "A stripPublicOptions(question) helper removes isCorrect/isOpen (and any gapLabel/server context) so nothing correctness-revealing can leave the server."
     - "rescoreFromAnswers({ fitBefore, goodAnswers, llmAfter }) clamps to max(llmAfter, fitBefore + max(1, goodAnswers)) capped at 100 when goodAnswers > 0, and returns fitBefore unchanged when goodAnswers is 0 — never a decrease for good answers."
-    - "session-dal exposes create-run, queue-questions, read-next-pending, record-answer, and read-back helpers scoped by candidateUserId, all typed against the new Prisma client."
+    - "session-dal exposes create-run, queue-questions, find-active-candidate (newest non-completed set for a candidate), read-next-pending, record-answer, and read-back helpers scoped by candidateUserId, all typed against the new Prisma client; readBackForRecruiter selects the MOST RECENT SourcingCandidate by createdAt per candidate regardless of status."
     - "Unit tests prove the gap filter, the 5-option shape + option stripping, and the visible-increase clamp; the whole library type-checks and npm run build stays 0 errors."
   artifacts:
     - prisma/schema.prisma
@@ -39,7 +39,7 @@ must_haves:
   key_links:
     - "generateGapQuestions consumes result.checklist (status !== 'met') + needs as its gap source and calls callAnthropic from the shared anthropic.ts util, salvaging JSON via parseLlmJson."
     - "rescoreFromAnswers(...) is the single clamp Plan 3 calls after all answers are captured; its goodAnswers input = correct choices + satisfiedNeed open answers."
-    - "session-dal is the ONLY module Plans 2 and 3 use to read/write the sourcing tables (create run in 11-2, deliver/answer/re-score in 11-3)."
+    - "session-dal is the ONLY module Plans 2 and 3 use to read/write the sourcing tables (create run + findActiveCandidate one-active-set guard in 11-2, deliver/answer/re-score in 11-3)."
 ---
 
 <objective>
@@ -128,7 +128,10 @@ Mirror `InterviewSession -> InterviewQuestion` (`schema.prisma:200-240`): cuid i
   `candidateUserId`, `fitBefore Int`, `fitAfter Int?`, `status String @default("pending")`
   (`pending | delivering | completed`), timestamps, relation to session (cascade),
   `questions SourcingQuestion[]`, `@@index([candidateUserId, status])`, `@@index([sessionId])`.
-  "One active set per candidate" is app-enforced (no DB unique) so history is preserved.
+  "One active set per candidate" is app-enforced (no DB unique) so history is preserved:
+  Plan 2 calls `findActiveCandidate` before queueing and retires any existing non-completed
+  (`pending`/`delivering`) set; `readBackForRecruiter` always reflects the MOST RECENT set per
+  candidate by `createdAt` regardless of status.
 - `SourcingQuestion` — `candidateId`, `orderIndex Int`, `gapLabel String` (SERVER-ONLY),
   `prompt String @db.Text`, `options Json` (`[{ value, label, isCorrect, isOpen }]` — the
   correct/open flags are SERVER-ONLY), `allowCustom Boolean @default(true)`, timestamp,
@@ -306,8 +309,9 @@ Truths and where satisfied:
    `prisma validate` + `tsc`. → SGQ-06
 
 **Reachability**: `session-dal` gains its production callers in Plan 2 (`createSourcingRun` +
-`queueCandidateQuestions` in the sourcing route; `readBackForRecruiter` in the read-back
-endpoint) and Plan 3 (`getPendingCandidate`/`recordAnswer`/`completeCandidate` in the delivery
+`findActiveCandidate` one-active-set guard + `queueCandidateQuestions` in the sourcing route;
+`readBackForRecruiter` in the read-back endpoint) and Plan 3
+(`getPendingCandidate`/`recordAnswer`/`completeCandidate` in the delivery
 endpoint) — both declared dependents. `generateGapQuestions` is called by Plan 2;
 `rescoreFromAnswers` and `stripPublicOptions` by Plan 3. Nothing is orphaned; each export is a
 named acceptance target of a later plan and is exercised now by unit tests.
