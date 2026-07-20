@@ -323,6 +323,24 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
             // Prior history is best-effort; proceed with just the sourcing questions.
           }
 
+          // Heal any sourcing answers that were persisted as the raw option value
+          // (e.g. "o0") before the label was stored: swap in the human-readable
+          // label the server resolved in `answered`, matched by the question just
+          // above it. Leaves free-text answers and everything else untouched.
+          if (answered.length > 0) {
+            const labelByPrompt = new Map(answered.map((pair) => [pair.prompt, pair.answerText]));
+            resumedHistory = resumedHistory.map((message, index) => {
+              if (message.role === "user" && /^o\d+$/.test(message.text.trim())) {
+                const prompt = resumedHistory[index - 1]?.text;
+                const label = prompt ? labelByPrompt.get(prompt) : undefined;
+                if (label) {
+                  return { ...message, text: label };
+                }
+              }
+              return message;
+            });
+          }
+
           if (data.question) {
             const prompt = data.question.prompt;
             const last = resumedHistory[resumedHistory.length - 1];
@@ -499,7 +517,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // the off-track nudge so open answers are never intercepted.
     if (sourcingMode && currentQuestion.field.startsWith("sourcing:")) {
       setIsSending(true);
-      setHistory((current) => [...current, { role: "user", text: trimmed }]);
+      // Show the human-readable option label in the chat (not the raw value like
+      // "o0"); the raw value is still what gets sent to the backend below.
+      const displayText = sourcingSource === "freeText"
+        ? trimmed
+        : currentQuestion.options?.find((option) => option.value === trimmed)?.label ?? trimmed;
+      setHistory((current) => [...current, { role: "user", text: displayText }]);
       setMessage("");
       setCustomOptionDraft("");
 
