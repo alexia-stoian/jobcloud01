@@ -304,42 +304,73 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         const answered = data.answered ?? [];
         const hasContent = Boolean(data.question) || answered.length > 0;
         if (hasContent) {
-          // Restore the prior onboarding conversation first so it persists above
-          // the recruiter questions (the init effect would otherwise be skipped
-          // once history is non-empty, dropping the resumed transcript).
-          let base: ChatMessage[] = [];
+          // The persisted onboarding conversation is the CHRONOLOGICAL source of
+          // truth: answered recruiter Q&A were saved inline where they occurred.
+          // We restore that history verbatim and only re-attach a still-pending
+          // question — never re-appending answered Q&A at the end (which is what
+          // made them jump to the bottom of the conversation on refresh).
+          let resumedHistory: ChatMessage[] = [];
           let resumed: InteractiveResponse | null = null;
           try {
             const resumeRes = await fetch("/api/onboarding/resume", { cache: "no-store" });
             if (resumeRes.ok) {
               resumed = (await resumeRes.json()) as InteractiveResponse;
               if (Array.isArray(resumed.history)) {
-                base = resumed.history as ChatMessage[];
+                resumedHistory = resumed.history as ChatMessage[];
               }
             }
           } catch {
             // Prior history is best-effort; proceed with just the sourcing questions.
           }
-          // The recruiter-interested notice, then every already-answered question
-          // with the candidate's answer, so the full Q&A persists across sessions.
-          if (data.notice) {
-            base.push({ role: "assistant", text: data.notice });
-          }
-          for (const pair of answered) {
-            base.push({ role: "assistant", text: pair.prompt });
-            base.push({ role: "user", text: pair.answerText });
-          }
+
           if (data.question) {
-            applySourcingResponse(data, base);
-          } else {
-            // Completed set: render the transcript (+ thank-you) with no live
-            // sourcing question, then let the candidate continue normal onboarding
-            // beneath it WITHOUT the init effect replacing the restored history.
-            if (data.message) {
-              base.push({ role: "assistant", text: data.message });
+            const prompt = data.question.prompt;
+            const last = resumedHistory[resumedHistory.length - 1];
+            if (last && last.role === "assistant" && last.text === prompt) {
+              // Already delivered and persisted inline (chronological). Re-attach
+              // interactivity to that trailing question without duplicating it.
+              applySourcingResponse(data, resumedHistory.slice(0, -1));
+            } else {
+              // Not yet persisted inline — reconstruct: prior convo + recruiter
+              // notice + this set's answered Q&A + the pending question.
+              const base = [...resumedHistory];
+              if (data.notice) {
+                base.push({ role: "assistant", text: data.notice });
+              }
+              for (const pair of answered) {
+                base.push({ role: "assistant", text: pair.prompt });
+                base.push({ role: "user", text: pair.answerText });
+              }
+              applySourcingResponse(data, base);
             }
-            setHistory(base);
-            if (base.length > 0) {
+            // Persist as this set is answered so the Q&A stay chronologically inline.
+            didInitRef.current = true;
+          } else {
+            // Completed set. The conversation history already has this set's Q&A
+            // inline where they occurred — show it as-is so they keep their place.
+            // Fall back to appending only if they are somehow NOT present, so a
+            // finished set is never lost.
+            const lastPrompt = answered.length ? answered[answered.length - 1].prompt : null;
+            const alreadyInline =
+              lastPrompt !== null &&
+              resumedHistory.some((m) => m.role === "assistant" && m.text === lastPrompt);
+            if (alreadyInline || answered.length === 0) {
+              setHistory(resumedHistory);
+            } else {
+              const base = [...resumedHistory];
+              if (data.notice) {
+                base.push({ role: "assistant", text: data.notice });
+              }
+              for (const pair of answered) {
+                base.push({ role: "assistant", text: pair.prompt });
+                base.push({ role: "user", text: pair.answerText });
+              }
+              if (data.message) {
+                base.push({ role: "assistant", text: data.message });
+              }
+              setHistory(base);
+            }
+            if (resumedHistory.length > 0) {
               didRestoreRef.current = true;
             }
             if (resumed) {
