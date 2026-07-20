@@ -6,7 +6,8 @@ import * as artifactDAL from "@/lib/artifacts/dal";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { getSystemPrompt } from "@/lib/ai/assistant/system-prompt";
 import { routeGreeting } from "@/lib/ai/assistant/greetings";
-import { detectTargetRoleFromMessage, getTargetRoleQuestion } from "@/lib/onboarding/detect-target-role";
+import { getTargetRoleQuestion, getTargetRoleAck } from "@/lib/onboarding/detect-target-role";
+import { detectTargetRoleIntent } from "@/lib/onboarding/detect-target-role-llm";
 import type { AssistantState } from "@/types/assistant-state";
 import { createInitialAssistantState, transitionPhase, markProfileCollected, updateServiceState } from "@/types/assistant-state";
 import { handleCoverLetterRequest, isCoverLetterRequest } from "@/lib/ai/assistant/services/cover-letter-handler";
@@ -14,8 +15,8 @@ import { buildProfileSummary } from "@/lib/ai/assistant/services/profile-alignme
 import { computeCompletion } from "@/lib/profile/completion-gate";
 import { detectOffTopic, generateOffTopicRedirect } from "@/lib/ai/assistant/services/scope-detection";
 import { detectInterviewAnswer, storeInterviewQA } from "@/lib/ai/assistant/services/interview-qa-storage";
-import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
-import { detectEditIntent, applyEdit, storeEditedVersion, handleArtifactEditWorkflow } from "@/lib/artifacts/edit";
+import { detectRetrievalIntent, findRecentByCompany, findRecentByQuestion, findMostRecentByType, formatArtifactForDisplay } from "@/lib/artifacts/retrieve";
+import { detectEditIntent, handleArtifactEditWorkflow } from "@/lib/artifacts/edit";
 import { runInferenceSafely } from "@/lib/ai/signals/hook";
 import { loadSignalState } from "@/lib/ai/signals/signal-dal";
 import { SIGNAL_REGISTRY, PROBE_THRESHOLD } from "@/lib/ai/signals/signal-definitions";
@@ -220,8 +221,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // ===== STEP 2: GLOBAL - Check for target role in EVERY message across ALL phases =====
-    // This ensures we capture career goals as soon as they're stated, regardless of phase
-    const detectedGlobalTargetRole = detectTargetRoleFromMessage(userMessage);
+    // This ensures we capture career goals as soon as they're stated, regardless of phase.
+    // Detection runs EXACTLY once per request here via the LLM intent detector, which only
+    // fires on explicit first-person intent and is practice-safe (D-01, D-04).
+    let roleAck: string | null = null;
+    const detectedGlobalTargetRole = await detectTargetRoleIntent({
+      message: userMessage,
+      inPractice: state.services?.interviewPrep?.currentMode === "practice",
+      apiKey: anthropicApiKey,
+      model: anthropicModel
+    });
     if (detectedGlobalTargetRole && onboardingSession) {
       console.log("[GLOBAL] Detected targetRole in message:", detectedGlobalTargetRole);
       try {
@@ -244,6 +253,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }) || profile;
           console.log("[GLOBAL] Reloaded profile.targetRoles:", profile.targetRoles);
         }
+        // Silent update, then acknowledge in the user's language (D-02).
+        roleAck = getTargetRoleAck(locale, detectedGlobalTargetRole);
       } catch (error: unknown) {
         console.error("[GLOBAL] ERROR updating targetRole:", error);
       }
@@ -285,40 +296,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Transition out of greeting phase
       newState = transitionPhase(state, greeting.nextPhase);
     } else if (state.currentPhase === "profile-collection") {
-      // Check if user is stating a target role (career goal)
-      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
-      
-      // Debug: Log current state
-      console.log("[Profile Collection] Current onboardingSession?.targetRole before update:", onboardingSession?.targetRole);
-      console.log("[Profile Collection] Detected targetRole:", detectedTargetRole);
-      console.log("[Profile Collection] onboardingSession exists:", !!onboardingSession);
-      
-      // If target role is detected, update it directly in the onboarding session
-      if (detectedTargetRole && onboardingSession) {
-        console.log("[Profile Collection] About to update targetRole for user:", session.user.id);
-        
-        try {
-          // Update onboarding session directly
-          const updatedSession = await db.onboardingSession.update({
-            where: { userId: session.user.id },
-            data: { targetRole: detectedTargetRole }
-          });
-          onboardingSession = updatedSession;
-          console.log("[Profile Collection] SUCCESS: Updated onboardingSession.targetRole to:", updatedSession.targetRole);
-          console.log("[Profile Collection] Updated session ID:", updatedSession.id);
-          
-          // Also update profile's targetRoles field for consistency
-          if (profile) {
-            await db.candidateProfile.update({
-              where: { id: profile.id },
-              data: { targetRoles: detectedTargetRole }
-            });
-            console.log("[Profile Collection] Also updated profile.targetRoles");
-          }
-        } catch (error: unknown) {
-          console.error("[Profile Collection] ERROR during targetRole update:", error);
-        }
-      } else if (!onboardingSession?.targetRole && userMessage.length > 10) {
+      // Detection + persistence happen once in the GLOBAL block above. Here we only keep
+      // the CV-upload clarifying-question flow: if no target role is set yet after a CV
+      // upload, ask what role they're targeting.
+      if (!onboardingSession?.targetRole && userMessage.length > 10) {
         // If target role is still not set after CV upload, ask for it
         if (onboardingSession?.cvExtractedFacts && Object.keys(onboardingSession.cvExtractedFacts).length > 0) {
           // CV was already extracted, ask what they want to become
@@ -371,7 +352,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (retrievalIntent.isRetrievalRequest && !isInterviewMsg) {
         try {
           if (retrievalIntent.requestType === "company" && retrievalIntent.query) {
-            const artifact = await findRecentByCompany(session.user.id, retrievalIntent.query);
+            const artifact =
+              (await findRecentByCompany(session.user.id, retrievalIntent.query)) ??
+              (await findMostRecentByType(session.user.id, "cover_letter"));
             answer = artifact
               ? formatArtifactForDisplay(artifact)
               : `I don't have a saved cover letter or job posting for ${retrievalIntent.query} in my memory yet. 🤔\n\nWould you like me to help you create one? Just tell me the job details and I'll draft it for you! 📝✨`;
@@ -381,7 +364,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               ? formatArtifactForDisplay(artifact)
               : `I don't have that interview answer saved yet. 🤔 Want to practice that question, or see your other saved answers? 😊`;
           } else {
-            answer = `I'd love to pull that up! Could you tell me the company name (for a cover letter or job posting) or the question/topic (for an interview answer)? 📝✨`;
+            // No specific company/question named — recall the most recent cover letter.
+            const recent = await findMostRecentByType(session.user.id, "cover_letter");
+            answer = recent
+              ? formatArtifactForDisplay(recent)
+              : `I'd love to pull that up! Could you tell me the company name (for a cover letter or job posting) or the question/topic (for an interview answer)? 📝✨`;
           }
         } catch (error) {
           console.error("[Profile Collection] Error retrieving artifact:", error);
@@ -498,32 +485,7 @@ ${localeInstruction}`;
     } else if (state.currentPhase === "services") {
       console.log("[DEBUG] In services phase. Message:", userMessage.substring(0, 100));
       
-      // ===== CHECK FOR TARGET ROLE IN EVERY MESSAGE =====
-      // This ensures that even if user mentions a career goal in the services phase,
-      // we capture it (e.g., "give me PM interview questions")
-      const detectedTargetRole = detectTargetRoleFromMessage(userMessage);
-      if (detectedTargetRole && onboardingSession) {
-        console.log("[Service Phase] Detected targetRole:", detectedTargetRole);
-        
-        // Step 1: Update onboarding session directly
-        const updatedSession = await db.onboardingSession.update({
-          where: { userId: session.user.id },
-          data: { targetRole: detectedTargetRole }
-        });
-        console.log("[Service Phase] Updated onboardingSession.targetRole to:", updatedSession.targetRole);
-        onboardingSession = updatedSession;
-        
-        // Step 2: Update profile's targetRoles field too
-        if (profile) {
-          await db.candidateProfile.update({
-            where: { userId: session.user.id },
-            data: { targetRoles: detectedTargetRole }
-          });
-        }
-        
-        console.log("[Service Phase] Updated session.targetRole now:", onboardingSession.targetRole);
-      }
-      
+      // Target-role detection + persistence happen once in the GLOBAL block above.
       // Check for off-topic queries first (Wave 5)
       const offTopicDetection = detectOffTopic(userMessage);
       console.log("[DEBUG] Off-topic detection:", offTopicDetection.isOffTopic);
@@ -534,14 +496,39 @@ ${localeInstruction}`;
       // we are already in an active mock-interview (practice) so plain answers
       // continue the interview instead of being treated as cover-letter requests.
       const servicesLowerMsg = userMessage.toLowerCase();
+
+      // A lingering interview "practice" mode must NOT permanently hijack every
+      // message. It is only cleared after Q3 is ANSWERED, so a user who abandons a
+      // mock (or gets Q3 asked but never answers) stays in practice mode forever —
+      // and every message that doesn't literally contain "cover letter" is routed
+      // to the interview handler, making the whole cover-letter toolset (resize,
+      // tone, proofread, add/remove, strengthen, word-count) unreachable. When the
+      // user clearly wants an artifact service (generate/retrieve/edit a cover
+      // letter), treat that as leaving the interview: route to the service AND clear
+      // the stale practice mode so subsequent short edit commands work too.
+      const wantsArtifactService =
+        isCoverLetterRequest(userMessage) ||
+        detectRetrievalIntent(userMessage).isRetrievalRequest ||
+        detectEditIntent(userMessage).detected;
+
+      const explicitInterviewRequest =
+        /\b(interview|mock)\b/.test(servicesLowerMsg) ||
+        (servicesLowerMsg.includes("practice") &&
+          (servicesLowerMsg.includes("question") || servicesLowerMsg.includes("interview")));
+
+      const lingeringPractice = state.services?.interviewPrep?.currentMode === "practice";
+
       const isServicesInterviewMsg =
         !servicesLowerMsg.includes("cover letter") &&
         !servicesLowerMsg.includes("cover-letter") &&
-        (/\b(interview|mock)\b/.test(servicesLowerMsg) ||
-          (servicesLowerMsg.includes("practice") &&
-            (servicesLowerMsg.includes("question") ||
-              servicesLowerMsg.includes("interview"))) ||
-          state.services?.interviewPrep?.currentMode === "practice");
+        (explicitInterviewRequest || (lingeringPractice && !wantsArtifactService));
+
+      // Exit a stale interview when the user switches to an artifact service, so the
+      // stale practice mode no longer captures follow-up edit commands.
+      if (lingeringPractice && wantsArtifactService && !explicitInterviewRequest) {
+        state = updateServiceState(state, "interview-prep", { currentMode: undefined });
+        newState = state;
+      }
 
       if (!isServicesInterviewMsg && offTopicDetection.isOffTopic) {
         answer = generateOffTopicRedirect(offTopicDetection.category);
@@ -553,8 +540,11 @@ ${localeInstruction}`;
         
         try {
           if (retrievalIntent.requestType === 'company' && retrievalIntent.query) {
-            // User asking for cover letter or job posting by company
-            const artifact = await findRecentByCompany(session.user.id, retrievalIntent.query);
+            // User asking for cover letter or job posting by company. Fall back to the
+            // most recent cover letter when no company match is found (memory recall).
+            const artifact =
+              (await findRecentByCompany(session.user.id, retrievalIntent.query)) ??
+              (await findMostRecentByType(session.user.id, 'cover_letter'));
             if (artifact) {
               answer = formatArtifactForDisplay(artifact);
               newState = state;
@@ -583,13 +573,20 @@ What sounds good? 😊`;
               newState = state;
             }
           } else {
-            // Generic retrieval request without specific query
-            answer = `I'd love to help you find something! Could you tell me:
+            // Generic retrieval request without a specific query — recall the most
+            // recent cover letter from memory rather than asking for a company.
+            const recent = await findMostRecentByType(session.user.id, 'cover_letter');
+            if (recent) {
+              answer = formatArtifactForDisplay(recent);
+              newState = state;
+            } else {
+              answer = `I'd love to help you find something! Could you tell me:
 📋 **For a cover letter or job posting:** The company name
 🎤 **For an interview answer:** The question or topic
 
 Then I can pull it right up! 📝✨`;
-            newState = state;
+              newState = state;
+            }
           }
         } catch (error) {
           console.error("Error retrieving artifact:", error);
@@ -597,84 +594,26 @@ Then I can pull it right up! 📝✨`;
           newState = state;
         }
       } else if (!isServicesInterviewMsg && detectEditIntent(userMessage).detected) {
-        // Wave 1B: Artifact Editing - offer to edit most recent artifact
+        // Wave 1B: Artifact Editing — route through the SHARED full edit workflow
+        // (same as the profile-collection phase). This restores the complete command
+        // set in the services phase: resize (longer/shorter with word targets), switch
+        // tone, proofread a pasted/another letter, add/remove content about a subject,
+        // strengthen, simplify, and translate — including editing a letter the user
+        // pasted inline rather than only the last saved artifact.
         const editIntent = detectEditIntent(userMessage);
-        
         try {
-          // Get the most recent artifact of any type
-          const coverLetters = await artifactDAL.findByUserAndType(session.user.id, 'cover_letter');
-          const jobPostings = await artifactDAL.findByUserAndType(session.user.id, 'job_posting');
-          const interviewQAs = await artifactDAL.findByUserAndType(session.user.id, 'interview_qa');
-          
-          // Find the most recent artifact overall
-          const allArtifacts = [...coverLetters, ...jobPostings, ...interviewQAs]
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          
-          if (allArtifacts.length > 0) {
-            const artifactToEdit = allArtifacts[0];
-            
-            try {
-              // Apply the edit using Claude
-              const editedContent = await applyEdit(
-                artifactToEdit.content,
-                editIntent,
-                anthropicApiKey,
-                anthropicModel
-              );
-              
-              // Store as new version
-              const newVersionId = await storeEditedVersion(
-                session.user.id,
-                artifactToEdit.id,
-                editedContent,
-                editIntent.operation || 'edit'
-              );
-              
-              // Format response
-              const operationName = editIntent.operation === 'shorten' ? 'shortened' :
-                                  editIntent.operation === 'expand' ? 'expanded' :
-                                  'updated';
-              
-              answer = `Done! I've ${operationName} your ${artifactToEdit.type.replace('_', ' ')}! 📝✨
-
----
-
-${editedContent}
-
----
-
-How does this look? 😊
-
-Would you like to:
-✏️ **Make another change** (adjust tone, length, etc.)
-💾 **Save this version** (keep it)
-↩️ **Go back** (use the previous version)
-✅ **Use this now** (ready to go!)
-
-Let me know! 🚀`;
-              newState = state;
-            } catch (error) {
-              console.error("Error during edit:", error);
-              answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
-              newState = state;
-            }
-          } else {
-            // No artifacts to edit
-            answer = `I don't have any saved artifacts to edit yet! 🤔 
-
-Let's create something first:
-📝 **Generate a cover letter** (tailored to a specific job)
-💬 **Save a job posting** (share the details with me)
-🎤 **Practice an interview** (we'll save your answers)
-
-What would help most? 😊`;
-            newState = state;
-          }
+          answer = await handleArtifactEditWorkflow(
+            session.user.id,
+            editIntent,
+            anthropicApiKey,
+            anthropicModel,
+            profileSummary
+          );
         } catch (error) {
           console.error("Error in edit workflow:", error);
-          answer = `Sorry, I had trouble accessing your artifacts. 😅 Could you try again? 💬`;
-          newState = state;
+          answer = `Oops! I ran into a technical issue while editing. 😅 Could you try again? Maybe rephrase what you'd like me to change?`;
         }
+        newState = state;
       } else if (isCoverLetterRequest(userMessage) && !isServicesInterviewMsg) {
         // Wave 2: Cover Letter Service
         const result = await handleCoverLetterRequest(
@@ -960,6 +899,12 @@ ${localeInstruction}`;
       cvFacts: onboardingSession?.cvExtractedFacts,
       sessionId: onboardingSession?.id
     });
+
+    // Prepend the localized acknowledgement once, at the final return site, so it survives
+    // any branch that assigned `answer` wholesale (D-02).
+    if (roleAck) {
+      answer = `${roleAck}\n\n${answer}`;
+    }
 
     return NextResponse.json({ answer });
   } catch (error) {

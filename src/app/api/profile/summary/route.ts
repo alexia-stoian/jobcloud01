@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { buildProfileSummary } from "@/lib/profile/summary-builder";
 import { computeCompletion } from "@/lib/profile/completion-gate";
 import { normalizeProficiency } from "@/lib/languages/proficiency";
+import { structuredDatesFromPeriod } from "@/lib/profile/experience-period";
 
 type ProfileDraftPayload = {
   profileHeadline?: string;
@@ -91,6 +92,12 @@ function buildQualificationsFromDraft(draft: ProfileDraftPayload) {
 
   for (const row of draft.workExperienceRows ?? []) {
     if (!row.jobTitle?.trim() && !row.company?.trim()) continue;
+    const period = normalizeString(row.period);
+    // Preserve structured start/end/current-role alongside the free-text period
+    // so the saved shape matches CV-extracted entries and downstream consumers
+    // (Admin panel, sourcing aggregation/report) read a consistent date signal
+    // instead of the period being the only source of truth.
+    const dates = period ? structuredDatesFromPeriod(period) : { isCurrentRole: false };
     qualifications.push({
       category: "experience",
       value: JSON.stringify({
@@ -98,7 +105,10 @@ function buildQualificationsFromDraft(draft: ProfileDraftPayload) {
         company: normalizeString(row.company),
         location: normalizeString(row.location),
         description: normalizeString(row.details),
-        period: normalizeString(row.period)
+        period,
+        startDate: dates.startDate ?? null,
+        endDate: dates.endDate ?? null,
+        isCurrentRole: dates.isCurrentRole
       })
     });
   }
