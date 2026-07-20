@@ -224,14 +224,16 @@ Plans:
 
 ### Phase 11: Sourcing skill-gap questions: profile button opens Admin profile, assistant (sourcing mode) delivers personalized multiple-choice gap questions in onboarding for >=60% matches, answers feed match %, card shows Q&A and before->now change
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** On a recruiter sourcing run, persist a session and — for every shown candidate whose displayed fit % is >=60 — generate <=5 personalized, gap-grounded multiple-choice questions (1 correct, 3 distractors, 1 open) queued to that candidate; add a Profile button that opens the Admin profile in a slide-over on the Sourcing page; deliver the queued questions one at a time in the candidate's Onboarding assistant "Sourcing mode" (notify first, never reveal correctness, silently judge open answers, cap at 5, thank + "you'll be contacted" then exit); LLM re-score each answer set with a server clamp guaranteeing a visible increase for good answers; and show the recruiter the Q&A plus "[before] -> [now]" on the card — all without leaking recruiter signals to candidates, regressing Phase 10, or breaking the build.
+**Requirements**: SGQ-01, SGQ-02, SGQ-03, SGQ-04, SGQ-05, SGQ-06
 **Depends on:** Phase 10
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 11 to break down)
+- [ ] 11-1-PLAN.md — Additive Prisma models (SourcingSession -> Candidate -> Question -> Answer) + migration, shared Anthropic util, grounded gap-question generator, visible-increase re-score clamp, candidate-scoped DAL, and unit tests
+- [ ] 11-2-PLAN.md — Generate + persist queued questions for >=60% candidates on the sourcing run, admin-gated read-back endpoint, Sourcing card Profile slide-over + Q&A / before->now section, EN/DE/FR keys, and a read-back integration test
+- [ ] 11-3-PLAN.md — Dedicated session-scoped onboarding delivery endpoint (one-at-a-time MCQ, notify-first, silent open-judge, <=5, re-score + thank-you), onboarding form Sourcing-mode wiring bypassing Phase 10 routing, and a full-loop integration test
 
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*
