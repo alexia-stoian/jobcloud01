@@ -152,7 +152,7 @@ describe("generateGapQuestions — graceful degradation", () => {
     expect(questions).toEqual([]);
   });
 
-  test("returns [] when there are no gaps (all met)", async () => {
+  test("generates strengthening questions when all requirements are met (strong candidate)", async () => {
     const fetchMock = vi.fn(async () => anthropicOk(LLM_PAYLOAD));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -162,7 +162,24 @@ describe("generateGapQuestions — graceful degradation", () => {
       { label: "Skill: Node", status: "met" }
     ];
 
-    const questions = await generateGapQuestions(NEEDS, allMet);
+    // With recruiter needs present, a gap-less high-match candidate still gets
+    // strengthening questions (per spec: any >=60% candidate receives questions).
+    const questions = await generateGapQuestions(
+      { role: "Senior Engineer", requiredSkills: ["React"], languages: ["English"] },
+      allMet
+    );
+    expect(fetchMock).toHaveBeenCalled();
+    expect(questions.length).toBeGreaterThan(0);
+  });
+
+  test("returns [] when there are no gaps AND nothing to strengthen (empty needs)", async () => {
+    const fetchMock = vi.fn(async () => anthropicOk(LLM_PAYLOAD));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const allMet = makeResult();
+    allMet.checklist = [{ label: "Skill: React", status: "met" }];
+
+    const questions = await generateGapQuestions({}, allMet);
     expect(questions).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });

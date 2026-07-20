@@ -83,18 +83,19 @@ function clampText(value: unknown, max = 400): string {
 function buildPrompt(gaps: string[], roleLabel: string): string {
   const gapList = gaps.map((g, i) => `${i + 1}. ${g}`).join("\n");
   return [
-    "You help a candidate close specific skill/experience gaps for a role.",
+    "You help a candidate show they are a strong fit for a role.",
     roleLabel ? `Target role: ${roleLabel}` : "",
     "",
-    "For EACH gap below, write ONE friendly multiple-choice question that lets the",
-    "candidate show whether they can close that gap. Ground each question ONLY in",
-    "the listed gap — do not invent unrelated requirements.",
+    "For EACH topic below, write ONE friendly multiple-choice question that lets the",
+    "candidate show their strength or fit on that topic (some topics are gaps to",
+    "close, others are strengths to confirm or deepen). Ground each question ONLY in",
+    "the listed topic — do not invent unrelated requirements.",
     "",
-    "Gaps:",
+    "Topics:",
     gapList,
     "",
     "Rules:",
-    `- Produce AT MOST ${MAX_QUESTIONS} questions (one per gap, in order).`,
+    `- Produce AT MOST ${MAX_QUESTIONS} questions (one per topic, in order).`,
     "- Each question has EXACTLY four options: exactly one with isCorrect:true (the",
     "  answer a recruiter wants) and three with isCorrect:false (plausible but not",
     "  what the recruiter wants).",
@@ -162,22 +163,67 @@ function normalizeQuestion(raw: LlmQuestion, gapFallback: string, orderIndex: nu
   return { gapLabel, prompt, orderIndex, options: shuffled, allowCustom: true };
 }
 
+/** Friendly personality/behaviour topics per recruiter-preferred signal key. */
+const SIGNAL_TOPIC: Record<string, string> = {
+  personal_growth_driven: "Your motivation to keep growing and learning",
+  technical_growth_driven: "Your passion for the technical craft",
+  true_vs_claimed_proficiency: "The real depth of your core skills",
+  sustained_vs_fading_effort: "Following through on long, demanding projects",
+  independent_vs_supervised: "Working independently and owning outcomes",
+  stress_behavior: "Staying calm and effective under pressure",
+  stability_driven: "Your commitment to staying long-term"
+};
+
 /**
- * Generate <=5 gap-grounded MCQs for one candidate. Gaps are derived from the
- * candidate's checklist items whose status is NOT "met". Returns [] when there
- * are no gaps or the LLM is unavailable/unparseable.
+ * For a strong candidate with few/no unmet requirements, derive "strengthening"
+ * topics from the recruiter's needs so any qualifying (>=60%) candidate still
+ * receives questions (per spec: skills, languages, experience, personality
+ * traits, other relevant details). Excludes anything already covered by a gap.
+ */
+function buildStrengtheningTopics(needs: RecruiterNeeds, exclude: string[]): string[] {
+  const seen = new Set(exclude.map((g) => g.toLowerCase()));
+  const topics: string[] = [];
+  const add = (label: string): void => {
+    const key = label.toLowerCase();
+    if (label.trim().length > 0 && !seen.has(key)) {
+      seen.add(key);
+      topics.push(label);
+    }
+  };
+
+  for (const skill of needs.requiredSkills ?? []) add(`Depth of your hands-on experience with ${skill}`);
+  for (const skill of needs.niceToHaveSkills ?? []) add(`Your experience with ${skill}`);
+  for (const lang of needs.languages ?? []) add(`Using ${lang} confidently at work`);
+  for (const key of Object.keys(needs.preferredSignals ?? {})) if (SIGNAL_TOPIC[key]) add(SIGNAL_TOPIC[key]);
+  if (needs.role) add(`Why you're a great fit for the ${needs.seniority ? `${needs.seniority} ` : ""}${needs.role} role`);
+  if (typeof needs.minYearsExperience === "number") add("A standout achievement from your recent experience");
+  if (needs.notes) add("How you align with the team's priorities for this role");
+
+  return topics;
+}
+
+/**
+ * Generate <=5 grounded MCQs for one candidate. Topics come from the candidate's
+ * unmet/partial checklist items first; for a strong candidate with fewer than
+ * MAX_QUESTIONS gaps, they are supplemented with "strengthening" topics from the
+ * recruiter's needs so any >=60% candidate still receives questions. Returns []
+ * only when there is genuinely nothing to ask or the LLM is unavailable.
  */
 export async function generateGapQuestions(
   needs: RecruiterNeeds,
   result: SourcingResult
 ): Promise<GeneratedQuestion[]> {
   const gaps = result.checklist.filter((c) => c.status !== "met").map((c) => c.label);
-  if (gaps.length === 0) {
+  const topics =
+    gaps.length >= MAX_QUESTIONS
+      ? gaps.slice(0, MAX_QUESTIONS)
+      : [...gaps, ...buildStrengtheningTopics(needs, gaps)].slice(0, MAX_QUESTIONS);
+  if (topics.length === 0) {
     return [];
   }
 
   const roleLabel = clampText(needs.role, 120);
-  const prompt = buildPrompt(gaps.slice(0, MAX_QUESTIONS), roleLabel);
+  const prompt = buildPrompt(topics, roleLabel);
 
   const raw = await callAnthropic(prompt, GENERATION_MAX_TOKENS);
   if (!raw) {
@@ -195,7 +241,7 @@ export async function generateGapQuestions(
     if (questions.length >= MAX_QUESTIONS) {
       break;
     }
-    const gapFallback = gaps[questions.length] ?? gaps[0] ?? "";
+    const gapFallback = topics[questions.length] ?? topics[0] ?? "";
     const normalized = normalizeQuestion(rawQuestion, gapFallback, questions.length);
     if (normalized) {
       questions.push(normalized);
