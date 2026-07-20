@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import { loadAdminUserBundle } from "@/lib/admin/user-bundle";
 import { seedSignals } from "@/lib/ai/signals/signal-definitions";
 import { formatProficiency, normalizeProficiency } from "@/lib/languages/proficiency";
+import { parseExperiencePeriod } from "@/lib/profile/experience-period";
 import type {
   CandidateBundle,
   CandidateEducation,
@@ -109,30 +110,6 @@ function estimateYears(start: string | undefined, end: string | undefined, isCur
 }
 
 /**
- * Parse a free-text experience "period" string (e.g. "2020-01 - Present",
- * "2017-09 - 2019-06", "2018 – 2021", "2020 to Present") into start/end tokens.
- * Splits only on a range separator surrounded by spaces so the dashes inside a
- * date like "2020-01" are preserved.
- */
-function parsePeriod(period: string): { start?: string; end?: string; isCurrent: boolean } {
-  const normalized = period.trim();
-  if (normalized.length === 0) {
-    return { isCurrent: false };
-  }
-  const parts = normalized.split(/\s+(?:[-–—]|to|bis|à)\s+/i);
-  const isCurrentText = (value: string): boolean =>
-    /present|current|now|ongoing|today|heute|aktuell|présent|actuel|en cours/i.test(value);
-  if (parts.length >= 2) {
-    const start = parts[0].trim();
-    const endRaw = parts[1].trim();
-    const isCurrent = isCurrentText(endRaw);
-    return { start: start || undefined, end: isCurrent ? undefined : endRaw || undefined, isCurrent };
-  }
-  const isCurrent = isCurrentText(normalized);
-  return { start: isCurrent ? undefined : normalized, isCurrent };
-}
-
-/**
  * Parse a user's qualifications (mirrors the AdminProfilePanel client helper)
  * into typed skills / languages / experience / education and a summed years
  * estimate.
@@ -192,9 +169,9 @@ function parseQualifications(qualifications: RawQualification[]): {
       } else if (period) {
         // Profiles saved via the editor store only a free-text "period" (dates
         // are dropped) — parse it so the years estimate stays accurate.
-        const p = parsePeriod(period);
+        const p = parseExperiencePeriod(period);
         if (p.start) {
-          totalYears += estimateYears(p.start, p.end, p.isCurrent || isCurrentRole);
+          totalYears += estimateYears(p.start, p.end, p.isCurrentRole || isCurrentRole);
         }
       }
       continue;
