@@ -52,6 +52,7 @@ type SourcingResponse = {
   notice?: string;
   done?: boolean;
   message?: string;
+  answered?: Array<{ prompt: string; answerText: string }>;
   answeredCount?: number;
 };
 
@@ -262,7 +263,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
-  const applySourcingResponse = useCallback((data: SourcingResponse, priorHistory: ChatMessage[] = []): boolean => {
+  const applySourcingResponse = useCallback((data: SourcingResponse, baseHistory?: ChatMessage[]): boolean => {
     // No pending question -> not (or no longer) in Sourcing mode.
     if (!data.question || data.done) {
       return false;
@@ -280,16 +281,14 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       allowCustom: data.question.allowCustom
     });
     setSourcingMode(true);
-    // Keep the prior onboarding conversation visible above the recruiter questions.
-    setHistory(() => {
-      const next = [...priorHistory];
-      if (data.notice) {
-        next.push({ role: "assistant", text: data.notice });
-      }
-      next.push({ role: "assistant", text: data.question!.prompt, options, field });
-      return next;
+    // Append the pending question. On initial load `baseHistory` carries the
+    // restored transcript (prior conversation + answered Q&A); on advance no base
+    // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
+    setHistory((current) => {
+      const base = baseHistory ?? current;
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field }];
     });
-    if (priorHistory.length > 0) {
+    if (baseHistory && baseHistory.length > 0) {
       didRestoreRef.current = true;
     }
     return true;
@@ -302,23 +301,54 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       });
       if (res.ok) {
         const data = (await res.json()) as SourcingResponse;
-        if (data.question && !data.done) {
+        const answered = data.answered ?? [];
+        const hasContent = Boolean(data.question) || answered.length > 0;
+        if (hasContent) {
           // Restore the prior onboarding conversation first so it persists above
           // the recruiter questions (the init effect would otherwise be skipped
           // once history is non-empty, dropping the resumed transcript).
-          let priorHistory: ChatMessage[] = [];
+          let base: ChatMessage[] = [];
+          let resumed: InteractiveResponse | null = null;
           try {
             const resumeRes = await fetch("/api/onboarding/resume", { cache: "no-store" });
             if (resumeRes.ok) {
-              const resumed = (await resumeRes.json()) as InteractiveResponse;
+              resumed = (await resumeRes.json()) as InteractiveResponse;
               if (Array.isArray(resumed.history)) {
-                priorHistory = resumed.history as ChatMessage[];
+                base = resumed.history as ChatMessage[];
               }
             }
           } catch {
             // Prior history is best-effort; proceed with just the sourcing questions.
           }
-          applySourcingResponse(data, priorHistory);
+          // The recruiter-interested notice, then every already-answered question
+          // with the candidate's answer, so the full Q&A persists across sessions.
+          if (data.notice) {
+            base.push({ role: "assistant", text: data.notice });
+          }
+          for (const pair of answered) {
+            base.push({ role: "assistant", text: pair.prompt });
+            base.push({ role: "user", text: pair.answerText });
+          }
+          if (data.question) {
+            applySourcingResponse(data, base);
+          } else {
+            // Completed set: render the transcript (+ thank-you) with no live
+            // sourcing question, then let the candidate continue normal onboarding
+            // beneath it WITHOUT the init effect replacing the restored history.
+            if (data.message) {
+              base.push({ role: "assistant", text: data.message });
+            }
+            setHistory(base);
+            if (base.length > 0) {
+              didRestoreRef.current = true;
+            }
+            if (resumed) {
+              setCurrentQuestion(resumed.question ? localizeQuestion(_locale, resumed.question) : null);
+              setIsDone(resumed.done);
+              setHasUploadedCv(Boolean(resumed.hasCvUpload));
+            }
+            didInitRef.current = true;
+          }
         }
       }
     } catch {

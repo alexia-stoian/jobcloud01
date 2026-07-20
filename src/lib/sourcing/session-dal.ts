@@ -102,6 +102,43 @@ export async function getPendingCandidate(candidateUserId: string) {
   });
 }
 
+/**
+ * The human-readable answer text for one answered question (chosen option label,
+ * or the candidate's free text) — used by the candidate delivery GET to render
+ * the answered transcript. Chosen-option labels are resolved from the stored
+ * (full) options; nothing correctness-revealing is included.
+ */
+export function answerDisplayText(
+  options: unknown,
+  chosenValue: string | null,
+  freeText: string | null
+): string {
+  const trimmed = freeText?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return labelForChosenValue(options, chosenValue) ?? chosenValue ?? "";
+}
+
+/**
+ * Most-recent question-set for a candidate REGARDLESS of status (including
+ * `completed`), with questions (ordered) + answers. Used by the candidate
+ * delivery GET to render the full Q&A transcript so it persists across sessions.
+ * Scoped by `candidateUserId`.
+ */
+export async function getLatestCandidateForDisplay(candidateUserId: string) {
+  return db.sourcingCandidate.findFirst({
+    where: { candidateUserId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      questions: {
+        orderBy: { orderIndex: "asc" },
+        include: { answer: true }
+      }
+    }
+  });
+}
+
 export interface RecordAnswerArgs {
   questionId: string;
   chosenValue?: string | null;

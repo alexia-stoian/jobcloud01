@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
-import { getPendingCandidate, recordAnswer, completeCandidate } from "@/lib/sourcing/session-dal";
+import { getPendingCandidate, getLatestCandidateForDisplay, answerDisplayText, recordAnswer, completeCandidate } from "@/lib/sourcing/session-dal";
 import { stripPublicOptions, type SourcingOption, type GeneratedQuestion } from "@/lib/sourcing/questions";
 import { rescoreFromAnswers } from "@/lib/sourcing/rescore";
 import { callAnthropic, parseLlmJson } from "@/lib/sourcing/anthropic";
@@ -99,15 +99,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const locale = resolveLocale(new URL(request.url).searchParams.get("locale"));
-  const candidate = await getPendingCandidate(session.user.id);
+  // Fetch the most-recent set REGARDLESS of status so a completed set's Q&A
+  // transcript still renders (persists across sessions), not just active sets.
+  const candidate = await getLatestCandidateForDisplay(session.user.id);
   if (!candidate) {
     return NextResponse.json({ done: true });
   }
 
   const questions = (candidate.questions as StoredQuestion[]).slice(0, MAX_QUESTIONS);
-  const next = questions.find((q) => !q.answer);
+
+  // The answered Q&A transcript (in order) — prompt + the candidate's answer text
+  // (chosen option label or free text). Rendered client-side so every question
+  // and its answer stay visible across sessions.
+  const answered = questions
+    .filter((q) => q.answer)
+    .map((q) => ({
+      prompt: q.prompt,
+      answerText: answerDisplayText(q.options, q.answer!.chosenValue, q.answer!.freeText)
+    }));
+
+  const next = candidate.status !== "completed" ? questions.find((q) => !q.answer) : undefined;
   if (!next) {
-    return NextResponse.json({ done: true });
+    // Completed (or every question answered): return the transcript + thank-you so
+    // a returning candidate still sees their full Q&A.
+    return NextResponse.json({
+      done: true,
+      answered,
+      message: answered.length > 0 ? sourcingText(locale, "thankYou") : undefined
+    });
   }
 
   // First serve: flip the set to "delivering" (scoped to the owner via updateMany).
@@ -118,13 +137,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
   }
 
-  const answeredCount = questions.filter((q) => q.answer).length;
-
   return NextResponse.json({
     question: toPublicPayload(next),
     notice: next.orderIndex === 0 ? sourcingText(locale, "recruiterInterested") : undefined,
+    answered,
     done: false,
-    answeredCount
+    answeredCount: answered.length
   });
 }
 

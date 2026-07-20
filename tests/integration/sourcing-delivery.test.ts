@@ -293,4 +293,48 @@ describe("sourcing delivery endpoint (Phase 11 candidate side)", () => {
       expect(String(call[0])).not.toContain("/assistant");
     }
   });
+
+  // (h) persistence: GET returns the answered Q&A transcript alongside the next
+  // pending question so every question + its answer stays visible on reload.
+  test("GET returns the answered Q&A transcript with the next pending question", async () => {
+    // Answer the first question (chosen option "o1" -> label "distractor 1").
+    await POST(postReq({ questionId: "q0", chosenValue: "o1" }));
+
+    const res = await GET(getReq());
+    const body = await res.json();
+
+    expect(body.done).toBe(false);
+    expect(body.question.id).toBe("q1");
+    expect(body.answered).toEqual([{ prompt: "Question 0?", answerText: "distractor 1" }]);
+    // The transcript never leaks correctness/server-only fields.
+    expect(JSON.stringify(body)).not.toMatch(SERVER_ONLY_KEYS);
+  });
+
+  // (i) persistence across sessions: after completion, GET still returns the full
+  // transcript + thank-you (no live question) so a returning candidate sees it.
+  test("GET returns the full transcript and a thank-you after the set is completed", async () => {
+    // Return the set regardless of status so a completed set is still readable.
+    dbMock.sourcingCandidate.findFirst.mockImplementation(async ({ where }: { where: { candidateUserId: string } }) => {
+      return where.candidateUserId === candidate.candidateUserId ? candidate : null;
+    });
+
+    // Complete the set: a free-text answer plus four chosen options.
+    await POST(postReq({ questionId: "q0", freeText: "I led the migration end to end." }));
+    for (let i = 1; i < 5; i++) {
+      await POST(postReq({ questionId: `q${i}`, chosenValue: "o0" }));
+    }
+    expect(candidate.status).toBe("completed");
+
+    const res = await GET(getReq());
+    const body = await res.json();
+
+    expect(body.done).toBe(true);
+    expect(body.question).toBeUndefined();
+    expect(body.answered).toHaveLength(5);
+    // Free text shows verbatim; chosen options show their label.
+    expect(body.answered[0]).toEqual({ prompt: "Question 0?", answerText: "I led the migration end to end." });
+    expect(body.answered[1]).toEqual({ prompt: "Question 1?", answerText: "the recruiter-satisfying answer" });
+    expect(String(body.message).toLowerCase()).toMatch(/thank|contacted/);
+    expect(JSON.stringify(body)).not.toMatch(SERVER_ONLY_KEYS);
+  });
 });
