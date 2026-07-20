@@ -3,8 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { SourcingResponse, SourcingResult, SourcingVerdict } from "@/lib/sourcing/types";
+import { AdminProfilePanel } from "@/components/admin/AdminProfilePanel";
 
 type Status = "idle" | "loading" | "done" | "error";
+
+/** One recruiter-facing Q&A pair from the read-back (no server-only fields). */
+type ReadBackQuestion = {
+  prompt: string;
+  answer: string | null;
+};
+
+/** The public read-back shape returned by `GET /api/admin/sourcing/session`. */
+type ReadBackCandidate = {
+  candidateUserId: string;
+  fitBefore: number;
+  fitAfter: number | null;
+  answered: boolean;
+  questions: ReadBackQuestion[];
+};
 
 /** Persist the last completed sourcing run so the page survives navigation + refresh. */
 const SOURCING_STORAGE_KEY = "jobscout24.sourcing-results.v1";
@@ -26,6 +42,8 @@ export function SourcingPage(): React.ReactElement {
   const [results, setResults] = useState<SourcingResult[]>([]);
   const [usedLlm, setUsedLlm] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [sessionByUser, setSessionByUser] = useState<Record<string, ReadBackCandidate>>({});
 
   // Restore the last completed run on mount (persists across page changes/refresh).
   useEffect(() => {
@@ -61,6 +79,45 @@ export function SourcingPage(): React.ReactElement {
       // Ignore quota/serialization errors — persistence is best-effort.
     }
   }, [status, results, fileName, usedLlm, candidateCount]);
+
+  // Fetch the persisted Q&A + before->now read-back for the currently shown
+  // candidates whenever the results change (survives reloads via the endpoint).
+  useEffect(() => {
+    if (results.length === 0) {
+      setSessionByUser({});
+      return;
+    }
+    const userIds = results.map((r) => r.userId).filter((id) => id.length > 0);
+    if (userIds.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/sourcing/session?userIds=${encodeURIComponent(userIds.join(","))}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { candidates?: ReadBackCandidate[] };
+        if (cancelled) {
+          return;
+        }
+        const map: Record<string, ReadBackCandidate> = {};
+        for (const candidate of data.candidates ?? []) {
+          map[candidate.candidateUserId] = candidate;
+        }
+        setSessionByUser(map);
+      } catch {
+        // Best-effort — the Q&A section simply stays hidden on failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [results]);
 
   const verdictLabel = useCallback(
     (verdict: SourcingVerdict): string =>
@@ -185,6 +242,13 @@ export function SourcingPage(): React.ReactElement {
                     <span className="sourcing-card__fit">
                       {t("fitLabel", { percent: result.fitPercent })}
                     </span>
+                    <button
+                      type="button"
+                      className="sourcing-card__profile-btn"
+                      onClick={() => setProfileUserId(result.userId)}
+                    >
+                      {t("profileButton")}
+                    </button>
                   </header>
 
                   <div
@@ -238,10 +302,59 @@ export function SourcingPage(): React.ReactElement {
                       </ul>
                     </div>
                   ) : null}
+
+                  {(() => {
+                    const session = sessionByUser[result.userId];
+                    if (!session || session.questions.length === 0 || !session.answered) {
+                      return null;
+                    }
+                    return (
+                      <div className="sourcing-card__section sourcing-card__qa">
+                        <h3 className="sourcing-card__heading">{t("qaHeading")}</h3>
+                        <span className="sourcing-card__delta">
+                          {session.fitAfter === null
+                            ? t("fitLabel", { percent: session.fitBefore })
+                            : t("beforeAfterLabel", {
+                                before: session.fitBefore,
+                                now: session.fitAfter
+                              })}
+                        </span>
+                        <ul className="sourcing-card__qa-list">
+                          {session.questions.map((qa, i) => (
+                            <li key={i} className="sourcing-card__qa-item">
+                              <span className="sourcing-card__qa-prompt">{qa.prompt}</span>
+                              {qa.answer ? (
+                                <span className="sourcing-card__qa-answer">
+                                  {t("answerLabel", { answer: qa.answer })}
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>
           )}
+        </>
+      ) : null}
+
+      {profileUserId ? (
+        <>
+          <div
+            className="admin-scrim"
+            role="button"
+            tabIndex={-1}
+            aria-label="Close profile"
+            onClick={() => setProfileUserId(null)}
+          />
+          <AdminProfilePanel
+            key={profileUserId}
+            userId={profileUserId}
+            onClose={() => setProfileUserId(null)}
+          />
         </>
       ) : null}
     </section>
