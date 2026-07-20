@@ -56,6 +56,16 @@ type SourcingResponse = {
   answeredCount?: number;
 };
 
+// Sector-mode delivery response (Phase 12). Shares the sourcing question payload
+// shape but is served by a DISTINCT endpoint under the `sector:` prefix so the two
+// modes never collide.
+type SectorResponse = {
+  question?: SourcingQuestionPayload | null;
+  done?: boolean;
+  answered?: Array<{ prompt: string; answerText: string }>;
+  answeredCount?: number;
+};
+
 const UI_STRINGS = {
   en: {
     intro: "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away.",
@@ -254,9 +264,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   const [hasUploadedCv, setHasUploadedCv] = useState(false);
   const [sourcingMode, setSourcingMode] = useState(false);
   const [sourcingChecked, setSourcingChecked] = useState(false);
+  const [sectorMode, setSectorMode] = useState(false);
+  const [sectorChecked, setSectorChecked] = useState(false);
   const didInitRef = useRef(false);
   const didRestoreRef = useRef(false);
   const didSourcingCheckRef = useRef(false);
+  const didSectorCheckRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToLatestMessage = useCallback((behavior: ScrollBehavior): void => {
@@ -406,6 +419,96 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       setSourcingChecked(true);
     }
   }, [_locale, applySourcingResponse]);
+
+  const applySectorResponse = useCallback((data: SectorResponse, baseHistory?: ChatMessage[]): boolean => {
+    // No pending question -> not (or no longer) in Sector mode.
+    if (!data.question || data.done) {
+      return false;
+    }
+    // Mint ONE synthetic stable `field` under the DISTINCT `sector:` prefix so the
+    // existing option UI renders the sector MCQ (options only show when
+    // entry.field === currentQuestion.field). Never merged with `sourcing:`.
+    const field = `sector:${data.question.id}`;
+    const options = data.question.options;
+    setCurrentQuestion({
+      id: data.question.id,
+      field,
+      backstory: "",
+      prompt: data.question.prompt,
+      options,
+      allowCustom: data.question.allowCustom
+    });
+    setSectorMode(true);
+    // Append the pending question. On initial load `baseHistory` carries the
+    // restored transcript (prior conversation + answered Q&A); on advance no base
+    // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
+    setHistory((current) => {
+      const base = baseHistory ?? current;
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field }];
+    });
+    if (baseHistory && baseHistory.length > 0) {
+      didRestoreRef.current = true;
+    }
+    return true;
+  }, []);
+
+  const checkSectorQuestions = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, {
+        cache: "no-store"
+      });
+      if (res.ok) {
+        const data = (await res.json()) as SectorResponse;
+        const answered = data.answered ?? [];
+        // Only take over when a sector question is still PENDING. If every sector
+        // field is answered (or there is no sector store), let the normal flow run
+        // — answered sector Q&A already live inline in the restored conversation.
+        if (data.question) {
+          // The persisted onboarding conversation is the CHRONOLOGICAL source of
+          // truth: answered sector Q&A were saved inline where they occurred. We
+          // restore that history verbatim and only re-attach the still-pending
+          // question — never re-appending answered Q&A at the end.
+          let resumedHistory: ChatMessage[] = [];
+          try {
+            const resumeRes = await fetch("/api/onboarding/resume", { cache: "no-store" });
+            if (resumeRes.ok) {
+              const resumed = (await resumeRes.json()) as InteractiveResponse;
+              if (Array.isArray(resumed.history)) {
+                resumedHistory = resumed.history as ChatMessage[];
+              }
+            }
+          } catch {
+            // Prior history is best-effort; proceed with just the sector question.
+          }
+
+          const prompt = data.question.prompt;
+          const last = resumedHistory[resumedHistory.length - 1];
+          if (last && last.role === "assistant" && last.text === prompt) {
+            // Already delivered and persisted inline (chronological). Re-attach
+            // interactivity to that trailing question without duplicating it.
+            applySectorResponse(data, resumedHistory.slice(0, -1));
+          } else {
+            // Not yet persisted inline — reconstruct: prior convo + this set's
+            // answered Q&A (only if not already inline) + the pending question.
+            const base = [...resumedHistory];
+            for (const pair of answered) {
+              const alreadyInline = base.some((m) => m.role === "assistant" && m.text === pair.prompt);
+              if (!alreadyInline) {
+                base.push({ role: "assistant", text: pair.prompt });
+                base.push({ role: "user", text: pair.answerText });
+              }
+            }
+            applySectorResponse(data, base);
+          }
+          didInitRef.current = true;
+        }
+      }
+    } catch {
+      // Fall through to the normal onboarding flow if the sector check fails.
+    } finally {
+      setSectorChecked(true);
+    }
+  }, [_locale, applySectorResponse]);
 
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
     setHasUploadedCv(Boolean(data.hasCvUpload));
@@ -583,6 +686,84 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return;
     }
 
+    // Sector mode: deliver answers to the dedicated sector endpoint ONLY, tag the
+    // source explicitly (option -> chosenValue, custom -> freeText), and bypass the
+    // off-track nudge. Distinct `sector:` prefix — never routed through sourcing.
+    if (sectorMode && currentQuestion.field.startsWith("sector:")) {
+      setIsSending(true);
+      // Show the human-readable option label in the chat (not the raw slug value);
+      // the raw value is still what gets sent to the backend below.
+      const displayText = sourcingSource === "freeText"
+        ? trimmed
+        : currentQuestion.options?.find((option) => option.value === trimmed)?.label ?? trimmed;
+      setHistory((current) => [...current, { role: "user", text: displayText }]);
+      setMessage("");
+      setCustomOptionDraft("");
+
+      try {
+        const questionId = currentQuestion.id;
+        const payload = sourcingSource === "freeText"
+          ? { questionId, freeText: trimmed, locale: _locale }
+          : { questionId, chosenValue: trimmed, locale: _locale };
+
+        const response = await fetch("/api/onboarding/sector-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = "/login?callbackUrl=/onboarding";
+            return;
+          }
+          setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+          return;
+        }
+
+        const data = (await response.json()) as SectorResponse;
+        if (data.done) {
+          // Sector follow-ups finished -> continue the normal onboarding flow with
+          // the universal fields. Fetch the next interactive question and APPEND it
+          // (never resume-replace) so the sector Q&A stay visible in the chat.
+          setSectorMode(false);
+          setCurrentQuestion(null);
+          try {
+            const nextInteractive = await fetch("/api/onboarding/interactive", { cache: "no-store" });
+            if (nextInteractive.ok) {
+              applyInteractiveResponse((await nextInteractive.json()) as InteractiveResponse);
+            }
+          } catch {
+            // Best-effort continuation; the next visit re-loads the pending question.
+          }
+          return;
+        }
+
+        // Advance: pull the next sector question one at a time.
+        const nextRes = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, {
+          cache: "no-store"
+        });
+        const advanced = nextRes.ok && applySectorResponse((await nextRes.json()) as SectorResponse);
+        if (!advanced) {
+          setSectorMode(false);
+          setCurrentQuestion(null);
+          try {
+            const nextInteractive = await fetch("/api/onboarding/interactive", { cache: "no-store" });
+            if (nextInteractive.ok) {
+              applyInteractiveResponse((await nextInteractive.json()) as InteractiveResponse);
+            }
+          } catch {
+            // Best-effort continuation.
+          }
+        }
+      } catch {
+        setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     if (isClearlyOffTrackAnswer(trimmed, currentQuestion)) {
       appendOffTrackNudge(trimmed, currentQuestion);
       return;
@@ -632,7 +813,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     } finally {
       setIsSending(false);
     }
-  }, [_locale, applyInteractiveResponse, applySourcingResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode]);
+  }, [_locale, applyInteractiveResponse, applySourcingResponse, applySectorResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode, sectorMode]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -925,6 +1106,8 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // Route to profile-answer save or advisory assistant based on message intent.
     if (sourcingMode && currentQuestion?.field.startsWith("sourcing:")) {
       await submitAnswerValue(message, "freeText");
+    } else if (sectorMode && currentQuestion?.field.startsWith("sector:")) {
+      await submitAnswerValue(message, "freeText");
     } else if (currentQuestion && !shouldTreatAsAdvisoryMessage(message, currentQuestion)) {
       await submitAnswerValue(message);
     } else {
@@ -949,9 +1132,25 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   }, [checkSourcingQuestions]);
 
   useEffect(() => {
-    // Wait for the sourcing check to resolve first so a pending sourcing set
-    // always takes priority over the normal interactive flow on load.
-    if (!sourcingChecked) {
+    // Run the sector check AFTER the sourcing check resolves so a pending sourcing
+    // set keeps priority. Skip entirely if sourcing took over (both modes stay
+    // independent). Sector follow-ups are ordered before Phase 11 sourcing (A3).
+    if (!sourcingChecked || didSectorCheckRef.current) {
+      return;
+    }
+    didSectorCheckRef.current = true;
+    if (sourcingMode) {
+      setSectorChecked(true);
+      return;
+    }
+    void checkSectorQuestions();
+  }, [sourcingChecked, sourcingMode, checkSectorQuestions]);
+
+  useEffect(() => {
+    // Wait for BOTH the sourcing and sector checks to resolve first so a pending
+    // sourcing set or sector question always takes priority over the normal
+    // interactive flow on load.
+    if (!sourcingChecked || !sectorChecked) {
       return;
     }
     if (didInitRef.current || isSending || history.length > 0) {
@@ -960,7 +1159,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
 
     didInitRef.current = true;
     void loadInteractiveQuestion();
-  }, [sourcingChecked, history.length, isSending, loadInteractiveQuestion]);
+  }, [sourcingChecked, sectorChecked, history.length, isSending, loadInteractiveQuestion]);
 
   useEffect(() => {
     if (history.length > 0) {
