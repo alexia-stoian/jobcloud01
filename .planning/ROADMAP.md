@@ -222,5 +222,16 @@ Plans:
 - [ ] 10-1-PLAN.md — LLM target-role detector (keyword-gated, practice-aware, normalize + null-on-failure), localized EN/DE/FR acknowledgement helper, and failing integration test scaffold
 - [ ] 10-2-PLAN.md — Rewire the single GLOBAL detection site to the async detector, delete duplicate detect blocks, wire the acknowledgement, remove dead regex functions, fix the standalone mock-interview fallback, and green the tests + build
 
+### Phase 11: Sourcing skill-gap questions: profile button opens Admin profile, assistant (sourcing mode) delivers personalized multiple-choice gap questions in onboarding for >=60% matches, answers feed match %, card shows Q&A and before->now change
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 11 to break down)
+
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*
