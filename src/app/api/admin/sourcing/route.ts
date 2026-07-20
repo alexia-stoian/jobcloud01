@@ -125,6 +125,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     const qualifying = results.filter((r) => r.fitPercent >= QUESTION_TRIGGER_FIT);
+    // Map userId -> full bundle so questions can be anchored in the candidate's
+    // own history (personal + not answerable from a screenshot by an AI).
+    const bundleById = new Map(bundles.map((bundle) => [bundle.userId, bundle]));
     await Promise.all(
       qualifying.map(async (r) => {
         // One-active-set guard: retire any existing pending/delivering set with no
@@ -137,7 +140,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           });
         }
 
-        const questions = await generateGapQuestions(needs, r);
+        const questions = await generateGapQuestions(needs, r, bundleById.get(r.userId));
         if (questions.length === 0) {
           return;
         }

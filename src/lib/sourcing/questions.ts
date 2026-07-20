@@ -10,7 +10,7 @@
  * generation degrades to an empty list (no questions).
  */
 
-import type { RecruiterNeeds, SourcingResult } from "./types";
+import type { RecruiterNeeds, SourcingResult, CandidateBundle } from "./types";
 import { callAnthropic, parseLlmJson } from "./anthropic";
 
 /** A stored option. `isCorrect`/`isOpen` are SERVER-ONLY and must be stripped. */
@@ -76,17 +76,49 @@ function clampText(value: unknown, max = 400): string {
 }
 
 /**
+ * Build a compact, PRIVATE snapshot of the candidate's real background (recent
+ * roles, claimed skills, years) so the model can anchor questions in the
+ * candidate's own history. This is never shown to the candidate — it only lets
+ * the questions reference specifics that an AI, given just a screenshot, cannot
+ * answer on the candidate's behalf.
+ */
+function buildCandidateContext(candidate?: CandidateBundle): string {
+  if (!candidate) {
+    return "";
+  }
+  const roles = candidate.experience.slice(0, 3).map((exp) => {
+    const where = exp.company ? ` at ${exp.company}` : "";
+    const desc = exp.description ? ` — ${clampText(exp.description, 160)}` : "";
+    return `  - ${clampText(exp.title, 80)}${where}${desc}`;
+  });
+  const skills = candidate.skills.slice(0, 12).map((s) => clampText(s, 40)).filter(Boolean).join(", ");
+  const years = candidate.estimatedYearsExperience;
+  return [
+    candidate.primaryRole ? `Current/primary role: ${clampText(candidate.primaryRole, 80)}` : "",
+    typeof years === "number" && years > 0 ? `Approx. years of experience: ${years}` : "",
+    skills ? `Skills they claim: ${skills}` : "",
+    roles.length ? `Recent experience:\n${roles.join("\n")}` : ""
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+/**
  * Build the strict-JSON generation prompt, grounded ONLY in the supplied gap
  * labels + role (the recruiter needs are already sanitized upstream). We never
  * embed raw recruiter JSON, signal keys, or the recruiter's identity.
  */
-function buildPrompt(gaps: string[], roleLabel: string): string {
+function buildPrompt(gaps: string[], roleLabel: string, candidateContext: string): string {
   const gapList = gaps.map((g, i) => `${i + 1}. ${g}`).join("\n");
   return [
     "You design a subtle screening quiz that helps a recruiter tell genuinely",
     "strong candidates apart from people who exaggerate. The CANDIDATE answers these",
-    "questions, so they must NOT be able to guess what the recruiter wants to hear.",
+    "questions, so they must NOT be able to guess what the recruiter wants to hear,",
+    "and must NOT be able to answer by pasting a screenshot into an AI assistant.",
     roleLabel ? `Target role: ${roleLabel}` : "",
+    candidateContext
+      ? ["", "Candidate background (PRIVATE — never shown to them):", candidateContext].join("\n")
+      : "",
     "",
     "For EACH topic below, write ONE multiple-choice question that probes REAL depth",
     "on that topic INDIRECTLY. Ground each question ONLY in the listed topic — do not",
@@ -95,13 +127,18 @@ function buildPrompt(gaps: string[], roleLabel: string): string {
     "Topics:",
     gapList,
     "",
+    "Make the questions PERSONAL so an AI cannot answer them from a screenshot:",
+    "- Anchor each question in THIS candidate's own history above — their specific",
+    "  roles, projects, and claimed skills — and address them as \"you\"/\"your\".",
+    "- Require them to recall a concrete detail, decision, or trade-off from their",
+    "  OWN work. An assistant that does not know this person must be unable to pick",
+    "  the intended answer; only the real person could recognise it.",
+    "- Do NOT quote their CV verbatim or name the exact fact you keyed on, so they",
+    "  cannot reverse-engineer what you are testing.",
+    "",
     "Make the questions TRICKY so they cannot be gamed:",
     "- Do NOT ask self-rating questions like \"how good/experienced are you with X\",",
     "  and never anything answerable by simply claiming to be excellent.",
-    "- Instead ask about a concrete situation, a trade-off, a judgement call, or a",
-    "  specific real-world detail that only someone with genuine hands-on depth would",
-    "  get right — someone who has only surface knowledge should be tempted by a",
-    "  wrong option.",
     "- All four options must be plausible, similar in length and confidence, and",
     "  phrased neutrally. The correct one must NOT be the most impressive, most",
     "  enthusiastic, most senior-sounding, or most extreme option.",
@@ -221,7 +258,8 @@ function buildStrengtheningTopics(needs: RecruiterNeeds, exclude: string[]): str
  */
 export async function generateGapQuestions(
   needs: RecruiterNeeds,
-  result: SourcingResult
+  result: SourcingResult,
+  candidate?: CandidateBundle
 ): Promise<GeneratedQuestion[]> {
   const gaps = result.checklist.filter((c) => c.status !== "met").map((c) => c.label);
   const topics =
@@ -233,7 +271,7 @@ export async function generateGapQuestions(
   }
 
   const roleLabel = clampText(needs.role, 120);
-  const prompt = buildPrompt(topics, roleLabel);
+  const prompt = buildPrompt(topics, roleLabel, buildCandidateContext(candidate));
 
   const raw = await callAnthropic(prompt, GENERATION_MAX_TOKENS);
   if (!raw) {
