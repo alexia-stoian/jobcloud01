@@ -235,5 +235,16 @@ Plans:
 - [ ] 11-2-PLAN.md — Generate + persist queued questions for >=60% candidates on the sourcing run, admin-gated read-back endpoint, Sourcing card Profile slide-over + Q&A / before->now section, EN/DE/FR keys, and a read-back integration test
 - [ ] 11-3-PLAN.md — Dedicated session-scoped onboarding delivery endpoint (one-at-a-time MCQ, notify-first, silent open-judge, <=5, re-score + thank-you), onboarding form Sourcing-mode wiring bypassing Phase 10 routing, and a full-loop integration test
 
+### Phase 12: Dynamic sector-aware onboarding flow: CV-first upload, then a target-role question that is CV-tailored multiple-choice (or open-ended without a CV); once the target role is set in assistant memory and Profile>Preferences>Target Role, dynamically customize the Preferences fields to the job sector (max 3 sector-specific fields) while always keeping universal fields (current situation, work rate, contract type); ask sector-specific follow-up preference questions as multiple-choice with a type-your-own option; all in the established cheerful emoji tone per prompts/prompt.txt
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 12 to break down)
+
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*
