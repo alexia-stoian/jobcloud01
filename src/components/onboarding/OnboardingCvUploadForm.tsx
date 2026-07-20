@@ -40,6 +40,21 @@ type InteractiveResponse = {
   };
 };
 
+type SourcingQuestionPayload = {
+  id: string;
+  prompt: string;
+  options: Array<{ value: string; label: string; description?: string }>;
+  allowCustom: boolean;
+};
+
+type SourcingResponse = {
+  question?: SourcingQuestionPayload | null;
+  notice?: string;
+  done?: boolean;
+  message?: string;
+  answeredCount?: number;
+};
+
 const UI_STRINGS = {
   en: {
     intro: "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away.",
@@ -236,13 +251,60 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   const [currentQuestion, setCurrentQuestion] = useState<InteractiveQuestion | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [hasUploadedCv, setHasUploadedCv] = useState(false);
+  const [sourcingMode, setSourcingMode] = useState(false);
+  const [sourcingChecked, setSourcingChecked] = useState(false);
   const didInitRef = useRef(false);
   const didRestoreRef = useRef(false);
+  const didSourcingCheckRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToLatestMessage = useCallback((behavior: ScrollBehavior): void => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
+
+  const applySourcingResponse = useCallback((data: SourcingResponse): boolean => {
+    // No pending question -> not (or no longer) in Sourcing mode.
+    if (!data.question || data.done) {
+      return false;
+    }
+    // Mint ONE synthetic stable `field` so the existing option UI renders the
+    // sourcing MCQ (options only show when entry.field === currentQuestion.field).
+    const field = `sourcing:${data.question.id}`;
+    const options = data.question.options;
+    setCurrentQuestion({
+      id: data.question.id,
+      field,
+      backstory: "",
+      prompt: data.question.prompt,
+      options,
+      allowCustom: data.question.allowCustom
+    });
+    setSourcingMode(true);
+    setHistory((current) => {
+      const next = [...current];
+      if (data.notice) {
+        next.push({ role: "assistant", text: data.notice });
+      }
+      next.push({ role: "assistant", text: data.question!.prompt, options, field });
+      return next;
+    });
+    return true;
+  }, []);
+
+  const checkSourcingQuestions = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch(`/api/onboarding/sourcing-questions?locale=${_locale}`, {
+        cache: "no-store"
+      });
+      if (res.ok) {
+        applySourcingResponse((await res.json()) as SourcingResponse);
+      }
+    } catch {
+      // Fall through to the normal onboarding flow if the sourcing check fails.
+    } finally {
+      setSourcingChecked(true);
+    }
+  }, [_locale, applySourcingResponse]);
 
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
     setHasUploadedCv(Boolean(data.hasCvUpload));
@@ -339,13 +401,79 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     });
   }, [history]);
 
-  const submitAnswerValue = useCallback(async (value: string): Promise<void> => {
+  const submitAnswerValue = useCallback(async (value: string, sourcingSource?: "option" | "freeText"): Promise<void> => {
     if (isSending || !currentQuestion) {
       return;
     }
 
     const trimmed = value.trim();
     if (!trimmed) {
+      return;
+    }
+
+    // Sourcing mode: deliver answers to the dedicated endpoint ONLY, tag the
+    // source explicitly (option -> chosenValue, custom -> freeText), and bypass
+    // the off-track nudge so open answers are never intercepted.
+    if (sourcingMode && currentQuestion.field.startsWith("sourcing:")) {
+      setIsSending(true);
+      setHistory((current) => [...current, { role: "user", text: trimmed }]);
+      setMessage("");
+      setCustomOptionDraft("");
+
+      try {
+        const questionId = currentQuestion.id;
+        const payload = sourcingSource === "freeText"
+          ? { questionId, freeText: trimmed, locale: _locale }
+          : { questionId, chosenValue: trimmed, locale: _locale };
+
+        const response = await fetch("/api/onboarding/sourcing-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = "/login?callbackUrl=/onboarding";
+            return;
+          }
+          setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+          return;
+        }
+
+        const data = (await response.json()) as SourcingResponse;
+        if (data.done) {
+          if (data.message) {
+            setHistory((current) => [...current, { role: "assistant", text: data.message! }]);
+          }
+          setSourcingMode(false);
+          setCurrentQuestion(null);
+          // Sourcing finished -> resume the normal onboarding assistant flow.
+          if (!didInitRef.current) {
+            didInitRef.current = true;
+            void loadInteractiveQuestion();
+          }
+          return;
+        }
+
+        // Advance: pull the next sourcing question one at a time.
+        const nextRes = await fetch(`/api/onboarding/sourcing-questions?locale=${_locale}`, {
+          cache: "no-store"
+        });
+        const advanced = nextRes.ok && applySourcingResponse((await nextRes.json()) as SourcingResponse);
+        if (!advanced) {
+          setSourcingMode(false);
+          setCurrentQuestion(null);
+          if (!didInitRef.current) {
+            didInitRef.current = true;
+            void loadInteractiveQuestion();
+          }
+        }
+      } catch {
+        setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+      } finally {
+        setIsSending(false);
+      }
       return;
     }
 
@@ -398,7 +526,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     } finally {
       setIsSending(false);
     }
-  }, [_locale, applyInteractiveResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending]);
+  }, [_locale, applyInteractiveResponse, applySourcingResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -689,7 +817,9 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
 
   async function submitAnswer(): Promise<void> {
     // Route to profile-answer save or advisory assistant based on message intent.
-    if (currentQuestion && !shouldTreatAsAdvisoryMessage(message, currentQuestion)) {
+    if (sourcingMode && currentQuestion?.field.startsWith("sourcing:")) {
+      await submitAnswerValue(message, "freeText");
+    } else if (currentQuestion && !shouldTreatAsAdvisoryMessage(message, currentQuestion)) {
       await submitAnswerValue(message);
     } else {
       await sendFreeMessage(message);
@@ -704,13 +834,27 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   }
 
   useEffect(() => {
+    if (didSourcingCheckRef.current) {
+      return;
+    }
+
+    didSourcingCheckRef.current = true;
+    void checkSourcingQuestions();
+  }, [checkSourcingQuestions]);
+
+  useEffect(() => {
+    // Wait for the sourcing check to resolve first so a pending sourcing set
+    // always takes priority over the normal interactive flow on load.
+    if (!sourcingChecked) {
+      return;
+    }
     if (didInitRef.current || isSending || history.length > 0) {
       return;
     }
 
     didInitRef.current = true;
     void loadInteractiveQuestion();
-  }, [history.length, isSending, loadInteractiveQuestion]);
+  }, [sourcingChecked, history.length, isSending, loadInteractiveQuestion]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -747,7 +891,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
                       type="button"
                       className="img3-option"
                       onClick={() => {
-                        void submitAnswerValue(option.value);
+                        void submitAnswerValue(option.value, "option");
                       }}
                       disabled={isSending}
                     >
@@ -767,7 +911,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
                           event.preventDefault();
-                          void submitAnswerValue(customOptionDraft);
+                          void submitAnswerValue(customOptionDraft, "freeText");
                         }
                       }}
                       disabled={isSending}
