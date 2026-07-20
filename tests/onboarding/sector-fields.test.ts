@@ -1,15 +1,25 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+// The mock fn is created via vi.hoisted so it exists when the hoisted vi.mock
+// factory below runs.
+const { callAnthropic } = vi.hoisted(() => ({ callAnthropic: vi.fn() }));
+
+// Mock @/lib/env so importing the real anthropic module does not trigger Zod
+// validation of unrelated server env vars (DATABASE_URL/AUTH_SECRET) in tests.
+vi.mock("@/lib/env", () => ({
+  env: {
+    ANTHROPIC_API_KEY: "test-key",
+    ANTHROPIC_MODEL: "claude-test"
+  }
+}));
+
 // Mock ONLY the Anthropic network call. `parseLlmJson` stays REAL so these tests
 // also exercise the fence-tolerant JSON salvage path end-to-end.
-const callAnthropic = vi.fn();
-vi.mock("@/lib/sourcing/anthropic", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/sourcing/anthropic")>(
-    "@/lib/sourcing/anthropic"
-  );
+vi.mock("@/lib/sourcing/anthropic", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/sourcing/anthropic")>();
   return {
     ...actual,
-    callAnthropic: (prompt: string, maxTokens: number) => callAnthropic(prompt, maxTokens)
+    callAnthropic
   };
 });
 
