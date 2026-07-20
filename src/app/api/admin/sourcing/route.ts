@@ -4,7 +4,17 @@ import { parseRecruiterNeeds } from "@/lib/sourcing/recruiter-needs";
 import { aggregateCandidates } from "@/lib/sourcing/aggregate";
 import { rankCandidates, buildMatchChecklist, buildConciseSummary } from "@/lib/sourcing/score";
 import { buildReports, computeCommute } from "@/lib/sourcing/report";
+import {
+  createSourcingRun,
+  findActiveCandidate,
+  completeCandidate,
+  queueCandidateQuestions
+} from "@/lib/sourcing/session-dal";
+import { generateGapQuestions } from "@/lib/sourcing/questions";
 import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
+
+/** Minimum DISPLAYED fit % at which a shown candidate gets a queued gap-question set. */
+const QUESTION_TRIGGER_FIT = 60;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,6 +107,49 @@ export async function POST(request: Request): Promise<NextResponse> {
   // (stable tiebreak by name) so rank 1 always has the highest %, rank 2 the
   // next, and rank 3 the lowest — matching what the recruiter sees.
   results.sort((a, b) => (b.fitPercent - a.fitPercent) || a.name.localeCompare(b.name));
+
+  // Persist a sourcing run and, for every SHOWN candidate whose DISPLAYED fit is
+  // >= 60%, queue <=5 grounded gap questions (storing that displayed percentage
+  // as `fitBefore`). This runs in parallel, retires any prior non-completed set
+  // for a candidate first (one active set per candidate), and is wrapped so a
+  // generation failure never alters or fails the recruiter's ranking response.
+  try {
+    const run = await createSourcingRun({
+      recruiterUserId: gate.userId,
+      needsSnapshot: needs,
+      roleLabel: needs.role ?? null
+    });
+
+    const qualifying = results.filter((r) => r.fitPercent >= QUESTION_TRIGGER_FIT);
+    await Promise.all(
+      qualifying.map(async (r) => {
+        // One-active-set guard: retire any existing pending/delivering set with no
+        // visible change so a partially-answered older set is never orphaned.
+        const existing = await findActiveCandidate(r.userId);
+        if (existing) {
+          await completeCandidate({
+            candidateId: existing.id,
+            fitAfter: existing.fitAfter ?? existing.fitBefore
+          });
+        }
+
+        const questions = await generateGapQuestions(needs, r);
+        if (questions.length === 0) {
+          return;
+        }
+
+        await queueCandidateQuestions({
+          sessionId: run.id,
+          candidateUserId: r.userId,
+          fitBefore: r.fitPercent,
+          questions
+        });
+      })
+    );
+  } catch (error) {
+    // Never fail the recruiter's ranking response on a generation error.
+    console.error("[sourcing] gap-question generation failed:", error);
+  }
 
   const response: SourcingResponse = {
     results,
