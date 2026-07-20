@@ -325,6 +325,7 @@ model SourcingSession {
   id              String   @id @default(cuid())
   recruiterUserId String                        // the admin who ran the sourcing
   needsSnapshot   Json     @default("{}")        // RecruiterNeeds (sanitized) — SERVER-ONLY
+  resultsSnapshot Json     @default("{}")        // displayed ranking { results, usedLlm, candidateCount } — admin-shared
   roleLabel       String?                        // e.g. needs.role, for card display
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

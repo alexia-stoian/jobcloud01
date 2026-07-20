@@ -8,7 +8,8 @@ import {
   createSourcingRun,
   findActiveCandidate,
   completeCandidate,
-  queueCandidateQuestions
+  queueCandidateQuestions,
+  getLatestSourcingRun
 } from "@/lib/sourcing/session-dal";
 import { generateGapQuestions } from "@/lib/sourcing/questions";
 import type { SourcingResponse, SourcingResult } from "@/lib/sourcing/types";
@@ -117,7 +118,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const run = await createSourcingRun({
       recruiterUserId: gate.userId,
       needsSnapshot: needs,
-      roleLabel: needs.role ?? null
+      roleLabel: needs.role ?? null,
+      // Persist the displayed ranking so the Sourcing page survives across ALL
+      // admin connections (tied to the administrative part, not a user session).
+      resultsSnapshot: { results, usedLlm, candidateCount: bundles.length }
     });
 
     const qualifying = results.filter((r) => r.fitPercent >= QUESTION_TRIGGER_FIT);
@@ -155,6 +159,36 @@ export async function POST(request: Request): Promise<NextResponse> {
     results,
     usedLlm,
     candidateCount: bundles.length
+  };
+
+  return NextResponse.json(response);
+}
+
+/**
+ * Admin-gated read-back of the LAST sourcing run's displayed ranking.
+ *
+ * Gate: `requireAdmin()` runs FIRST. Returns the most-recent run's persisted
+ * `resultsSnapshot` so the Sourcing page rehydrates for ANY admin on ANY
+ * connection/login — it is tied to the administrative part of the app, not to a
+ * particular user session. Returns an empty snapshot when no run exists yet.
+ */
+export async function GET(): Promise<NextResponse> {
+  const gate = await requireAdmin();
+  if ("response" in gate) {
+    return gate.response;
+  }
+
+  const latest = await getLatestSourcingRun();
+  const snapshot = (latest?.resultsSnapshot ?? {}) as {
+    results?: SourcingResult[];
+    usedLlm?: boolean;
+    candidateCount?: number;
+  };
+
+  const response: SourcingResponse = {
+    results: Array.isArray(snapshot.results) ? snapshot.results : [],
+    usedLlm: Boolean(snapshot.usedLlm),
+    candidateCount: typeof snapshot.candidateCount === "number" ? snapshot.candidateCount : 0
   };
 
   return NextResponse.json(response);

@@ -20,6 +20,7 @@ export interface CreateSourcingRunArgs {
   recruiterUserId: string;
   needsSnapshot: RecruiterNeeds;
   roleLabel?: string | null;
+  resultsSnapshot?: unknown;
 }
 
 /** Create a new recruiter sourcing run (the parent session). */
@@ -28,8 +29,21 @@ export async function createSourcingRun(args: CreateSourcingRunArgs) {
     data: {
       recruiterUserId: args.recruiterUserId,
       needsSnapshot: args.needsSnapshot as unknown as Prisma.InputJsonValue,
+      resultsSnapshot: (args.resultsSnapshot ?? {}) as Prisma.InputJsonValue,
       roleLabel: args.roleLabel ?? null
     }
+  });
+}
+
+/**
+ * The MOST-RECENT sourcing run's displayed results snapshot, for ANY admin. This
+ * is what makes the admin Sourcing page persist across all connections/logins:
+ * it is scoped to the administrative part of the app, not to a specific user.
+ */
+export async function getLatestSourcingRun() {
+  return db.sourcingSession.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { resultsSnapshot: true, roleLabel: true, createdAt: true }
   });
 }
 
