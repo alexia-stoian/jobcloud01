@@ -304,3 +304,85 @@ model CandidateSignalState {
 
   @@index([userId])
 }
+
+// ---------------------------------------------------------------------------
+// Phase 11 — Sourcing skill-gap questions.
+//
+// Additive relational store for a recruiter's sourcing run and the personalized
+// close-the-gap Q&A queued per high-match candidate. Mirrors the
+// InterviewSession -> InterviewQuestion shape (cuid ids, camelCase fields, Json
+// arrays, cascade deletes, @@index). Candidate/recruiter ids are stored as plain
+// String columns (like CandidateSignalState) — no relations onto existing models.
+//
+// SERVER-ONLY correctness data lives here: SourcingQuestion.options carry
+// isCorrect/isOpen flags and SourcingQuestion.gapLabel / SourcingAnswer.satisfiedNeed
+// are silent judgments that MUST be stripped before anything reaches a candidate.
+// ---------------------------------------------------------------------------
+
+// One recruiter sourcing run. Sourcing is stateless per JSON upload, so we mint a
+// run id here and snapshot the sanitized recruiter needs for later card display.
+model SourcingSession {
+  id              String   @id @default(cuid())
+  recruiterUserId String                        // the admin who ran the sourcing
+  needsSnapshot   Json     @default("{}")        // RecruiterNeeds (sanitized) — SERVER-ONLY
+  roleLabel       String?                        // e.g. needs.role, for card display
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  candidates SourcingCandidate[]
+
+  @@index([recruiterUserId, createdAt])
+}
+
+// One queued question-set for one candidate. "One active set per candidate" is
+// app-enforced (no DB unique) so history is preserved: Plan 2 retires any existing
+// non-completed set before queueing; read-back reflects the MOST RECENT set by
+// createdAt regardless of status.
+model SourcingCandidate {
+  id              String   @id @default(cuid())
+  sessionId       String
+  candidateUserId String                        // the candidate this question-set is for
+  fitBefore       Int                            // displayed fitPercent at generation time
+  fitAfter        Int?                           // set after re-score; null until answered
+  status          String   @default("pending")  // pending | delivering | completed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  session   SourcingSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions SourcingQuestion[]
+
+  @@index([candidateUserId, status])
+  @@index([sessionId])
+}
+
+// One generated gap question. options is [{ value, label, isCorrect, isOpen }];
+// isCorrect/isOpen and gapLabel are SERVER-ONLY and must be stripped before delivery.
+model SourcingQuestion {
+  id          String   @id @default(cuid())
+  candidateId String
+  orderIndex  Int                               // 0..4 delivery order
+  gapLabel    String                            // checklist gap this targets — SERVER-ONLY
+  prompt      String   @db.Text
+  options     Json     @default("[]")           // [{ value, label, isCorrect, isOpen }]
+  allowCustom Boolean  @default(true)            // the open "write your own answer" path
+  createdAt   DateTime @default(now())
+
+  candidate SourcingCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  answer    SourcingAnswer?
+
+  @@unique([candidateId, orderIndex])
+  @@index([candidateId, orderIndex])
+}
+
+// One candidate answer. satisfiedNeed is the silent LLM judgment — NEVER returned
+// to the candidate.
+model SourcingAnswer {
+  id            String   @id @default(cuid())
+  questionId    String   @unique
+  chosenValue   String?                         // option value chosen, or null for open
+  freeText      String?  @db.Text               // the open answer, when allowCustom used
+  satisfiedNeed Boolean  @default(false)        // silent judgment — SERVER-ONLY
+  createdAt     DateTime @default(now())
+
+  question SourcingQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
