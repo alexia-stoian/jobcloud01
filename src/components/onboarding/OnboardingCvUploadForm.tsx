@@ -262,7 +262,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
-  const applySourcingResponse = useCallback((data: SourcingResponse): boolean => {
+  const applySourcingResponse = useCallback((data: SourcingResponse, priorHistory: ChatMessage[] = []): boolean => {
     // No pending question -> not (or no longer) in Sourcing mode.
     if (!data.question || data.done) {
       return false;
@@ -280,14 +280,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       allowCustom: data.question.allowCustom
     });
     setSourcingMode(true);
-    setHistory((current) => {
-      const next = [...current];
+    // Keep the prior onboarding conversation visible above the recruiter questions.
+    setHistory(() => {
+      const next = [...priorHistory];
       if (data.notice) {
         next.push({ role: "assistant", text: data.notice });
       }
       next.push({ role: "assistant", text: data.question!.prompt, options, field });
       return next;
     });
+    if (priorHistory.length > 0) {
+      didRestoreRef.current = true;
+    }
     return true;
   }, []);
 
@@ -297,7 +301,25 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         cache: "no-store"
       });
       if (res.ok) {
-        applySourcingResponse((await res.json()) as SourcingResponse);
+        const data = (await res.json()) as SourcingResponse;
+        if (data.question && !data.done) {
+          // Restore the prior onboarding conversation first so it persists above
+          // the recruiter questions (the init effect would otherwise be skipped
+          // once history is non-empty, dropping the resumed transcript).
+          let priorHistory: ChatMessage[] = [];
+          try {
+            const resumeRes = await fetch("/api/onboarding/resume", { cache: "no-store" });
+            if (resumeRes.ok) {
+              const resumed = (await resumeRes.json()) as InteractiveResponse;
+              if (Array.isArray(resumed.history)) {
+                priorHistory = resumed.history as ChatMessage[];
+              }
+            }
+          } catch {
+            // Prior history is best-effort; proceed with just the sourcing questions.
+          }
+          applySourcingResponse(data, priorHistory);
+        }
       }
     } catch {
       // Fall through to the normal onboarding flow if the sourcing check fails.

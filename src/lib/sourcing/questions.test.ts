@@ -97,9 +97,10 @@ describe("generateGapQuestions — gap filter", () => {
 });
 
 describe("generateGapQuestions — shape + option stripping", () => {
-  // u2: each question has exactly 5 options (1 correct, 3 distractors, 1 open),
-  // and stripPublicOptions removes all server-only correctness fields.
-  test("produces 5-option MCQs and strips correctness for delivery", async () => {
+  // u2: each question has exactly 4 selectable options (1 correct, 3 distractors);
+  // the "write your own answer" path is the free-text input (allowCustom), NOT a
+  // choice. stripPublicOptions removes all server-only correctness fields.
+  test("produces 4-option MCQs (open answer is the text input) and strips correctness", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => anthropicOk(LLM_PAYLOAD))
@@ -109,14 +110,13 @@ describe("generateGapQuestions — shape + option stripping", () => {
     expect(questions.length).toBe(2);
 
     for (const q of questions) {
-      expect(q.options).toHaveLength(5);
+      expect(q.options).toHaveLength(4);
       expect(q.options.filter((o) => o.isCorrect)).toHaveLength(1);
-      expect(q.options.filter((o) => o.isOpen)).toHaveLength(1);
-      // The open option is never the correct one.
-      const open = q.options.find((o) => o.isOpen);
-      expect(open?.isCorrect).toBe(false);
-      // Three non-open distractors.
-      expect(q.options.filter((o) => !o.isOpen && !o.isCorrect)).toHaveLength(3);
+      // No option is the open one — the free-text input handles "write your own".
+      expect(q.options.filter((o) => o.isOpen)).toHaveLength(0);
+      expect(q.options.some((o) => o.label === "write your own answer")).toBe(false);
+      // Three distractors.
+      expect(q.options.filter((o) => !o.isCorrect)).toHaveLength(3);
       expect(q.allowCustom).toBe(true);
 
       const publicShape = stripPublicOptions(q);
@@ -124,7 +124,7 @@ describe("generateGapQuestions — shape + option stripping", () => {
       expect(serialized).not.toContain("isCorrect");
       expect(serialized).not.toContain("isOpen");
       expect(serialized).not.toContain("gapLabel");
-      expect(publicShape.options).toHaveLength(5);
+      expect(publicShape.options).toHaveLength(4);
     }
   });
 });

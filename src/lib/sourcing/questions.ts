@@ -152,14 +152,8 @@ function normalizeQuestion(raw: LlmQuestion, gapFallback: string, orderIndex: nu
     isOpen: false
   }));
 
-  // Append the open "write your own answer" option (never correct).
-  shuffled.push({
-    value: "open",
-    label: "write your own answer",
-    isCorrect: false,
-    isOpen: true
-  });
-
+  // The "write your own answer" path is the free-text input (allowCustom), NOT a
+  // selectable choice — so we do NOT add an open option button here.
   return { gapLabel, prompt, orderIndex, options: shuffled, allowCustom: true };
 }
 

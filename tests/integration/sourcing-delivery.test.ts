@@ -87,13 +87,13 @@ function makeQuestion(i: number): StoredQuestion {
     orderIndex: i,
     gapLabel: `gap ${i}`,
     prompt: `Question ${i}?`,
-    // 1 correct + 3 distractors + 1 open (the shape the generator produces).
+    // 1 correct + 3 distractors (the shape the generator produces). The open
+    // "write your own answer" path is the free-text input (allowCustom), not a choice.
     options: [
       { value: "o0", label: "the recruiter-satisfying answer", isCorrect: true, isOpen: false },
       { value: "o1", label: "distractor 1", isCorrect: false, isOpen: false },
       { value: "o2", label: "distractor 2", isCorrect: false, isOpen: false },
-      { value: "o3", label: "distractor 3", isCorrect: false, isOpen: false },
-      { value: "open", label: "write your own answer", isCorrect: false, isOpen: true }
+      { value: "o3", label: "distractor 3", isCorrect: false, isOpen: false }
     ],
     allowCustom: true,
     answer: null
@@ -201,7 +201,7 @@ describe("sourcing delivery endpoint (Phase 11 candidate side)", () => {
 
     expect(body.done).toBe(false);
     expect(body.question.id).toBe("q0");
-    expect(body.question.options).toHaveLength(5);
+    expect(body.question.options).toHaveLength(4);
     expect(body.question.allowCustom).toBe(true);
     expect(String(body.notice).toLowerCase()).toContain("recruiter");
     // Correctness/server-only fields never leave the server.
