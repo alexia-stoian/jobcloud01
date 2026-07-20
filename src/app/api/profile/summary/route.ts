@@ -33,12 +33,67 @@ type ProfileDraftPayload = {
   visaSponsorship?: string;
   relocationWillingness?: string;
   commuteRadius?: string;
+  // Sector preference VALUES only — labels/questions/options are server-owned
+  // field definitions and are NEVER trusted from the client (T-12-13).
+  sectorPreferences?: { fields?: Array<{ key?: unknown; value?: unknown }> };
 };
+
+/** Untrusted sector VALUES are clamped/trimmed before they persist (V5). */
+const SECTOR_VALUE_MAX = 400;
 
 function normalizeString(value: string | undefined): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Clamp/trim an untrusted sector value and strip control characters (V5). */
+function clampSectorValue(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, SECTOR_VALUE_MAX);
+}
+
+/**
+ * Merge client-supplied sector VALUES onto the server-owned, already-persisted
+ * field definitions. The client may ONLY set `value` on fields whose `key`
+ * already exists in the stored `sectorPreferences` — it can never add, rename, or
+ * redefine fields/labels/questions/options (T-12-13). Sector, generatedLocale and
+ * every existing field def are spread-preserved. Returns the next
+ * `sectorPreferences` object, or `null` when there is nothing safe to update
+ * (no incoming values, or the user has no stored sector fields — engineer/`{}`).
+ */
+function mergeSectorPreferenceValues(
+  existing: unknown,
+  incoming: ProfileDraftPayload["sectorPreferences"]
+): Record<string, unknown> | null {
+  const incomingFields = Array.isArray(incoming?.fields) ? incoming!.fields : null;
+  if (!incomingFields) return null;
+
+  const store = (existing && typeof existing === "object" ? existing : {}) as { fields?: unknown };
+  const storedFields = Array.isArray(store.fields) ? (store.fields as Array<Record<string, unknown>>) : [];
+  if (storedFields.length === 0) return null;
+
+  const incomingByKey = new Map<string, string>();
+  for (const field of incomingFields) {
+    const key = typeof field?.key === "string" ? field.key : "";
+    if (!key) continue;
+    incomingByKey.set(key, clampSectorValue(field?.value));
+  }
+  if (incomingByKey.size === 0) return null;
+
+  const nextFields = storedFields.map((raw) => {
+    const key = typeof raw?.key === "string" ? raw.key : "";
+    // Only touch `value`, and only on keys the server already owns.
+    if (!key || !incomingByKey.has(key)) return raw;
+    return { ...raw, value: incomingByKey.get(key) ?? "" };
+  });
+
+  return { ...store, fields: nextFields };
 }
 
 function buildQualificationsFromDraft(draft: ProfileDraftPayload) {
@@ -162,6 +217,9 @@ export async function PATCH(request: Request): Promise<NextResponse> {
       throw new Error("profile_not_found");
     }
 
+    // Map client-supplied sector VALUES onto the server-owned defs (T-12-13).
+    const nextSectorPreferences = mergeSectorPreferenceValues(existing.sectorPreferences, draft.sectorPreferences);
+
     const updated = await tx.candidateProfile.update({
       where: { userId: session.user.id },
       data: {
@@ -180,7 +238,10 @@ export async function PATCH(request: Request): Promise<NextResponse> {
         visaSponsorship: normalizeString(draft.visaSponsorship),
         relocationWillingness: normalizeString(draft.relocationWillingness),
         commuteRadius: normalizeString(draft.commuteRadius),
-        editorDraft: draft
+        editorDraft: JSON.parse(JSON.stringify(draft)),
+        ...(nextSectorPreferences
+          ? { sectorPreferences: JSON.parse(JSON.stringify(nextSectorPreferences)) }
+          : {})
       }
     });
 
