@@ -3249,6 +3249,63 @@ select {
   color: var(--admin-danger);
 }
 
+/* Profile slide-over trigger on each card header */
+.sourcing-card__profile-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--admin-ink);
+  background: var(--admin-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sourcing-card__profile-btn:hover {
+  background: #f1f5f9;
+  border-color: var(--admin-faint);
+}
+
+/* Persisted Q&A + before->now section */
+.sourcing-card__qa {
+  padding-top: 8px;
+  border-top: 1px dashed var(--admin-border);
+}
+.sourcing-card__delta {
+  align-self: flex-start;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--admin-ok);
+  background: rgba(16, 185, 129, 0.12);
+  border-radius: 999px;
+}
+.sourcing-card__qa-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sourcing-card__qa-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sourcing-card__qa-prompt {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--admin-ink);
+}
+.sourcing-card__qa-answer {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--admin-faint);
+}
+
 /* Requirement met/unmet checklist */
 .sourcing-card__checklist {
   margin: 0;
