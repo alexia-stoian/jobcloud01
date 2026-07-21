@@ -28,6 +28,38 @@ function hasFieldValue(value: string | null | undefined): boolean {
 }
 
 /**
+ * Whether extracted CV facts contain at least one USABLE value.
+ *
+ * `cvExtractedFacts` is ALWAYS a fully-keyed object after any upload attempt
+ * (every field present, most `null`, `qualifications: []`), so a plain
+ * `Object.keys(...).length > 0` check reports "CV present" even when extraction
+ * yielded nothing (e.g. the LLM extraction returned empty). That made the flow
+ * claim it had "reviewed your CV" and skip the curated role options. This
+ * inspects the VALUES instead: any non-empty scalar or any populated array
+ * (e.g. qualifications) counts as usable.
+ */
+function hasUsableCvFacts(facts: unknown): boolean {
+  if (!facts || typeof facts !== "object") {
+    return false;
+  }
+  return Object.values(facts as Record<string, unknown>).some((value) => {
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return true;
+    }
+    if (value && typeof value === "object") {
+      return Object.keys(value as Record<string, unknown>).length > 0;
+    }
+    return false;
+  });
+}
+
+/**
  * Sentinel answer value the CV-gate question sends when the user taps
  * "I don't have a CV". It is NOT a real role — the POST handler intercepts it,
  * records the decline, and advances to the open-ended role question.
@@ -229,15 +261,20 @@ async function resolveInteractiveAsk(
     // STEP 2 — role question. CV present → CV-tailored MCQ; declined (no CV) →
     // open-ended (D-01/D-08). Backstory is CV-aware; the declined branch lets the
     // self-contained open-ended prompt speak for itself.
-    const cvFacts = hasCvUpload
-      ? ((onboarding?.cvExtractedFacts as Record<string, unknown> | null) ?? null)
-      : null;
+    //
+    // A CV file can be uploaded yet yield NO usable facts (e.g. an unreadable
+    // .docx or a failed extraction). Treat that as "no usable CV": show the
+    // curated 10-role MCQ and do NOT claim the CV was reviewed — otherwise the
+    // assistant contradicts the client's "could not extract" notice.
+    const rawCvFacts = (onboarding?.cvExtractedFacts as Record<string, unknown> | null) ?? null;
+    const cvFactsUsable = hasCvUpload && hasUsableCvFacts(rawCvFacts);
+    const cvFacts = cvFactsUsable ? rawCvFacts : null;
     const generated = await generateTargetRoleQuestion({ locale, cvFacts });
     return {
       question: {
         id: "primaryRole",
         field: "primaryRole",
-        backstory: hasCvUpload ? CV_DONE_ROLE_BACKSTORY[locale] : "",
+        backstory: cvFactsUsable ? CV_DONE_ROLE_BACKSTORY[locale] : "",
         prompt: generated.prompt,
         options: generated.options,
         allowCustom: true
