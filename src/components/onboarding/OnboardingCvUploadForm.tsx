@@ -1040,6 +1040,14 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return true;
     }
 
+    // Target-role fields must accept ANY real role on the planet, including
+    // single-word ones (Doctor, Nurse, Chef, Electrician…). Obvious garbage is
+    // already filtered above, so anything that survives is treated as a valid
+    // custom role — never nudged as off-track.
+    if (question.field === "primaryRole" || question.field === "targetRoles") {
+      return false;
+    }
+
     const normalizedOptionValues = question.options?.map((option) => normalizeForMatch(option.value)) ?? [];
     const normalizedOptionLabels = question.options?.map((option) => normalizeForMatch(option.label)) ?? [];
 
@@ -1076,10 +1084,6 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         return true;
       }
       return /^(idk|none|n a|test|random)$/.test(normalizedMatch);
-    }
-
-    if ((question.field === "targetRoles" || question.field === "primaryRole") && normalizedMatch.split(/\s+/).length < 2) {
-      return true;
     }
 
     return false;
