@@ -82,6 +82,7 @@ const UI_STRINGS = {
     completeNoCv: "Excellent! 🎉 Your core profile is taking shape! Next, let's upload your CV so I can automatically extract your experience and fill in the remaining details. This saves you tons of time! ⚡",
     placeholderDefault: "Write your answer here",
     placeholderComplete: "Profile complete. You can still type changes anytime.",
+    placeholderCvGate: "Upload your CV with ➕, or tap \"I don't have a CV\" above",
     offTrackNudge: "That does not look like an answer to this question. Let us stay on track:",
     completionHelp: [
       "🎉 Your profile is now built and ready! I've filled it as completely as I can from your CV and your answers.",
@@ -110,6 +111,7 @@ const UI_STRINGS = {
     completeNoCv: "Ausgezeichnet! 🎉 Ihr Kernprofil nimmt Form an! Als Naechstes laden wir Ihren CV hoch, damit ich Ihre Erfahrung automatisch extrahieren und die restlichen Details ausfuellen kann. Das spart Ihnen viel Zeit! ⚡",
     placeholderDefault: "Schreiben Sie Ihre Antwort hier",
     placeholderComplete: "Profil ist abgeschlossen. Sie koennen weiterhin Aenderungen eingeben.",
+    placeholderCvGate: "Lade deinen Lebenslauf mit ➕ hoch oder tippe oben auf \"Ich habe keinen Lebenslauf\"",
     offTrackNudge: "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
     completionHelp: [
       "🎉 Ihr Profil ist jetzt fertig und bereit! Ich habe es anhand Ihres CV und Ihrer Antworten so vollstaendig wie moeglich gestaltet.",
@@ -138,6 +140,7 @@ const UI_STRINGS = {
     completeNoCv: "Excellent! 🎉 Votre profil de base prend forme! Ensuite, televersons votre CV pour que j'extraie automatiquement votre experience et remplisse les details restants. Cela vous fait gagner du temps! ⚡",
     placeholderDefault: "Ecrivez votre reponse ici",
     placeholderComplete: "Profil termine. Vous pouvez encore saisir des modifications.",
+    placeholderCvGate: "Téléverse ton CV avec ➕, ou appuie sur \"Je n'ai pas de CV\" ci-dessus",
     offTrackNudge: "Cela ne semble pas repondre a la question. Restons sur le sujet:",
     completionHelp: [
       "🎉 Votre profil est maintenant complet et pret! Je l'ai rempli aussi completement que possible a partir de votre CV et de vos reponses.",
@@ -1179,6 +1182,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     scrollToLatestMessage(history.length <= 1 ? "auto" : "smooth");
   }, [history.length, scrollToLatestMessage]);
 
+  // The CV-gate (Step 1) offers ONLY the ➕ upload and the single "I don't have a
+  // CV" button — no free-text answer. Detected by its sentinel option value.
+  const isCvGate =
+    currentQuestion?.field === "primaryRole" &&
+    (currentQuestion.options?.some((option) => option.value === "__no_cv__") ?? false);
+
   return (
     <section className="img3-panel img3-panel--conversation">
       <div className="img3-chat img3-chat--conversation">
@@ -1210,22 +1219,24 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
                       </span>
                     </button>
                   ))}
-                  <div className="img3-option">
-                    <input
-                      id="inline-custom-option"
-                      className="img3-option__custom-input img3-option__custom-input--standalone"
-                      value={customOptionDraft}
-                      onChange={(event) => setCustomOptionDraft(event.target.value)}
-                      placeholder={currentQuestion?.placeholder ?? "Or type your own answer…"}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void submitAnswerValue(customOptionDraft, "freeText");
-                        }
-                      }}
-                      disabled={isSending}
-                    />
-                  </div>
+                  {currentQuestion?.allowCustom ? (
+                    <div className="img3-option">
+                      <input
+                        id="inline-custom-option"
+                        className="img3-option__custom-input img3-option__custom-input--standalone"
+                        value={customOptionDraft}
+                        onChange={(event) => setCustomOptionDraft(event.target.value)}
+                        placeholder={currentQuestion?.placeholder ?? "Or type your own answer…"}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void submitAnswerValue(customOptionDraft, "freeText");
+                          }
+                        }}
+                        disabled={isSending}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1264,15 +1275,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={onInputKeyDown}
             rows={1}
+            disabled={isCvGate}
             placeholder={
-              currentQuestion?.placeholder
-                ? currentQuestion.placeholder
-                : isDone
-                  ? i18n.placeholderComplete
-                  : i18n.placeholderDefault
+              isCvGate
+                ? i18n.placeholderCvGate
+                : currentQuestion?.placeholder
+                  ? currentQuestion.placeholder
+                  : isDone
+                    ? i18n.placeholderComplete
+                    : i18n.placeholderDefault
             }
           />
-          <button type="button" className="img3-bottom-input__send" onClick={submitAnswer} disabled={message.trim().length === 0 || isSending || isUploading}>
+          <button type="button" className="img3-bottom-input__send" onClick={submitAnswer} disabled={isCvGate || message.trim().length === 0 || isSending || isUploading}>
             <svg className="img3-bottom-input__send-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M12 18V6" />
               <path d="M7.5 10.5L12 6l4.5 4.5" />

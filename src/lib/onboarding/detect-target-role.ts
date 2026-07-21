@@ -25,6 +25,52 @@ interface TargetRoleQuestion {
   allowCustom: true;
 }
 
+/**
+ * Ten curated target-role options spanning DIFFERENT work domains (tech,
+ * healthcare, education, marketing, finance, sales, trades, hospitality, HR,
+ * creative), localized EN/DE/FR. Shown to a user WITHOUT a CV; an 11th "write
+ * your own" affordance is the free-text box (`allowCustom`). The `value` is the
+ * clean role string persisted as the target role; the `label` carries the emoji.
+ */
+const DOMAIN_ROLE_OPTIONS: Record<TargetRoleLocale, TargetRoleOption[]> = {
+  en: [
+    { value: "Software Engineer", label: "💻 Software Engineer" },
+    { value: "Registered Nurse", label: "🩺 Registered Nurse" },
+    { value: "Teacher", label: "🍎 Teacher" },
+    { value: "Marketing Manager", label: "📣 Marketing Manager" },
+    { value: "Accountant", label: "📊 Accountant" },
+    { value: "Sales Representative", label: "🤝 Sales Representative" },
+    { value: "Electrician", label: "⚡ Electrician" },
+    { value: "Chef", label: "👨‍🍳 Chef" },
+    { value: "HR Specialist", label: "👥 HR Specialist" },
+    { value: "Graphic Designer", label: "🎨 Graphic Designer" }
+  ],
+  de: [
+    { value: "Softwareentwickler", label: "💻 Softwareentwickler/in" },
+    { value: "Krankenpfleger", label: "🩺 Krankenpfleger/in" },
+    { value: "Lehrer", label: "🍎 Lehrer/in" },
+    { value: "Marketingmanager", label: "📣 Marketingmanager/in" },
+    { value: "Buchhalter", label: "📊 Buchhalter/in" },
+    { value: "Vertriebsmitarbeiter", label: "🤝 Vertriebsmitarbeiter/in" },
+    { value: "Elektriker", label: "⚡ Elektriker/in" },
+    { value: "Koch", label: "👨‍🍳 Koch/Köchin" },
+    { value: "HR-Spezialist", label: "👥 HR-Spezialist/in" },
+    { value: "Grafikdesigner", label: "🎨 Grafikdesigner/in" }
+  ],
+  fr: [
+    { value: "Ingénieur logiciel", label: "💻 Ingénieur logiciel" },
+    { value: "Infirmier", label: "🩺 Infirmier/ère" },
+    { value: "Enseignant", label: "🍎 Enseignant/e" },
+    { value: "Responsable marketing", label: "📣 Responsable marketing" },
+    { value: "Comptable", label: "📊 Comptable" },
+    { value: "Commercial", label: "🤝 Commercial/e" },
+    { value: "Électricien", label: "⚡ Électricien/ne" },
+    { value: "Chef cuisinier", label: "👨‍🍳 Chef cuisinier" },
+    { value: "Spécialiste RH", label: "👥 Spécialiste RH" },
+    { value: "Graphiste", label: "🎨 Graphiste" }
+  ]
+};
+
 /** Maximum CV-tailored options rendered for the target-role question. */
 const MAX_ROLE_OPTIONS = 5;
 /** Token budget for the CV-tailored role classification call. */
@@ -159,9 +205,14 @@ export async function generateTargetRoleQuestion(args: {
   locale: TargetRoleLocale;
   cvFacts?: Record<string, unknown> | null;
 }): Promise<TargetRoleQuestion> {
-  // No CV → open-ended question that does NOT claim to have reviewed a CV.
+  // No CV → curated 10-domain MCQ (+ an 11th "write your own" via allowCustom).
+  // Never claims to have reviewed a CV.
   if (!args.cvFacts || Object.keys(args.cvFacts).length === 0) {
-    return { prompt: getTargetRoleQuestionNoCv(args.locale), allowCustom: true };
+    return {
+      prompt: getTargetRoleQuestionNoCv(args.locale),
+      options: DOMAIN_ROLE_OPTIONS[args.locale],
+      allowCustom: true
+    };
   }
 
   const generated = await classifyRoleOptionsFromCv(args.locale, args.cvFacts);
@@ -191,9 +242,9 @@ export function getTargetRoleQuestion(locale: "en" | "de" | "fr"): string {
  */
 export function getTargetRoleQuestionNoCv(locale: "en" | "de" | "fr"): string {
   const questions = {
-    en: "No worries at all! 🙌 What role are you aiming for? For example: Product Manager, UX Designer, Software Engineer… ✨ Just type whichever role fits you best! 🎯",
-    de: "Gar kein Problem! 🙌 Welche Rolle strebst du an? Zum Beispiel: Produktmanager, UX-Designer, Softwareentwickler… ✨ Schreib einfach die Rolle, die am besten zu dir passt! 🎯",
-    fr: "Aucun souci ! 🙌 Quel rôle vises-tu ? Par exemple : Chef de produit, Designer UX, Ingénieur logiciel… ✨ Écris simplement le rôle qui te correspond le mieux ! 🎯"
+    en: "No worries at all! 🙌 Which of these roles fits you best? Tap one below, or type your own! ✨🎯",
+    de: "Gar kein Problem! 🙌 Welche dieser Rollen passt am besten zu dir? Tippe unten auf eine — oder schreib deine eigene! ✨🎯",
+    fr: "Aucun souci ! 🙌 Lequel de ces rôles te correspond le mieux ? Appuie sur l'un d'eux ci-dessous, ou saisis le tien ! ✨🎯"
   };
   return questions[locale] || questions.en;
 }

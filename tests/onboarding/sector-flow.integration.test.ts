@@ -181,11 +181,12 @@ describe("sector onboarding full loop (Phase 12, Plan 12-4)", () => {
     expect(engineer.length).toBeGreaterThan(universal.length);
   });
 
-  // Step (2) — CV branch: no CV facts → open-ended; CV facts → CV-tailored MCQ.
-  test("target-role ask is open-ended without a CV and CV-tailored with one", async () => {
-    const openEnded = await generateTargetRoleQuestion({ locale: "en", cvFacts: null });
-    expect(openEnded.options).toBeUndefined();
-    expect(openEnded.allowCustom).toBe(true);
+  // Step (2) — CV branch: no CV facts → curated 10-domain MCQ (+ custom);
+  // CV facts → CV-tailored MCQ.
+  test("target-role ask is a 10-domain MCQ without a CV and CV-tailored with one", async () => {
+    const noCv = await generateTargetRoleQuestion({ locale: "en", cvFacts: null });
+    expect(noCv.options).toHaveLength(10);
+    expect(noCv.allowCustom).toBe(true);
 
     callAnthropic.mockResolvedValueOnce(makeRoleOptionsFixture());
     const tailored = await generateTargetRoleQuestion({

@@ -60,21 +60,21 @@ describe("generateTargetRoleQuestion", () => {
     vi.restoreAllMocks();
   });
 
-  // Branch 1 — no CV facts: open-ended NO-CV question, NO options, NO LLM call.
-  test("returns the open-ended no-CV question when no CV facts are present", async () => {
+  // Branch 1 — no CV facts: curated 10-domain MCQ (+ custom), NO LLM call.
+  test("returns the 10-domain no-CV MCQ when no CV facts are present", async () => {
     const result = await generateTargetRoleQuestion({ locale: "en", cvFacts: null });
 
     expect(callAnthropic).not.toHaveBeenCalled();
     expect(result.allowCustom).toBe(true);
-    expect(result.options).toBeUndefined();
+    expect(result.options).toHaveLength(10);
     expect(result.prompt).toBe(getTargetRoleQuestionNoCv("en"));
   });
 
-  test("treats an empty CV facts object as open-ended no-CV (no LLM call)", async () => {
+  test("treats an empty CV facts object as the no-CV MCQ (no LLM call)", async () => {
     const result = await generateTargetRoleQuestion({ locale: "de", cvFacts: {} });
 
     expect(callAnthropic).not.toHaveBeenCalled();
-    expect(result.options).toBeUndefined();
+    expect(result.options).toHaveLength(10);
     expect(result.prompt).toBe(getTargetRoleQuestionNoCv("de"));
   });
 

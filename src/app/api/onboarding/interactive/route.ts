@@ -184,6 +184,8 @@ async function resolveInteractiveAsk(
     const baseState = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload });
 
     // STEP 1 — no CV yet and the user hasn't declined one: ask ONLY for the CV.
+    // No free-text box here — the only actions are the ➕ upload or the single
+    // "I don't have a CV" button (allowCustom:false).
     if (!hasCvUpload && !cvDeclined) {
       return {
         question: {
@@ -192,7 +194,7 @@ async function resolveInteractiveAsk(
           backstory: CV_GATE_BACKSTORY[locale],
           prompt: CV_GATE_PROMPT[locale],
           options: [{ value: NO_CV_SENTINEL, label: CV_GATE_OPTION_LABEL[locale] }],
-          allowCustom: true
+          allowCustom: false
         },
         done: false,
         hasCvUpload,
