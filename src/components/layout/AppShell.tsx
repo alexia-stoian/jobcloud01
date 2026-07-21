@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
@@ -16,6 +16,7 @@ type IconName = "home" | "sparkle" | "search" | "user" | "chat" | "bell" | "shie
 type NavItem = {
   labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin" | "sourcing";
   icon: IconName;
+  badge?: "new";
   href:
     | "/dashboard/unavailable/dashboard"
     | "/onboarding"
@@ -37,7 +38,7 @@ type Props = {
 
 const navItems: NavItem[] = [
   { labelKey: "dashboard", icon: "home", href: "/dashboard/unavailable/dashboard" },
-  { labelKey: "careerGuide", icon: "sparkle", href: "/onboarding" },
+  { labelKey: "careerGuide", icon: "sparkle", badge: "new", href: "/onboarding" },
   { labelKey: "discoverJobs", icon: "search", href: "/dashboard/unavailable/discover-jobs" },
   { labelKey: "profile", icon: "user", href: "/profile/summary" },
   { labelKey: "messages", icon: "chat", href: "/dashboard/unavailable/messages" },
@@ -89,6 +90,7 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
   const locale = useLocale();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   async function updateLocale(nextLocale: string): Promise<void> {
@@ -129,6 +131,10 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
     return segments.map(prettify);
   }, [pathname]);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const items = useMemo<NavItem[]>(
     () =>
       isAdmin
@@ -143,100 +149,115 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
 
 
   return (
-    <div className={`app-shell${collapsed ? " app-shell--collapsed" : ""}`}>
+    <div
+      className={`app-shell${collapsed ? " app-shell--collapsed" : ""}${mobileOpen ? " app-shell--mobile-open" : ""}`}
+    >
+      <header className="app-topbar">
+        <button
+          type="button"
+          className="app-topbar__menu"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation menu"
+        >
+          <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+        <Link href="/profile/summary" className="app-topbar__brand" aria-label="JobScout24">
+          <Image src={logo} alt="JobScout24" className="app-topbar__brand-image" priority />
+        </Link>
+        <Image src={profileImageSrc} alt="Profile image" width={36} height={36} className="app-topbar__avatar" />
+      </header>
+
+      <button
+        type="button"
+        className="app-shell__overlay"
+        onClick={() => setMobileOpen(false)}
+        aria-label="Close navigation menu"
+        tabIndex={mobileOpen ? 0 : -1}
+      />
+
       <aside className="app-sidebar" aria-label="Primary navigation">
         <div className="app-sidebar__header">
           <Link href="/profile/summary" className="app-sidebar__brand" aria-label="JobScout24">
             <Image src={logo} alt="JobScout24" className="app-sidebar__brand-image" priority />
           </Link>
-          {!collapsed ? (
-            <button
-              type="button"
-              className="app-sidebar__collapse"
-              onClick={() => setCollapsed(true)}
-              aria-label="Collapse sidebar"
-            >
-              ◧
-            </button>
-          ) : null}
-        </div>
-
-        {collapsed ? (
           <button
             type="button"
-            className="app-sidebar__collapsed-tab"
-            onClick={() => setCollapsed(false)}
-            aria-label="Expand sidebar"
+            className="app-sidebar__collapse"
+            onClick={() => (mobileOpen ? setMobileOpen(false) : setCollapsed((value) => !value))}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            ☰
+            {collapsed ? "☰" : "◧"}
           </button>
-        ) : (
-          <nav className="app-sidebar__nav">
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href as Route}
-                className={`app-sidebar__link${isActive(pathname, item.href) ? " app-sidebar__link--active" : ""}`}
-              >
-                <span className="app-sidebar__link-icon" aria-hidden="true">
-                  <NavIcon name={item.icon} />
-                </span>
-                <span className="app-sidebar__link-label">{tApp(item.labelKey)}</span>
-              </Link>
-            ))}
-          </nav>
-        )}
+        </div>
 
-        {!collapsed ? (
-          <div className="app-sidebar__profile">
-            <Image src={profileImageSrc} alt="Profile image" width={44} height={44} className="app-sidebar__avatar" />
-            <div className="app-sidebar__profile-copy">
-              <p className="app-sidebar__name">{userName}</p>
-              {userRole ? <p className="app-sidebar__role">{userRole}</p> : null}
-              <p className="app-sidebar__meta">{tApp("loggedInAvailable")}</p>
-            </div>
-            <div className="app-sidebar__profile-menu">
-              <button
-                type="button"
-                className="app-sidebar__profile-menu-trigger"
-                onClick={() => setProfileMenuOpen((value) => !value)}
-                aria-label="Open profile options"
-              >
-                ⋯
-              </button>
-              {profileMenuOpen ? (
-                <div className="app-sidebar__profile-menu-popover" role="menu" aria-label="Profile options">
-                  <p className="app-sidebar__profile-menu-group-label">{tApp("language")}</p>
-                  <button
-                    type="button"
-                    className={`app-sidebar__profile-menu-item${locale === "en" ? " app-sidebar__profile-menu-item--active" : ""}`}
-                    onClick={() => updateLocale("en")}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    className={`app-sidebar__profile-menu-item${locale === "de" ? " app-sidebar__profile-menu-item--active" : ""}`}
-                    onClick={() => updateLocale("de")}
-                  >
-                    Deutsch
-                  </button>
-                  <button
-                    type="button"
-                    className={`app-sidebar__profile-menu-item${locale === "fr" ? " app-sidebar__profile-menu-item--active" : ""}`}
-                    onClick={() => updateLocale("fr")}
-                  >
-                    Francais
-                  </button>
-                  <div className="app-sidebar__profile-menu-separator" aria-hidden="true" />
-                  <button type="button" className="app-sidebar__profile-menu-item" onClick={() => signOut({ callbackUrl: "/" })}>
-                    {tAuth("signOut")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
+        <nav className="app-sidebar__nav">
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href as Route}
+              className={`app-sidebar__link${isActive(pathname, item.href) ? " app-sidebar__link--active" : ""}`}
+              title={tApp(item.labelKey)}
+              onClick={() => setMobileOpen(false)}
+            >
+              <span className="app-sidebar__link-icon" aria-hidden="true">
+                <NavIcon name={item.icon} />
+              </span>
+              <span className="app-sidebar__link-label">{tApp(item.labelKey)}</span>
+              {item.badge === "new" ? <span className="app-sidebar__link-badge">{tApp("badgeNew")}</span> : null}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="app-sidebar__profile">
+          <Image src={profileImageSrc} alt="Profile image" width={44} height={44} className="app-sidebar__avatar" />
+          <div className="app-sidebar__profile-copy">
+            <p className="app-sidebar__name">{userName}</p>
+            {userRole ? <p className="app-sidebar__role">{userRole}</p> : null}
+            <p className="app-sidebar__meta">{tApp("loggedInAvailable")}</p>
           </div>
-        ) : null}
+          <div className="app-sidebar__profile-menu">
+            <button
+              type="button"
+              className="app-sidebar__profile-menu-trigger"
+              onClick={() => setProfileMenuOpen((value) => !value)}
+              aria-label="Open profile options"
+            >
+              ⋯
+            </button>
+            {profileMenuOpen ? (
+              <div className="app-sidebar__profile-menu-popover" role="menu" aria-label="Profile options">
+                <p className="app-sidebar__profile-menu-group-label">{tApp("language")}</p>
+                <button
+                  type="button"
+                  className={`app-sidebar__profile-menu-item${locale === "en" ? " app-sidebar__profile-menu-item--active" : ""}`}
+                  onClick={() => updateLocale("en")}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  className={`app-sidebar__profile-menu-item${locale === "de" ? " app-sidebar__profile-menu-item--active" : ""}`}
+                  onClick={() => updateLocale("de")}
+                >
+                  Deutsch
+                </button>
+                <button
+                  type="button"
+                  className={`app-sidebar__profile-menu-item${locale === "fr" ? " app-sidebar__profile-menu-item--active" : ""}`}
+                  onClick={() => updateLocale("fr")}
+                >
+                  Francais
+                </button>
+                <div className="app-sidebar__profile-menu-separator" aria-hidden="true" />
+                <button type="button" className="app-sidebar__profile-menu-item" onClick={() => signOut({ callbackUrl: "/" })}>
+                  {tAuth("signOut")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </aside>
 
       <section className="app-main">
