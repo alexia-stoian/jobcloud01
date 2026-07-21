@@ -149,6 +149,7 @@ async function resolveInteractiveAsk(
   question: unknown;
   done: boolean;
   hasCvUpload: boolean;
+  cvDeclined: boolean;
   completedFields: string[];
   missingFields: string[];
 }> {
@@ -198,6 +199,7 @@ async function resolveInteractiveAsk(
         },
         done: false,
         hasCvUpload,
+        cvDeclined,
         completedFields: baseState.completedFields,
         missingFields: baseState.missingFields
       };
@@ -221,17 +223,19 @@ async function resolveInteractiveAsk(
       },
       done: false,
       hasCvUpload,
+      cvDeclined,
       completedFields: baseState.completedFields,
       missingFields: baseState.missingFields
     };
   }
 
   const usesDefaultFields = deriveUsesDefaultFields(profile?.sectorPreferences);
-  const state = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload, usesDefaultFields });
+  const state = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload, usesDefaultFields, cvDeclined });
   return {
     question: state.question,
     done: state.done,
     hasCvUpload,
+    cvDeclined,
     completedFields: state.completedFields,
     missingFields: state.missingFields
   };
@@ -406,6 +410,7 @@ export async function GET(): Promise<NextResponse> {
     question: ask.question,
     done: ask.done,
     hasCvUpload: ask.hasCvUpload,
+    cvDeclined: ask.cvDeclined,
     completedFields: ask.completedFields,
     missingFields: ask.missingFields,
     completion: {
@@ -538,6 +543,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       question: ask.question,
       done: ask.done,
       hasCvUpload: ask.hasCvUpload,
+      cvDeclined: ask.cvDeclined,
       completedFields: ask.completedFields,
       missingFields: ask.missingFields,
       completion: {
@@ -753,6 +759,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     question: ask.question,
     done: ask.done,
     hasCvUpload: ask.hasCvUpload,
+    cvDeclined: ask.cvDeclined,
     completedFields: ask.completedFields,
     missingFields: ask.missingFields,
     completion: {

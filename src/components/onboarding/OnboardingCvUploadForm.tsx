@@ -13,6 +13,7 @@ type ChatMessage = {
   text: string;
   options?: Array<{ value: string; label: string; description?: string }>;
   field?: string;
+  allowCustom?: boolean;
 };
 
 type InteractiveQuestion = {
@@ -29,6 +30,7 @@ type InteractiveResponse = {
   question: InteractiveQuestion | null;
   done: boolean;
   hasCvUpload?: boolean;
+  cvDeclined?: boolean;
   history?: ChatMessage[];
   completedFields: string[];
   missingFields: string[];
@@ -302,7 +304,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
     setHistory((current) => {
       const base = baseHistory ?? current;
-      return [...base, { role: "assistant", text: data.question!.prompt, options, field }];
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field, allowCustom: data.question!.allowCustom }];
     });
     if (baseHistory && baseHistory.length > 0) {
       didRestoreRef.current = true;
@@ -447,7 +449,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
     setHistory((current) => {
       const base = baseHistory ?? current;
-      return [...base, { role: "assistant", text: data.question!.prompt, options, field }];
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field, allowCustom: data.question!.allowCustom }];
     });
     if (baseHistory && baseHistory.length > 0) {
       didRestoreRef.current = true;
@@ -530,7 +532,8 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
           role: "assistant",
           text: `${nextQuestion.backstory} ${nextQuestion.prompt}`,
           options: nextQuestion.options,
-          field: nextQuestion.field
+          field: nextQuestion.field,
+          allowCustom: nextQuestion.allowCustom
         }
       ]);
       return;
@@ -541,7 +544,9 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         ...current,
         {
           role: "assistant",
-          text: (data.hasCvUpload ?? hasUploadedCv)
+          // A user who uploaded a CV OR explicitly declined one is past the CV
+          // step — show the completion help, never re-ask for a CV (Phase 12).
+          text: (data.hasCvUpload ?? hasUploadedCv) || data.cvDeclined
             ? i18n.completionHelp
             : i18n.completeNoCv
         }
@@ -1223,7 +1228,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
                       </span>
                     </button>
                   ))}
-                  {currentQuestion?.allowCustom ? (
+                  {entry.allowCustom ? (
                     <div className="img3-option">
                       <input
                         id="inline-custom-option"
