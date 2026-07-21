@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useLocale } from "next-intl";
-import logo from "../../../images/logo.png";
+import { CircleHalf, Globe } from "@phosphor-icons/react";
+import { JsLogo } from "./JsLogo";
 
 type ThemeChoice = "light" | "dark" | "auto";
 
@@ -30,24 +30,6 @@ function applyTheme(choice: ThemeChoice): void {
         : "light"
       : choice;
   root.dataset.theme = resolved;
-}
-
-function ThemeIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth={1.75} />
-      <path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function GlobeIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5c2.5 2.3 2.5 14.7 0 17M12 3.5c-2.5 2.3-2.5 14.7 0 17" />
-    </svg>
-  );
 }
 
 export function AppFooter(): React.ReactElement {
@@ -90,7 +72,7 @@ export function AppFooter(): React.ReactElement {
     <footer className="app-footer" aria-label="Footer">
       <div className="app-footer__inner">
         <div className="app-footer__top">
-          <Image src={logo} alt="JobScout24" className="app-footer__logo" />
+          <JsLogo className="app-footer__logo" height={28} />
           <div className="app-footer__settings">
             <div className="app-footer__menu">
               <button
@@ -103,7 +85,7 @@ export function AppFooter(): React.ReactElement {
                 aria-haspopup="menu"
                 aria-expanded={themeMenuOpen}
               >
-                <ThemeIcon />
+                <CircleHalf size={20} weight="fill" aria-hidden="true" />
                 <span>Change theme</span>
               </button>
               {themeMenuOpen ? (
@@ -135,7 +117,7 @@ export function AppFooter(): React.ReactElement {
                 aria-haspopup="menu"
                 aria-expanded={langMenuOpen}
               >
-                <GlobeIcon />
+                <Globe size={20} weight="regular" aria-hidden="true" />
                 <span>{activeLocaleLabel}</span>
               </button>
               {langMenuOpen ? (

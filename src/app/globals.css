@@ -1398,7 +1398,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: var(--js-sp16);
-  padding: var(--js-sp8) var(--js-sp16) var(--js-sp24);
+  padding: var(--js-sp0, 0) var(--js-sp16) var(--js-sp24);
   background: var(--js-bg-default);
   border-right: 1px solid var(--js-border-default);
   box-sizing: border-box;
