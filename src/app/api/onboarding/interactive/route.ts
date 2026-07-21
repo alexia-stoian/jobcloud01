@@ -106,6 +106,27 @@ function deriveUsesDefaultFields(sectorPreferences: unknown): boolean | undefine
   return undefined;
 }
 
+/**
+ * True when a sector set exists with at least one STILL-UNANSWERED field. The
+ * customized sector questions take priority over the universal preference
+ * questions (role -> sector questions -> preferences), so while this is true the
+ * interactive flow holds (returns no question) and the dedicated sector delivery
+ * endpoint serves the pending question.
+ */
+function hasPendingSectorFields(sectorPreferences: unknown): boolean {
+  if (!sectorPreferences || typeof sectorPreferences !== "object") {
+    return false;
+  }
+  const fields = (sectorPreferences as SectorPreferencesShape).fields;
+  if (!Array.isArray(fields) || fields.length === 0) {
+    return false;
+  }
+  return fields.some((field) => {
+    const value = (field as { value?: unknown }).value;
+    return typeof value !== "string" || value.trim().length === 0;
+  });
+}
+
 type InteractiveProfile = {
   fullName: string | null;
   currentJobSituation: string | null;
@@ -230,6 +251,22 @@ async function resolveInteractiveAsk(
   }
 
   const usesDefaultFields = deriveUsesDefaultFields(profile?.sectorPreferences);
+  // Customized sector questions come FIRST: while any sector field is still
+  // unanswered, hold the universal/preference questions (return no question) so
+  // the dedicated sector delivery endpoint can ask them one at a time. The
+  // preference questions resume once every sector field is answered. Order:
+  // role -> sector questions -> Profile > Preferences questions.
+  if (hasPendingSectorFields(profile?.sectorPreferences)) {
+    return {
+      question: null,
+      done: false,
+      hasCvUpload,
+      cvDeclined,
+      completedFields: [],
+      missingFields: []
+    };
+  }
+
   const state = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload, usesDefaultFields, cvDeclined });
   return {
     question: state.question,

@@ -515,6 +515,28 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     }
   }, [_locale, applySectorResponse]);
 
+  /**
+   * Deliver the FIRST still-pending customized sector question, appending it to
+   * the current conversation. Used right after the target role is answered so the
+   * order is: role -> sector questions -> Profile > Preferences questions. Returns
+   * true when a sector question was shown.
+   */
+  const deliverPendingSectorQuestion = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, { cache: "no-store" });
+      if (!res.ok) {
+        return false;
+      }
+      const data = (await res.json()) as SectorResponse;
+      if (data.question) {
+        return applySectorResponse(data);
+      }
+    } catch {
+      // Best-effort; the next load re-checks pending sector questions.
+    }
+    return false;
+  }, [_locale, applySectorResponse]);
+
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
     setHasUploadedCv(Boolean(data.hasCvUpload));
     setCurrentQuestion(data.question);
@@ -820,12 +842,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       }
 
       applyInteractiveResponse(data);
+      // The interactive flow holds (question:null, not done) when customized sector
+      // questions are pending after the target role is set — deliver the first one
+      // now so sector questions come BEFORE the remaining preference questions.
+      if (!data.question && !data.done) {
+        await deliverPendingSectorQuestion();
+      }
     } catch {
       setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
     } finally {
       setIsSending(false);
     }
-  }, [_locale, applyInteractiveResponse, applySourcingResponse, applySectorResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode, sectorMode]);
+  }, [_locale, applyInteractiveResponse, applySourcingResponse, applySectorResponse, deliverPendingSectorQuestion, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode, sectorMode]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
