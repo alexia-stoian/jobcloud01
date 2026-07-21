@@ -9,6 +9,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Route } from "next";
 import type { StaticImageData } from "next/image";
 import logo from "../../../images/logo.png";
+import { AppFooter } from "./AppFooter";
 
 type IconName = "home" | "sparkle" | "search" | "user" | "chat" | "bell" | "shield" | "briefcase";
 
@@ -120,6 +121,13 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
 
     return tApp("dashboard");
   }, [pathname, tApp]);
+
+  const crumbs = useMemo<string[]>(() => {
+    const segments = pathname.split("/").filter((segment) => Boolean(segment) && !segment.startsWith("["));
+    const prettify = (segment: string): string =>
+      segment.replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    return segments.map(prettify);
+  }, [pathname]);
 
   const items = useMemo<NavItem[]>(
     () =>
@@ -233,9 +241,28 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
 
       <section className="app-main">
         <header className="app-main__header">
+          {crumbs.length > 0 ? (
+            <nav className="js-breadcrumbs" aria-label="Breadcrumb">
+              <span className="js-breadcrumbs__item">Home</span>
+              {crumbs.map((crumb, index) => (
+                <span key={`${crumb}-${index}`} className="js-breadcrumbs__item-wrap">
+                  <span className="js-breadcrumbs__sep" aria-hidden="true">
+                    /
+                  </span>
+                  <span
+                    className={`js-breadcrumbs__item${index === crumbs.length - 1 ? " js-breadcrumbs__item--current" : ""}`}
+                    aria-current={index === crumbs.length - 1 ? "page" : undefined}
+                  >
+                    {crumb}
+                  </span>
+                </span>
+              ))}
+            </nav>
+          ) : null}
           <h1>{appTitle}</h1>
         </header>
         <div className="app-main__canvas">{children}</div>
+        <AppFooter />
       </section>
     </div>
   );

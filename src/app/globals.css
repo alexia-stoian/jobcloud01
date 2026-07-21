@@ -1669,6 +1669,8 @@ select {
   padding: var(--js-sp24) 42px;
   background: var(--js-bg-canvas);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-main__header h1 {
@@ -1679,8 +1681,246 @@ select {
   color: var(--js-fg-default);
 }
 
+.app-main__header {
+  display: grid;
+  gap: 6px;
+}
+
 .app-main__canvas {
   margin-top: 20px;
+  flex: 1 0 auto;
+}
+
+/* ============================================================
+   JS24 Footer (Figma node 583:3455)
+   ============================================================ */
+.app-footer {
+  margin-top: var(--js-sp24);
+  padding: var(--js-sp16) 0 var(--js-sp24);
+  border-top: 1px solid var(--js-border-default);
+  flex-shrink: 0;
+}
+
+.app-footer__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--js-sp8);
+}
+
+.app-footer__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--js-sp16);
+  padding: var(--js-sp8) 0;
+  flex-wrap: wrap;
+}
+
+.app-footer__logo {
+  width: auto;
+  height: 28px;
+}
+
+.app-footer__settings {
+  display: flex;
+  align-items: center;
+  gap: var(--js-sp8);
+}
+
+.app-footer__menu {
+  position: relative;
+}
+
+.app-footer__button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--js-sp8);
+  height: 40px;
+  padding: 0 var(--js-sp12);
+  border: 0;
+  border-radius: var(--js-r12);
+  background: transparent;
+  color: var(--js-fg-default);
+  font-family: var(--js-font);
+  font-size: var(--js-f16);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.app-footer__button:hover {
+  background: var(--js-bg-subtle);
+}
+
+.app-footer__popover {
+  position: absolute;
+  right: 0;
+  bottom: 48px;
+  min-width: 160px;
+  padding: var(--js-sp8);
+  border-radius: var(--js-r12);
+  background: var(--js-bg-default);
+  border: 1px solid var(--js-border-default);
+  box-shadow: var(--js-shadow-lg);
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+}
+
+.app-footer__popover-item {
+  width: 100%;
+  border: 0;
+  border-radius: var(--js-r8);
+  background: transparent;
+  color: var(--js-fg-default);
+  text-align: left;
+  padding: 10px 12px;
+  font-family: var(--js-font);
+  font-size: var(--js-f14);
+  cursor: pointer;
+}
+
+.app-footer__popover-item:hover {
+  background: var(--js-bg-subtle);
+}
+
+.app-footer__popover-item--active {
+  background: var(--js-bg-brand-subtle);
+  font-weight: 600;
+}
+
+.app-footer__divider {
+  height: 1px;
+  width: 100%;
+  background: var(--js-border-default);
+}
+
+.app-footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--js-sp16);
+  padding: var(--js-sp8) 0;
+  flex-wrap: wrap;
+}
+
+.app-footer__links {
+  display: flex;
+  align-items: center;
+  gap: var(--js-sp4);
+  flex-wrap: wrap;
+}
+
+.app-footer__copy {
+  margin: 0;
+  padding: 0 var(--js-sp8);
+  color: var(--js-fg-default);
+  font-size: var(--js-f14);
+}
+
+/* ============================================================
+   JS24 Link component (Figma node 583:3328)
+   Variants: standard (default), underlined, inverse
+   ============================================================ */
+.js-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--js-sp4);
+  padding: 10px var(--js-sp8);
+  border-radius: var(--js-r12);
+  color: var(--js-fg-default);
+  font-size: var(--js-f14);
+  line-height: 1.3;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.js-link:hover {
+  background: var(--js-bg-subtle);
+  text-decoration: underline;
+}
+
+.js-link--underlined {
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.js-link--underlined:hover {
+  background: transparent;
+  color: var(--js-fg-info);
+}
+
+.js-link--inverse {
+  color: var(--js-fg-inverse);
+}
+
+.js-link--inverse:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.js-link__external {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   JS24 Breadcrumbs (Figma node 1228:3030)
+   ============================================================ */
+.js-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--js-sp4);
+  flex-wrap: wrap;
+  font-size: var(--js-f14);
+  color: var(--js-fg-subtle);
+}
+
+.js-breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--js-sp4);
+  color: var(--js-fg-subtle);
+  text-decoration: none;
+}
+
+.js-breadcrumbs__item:hover {
+  color: var(--js-fg-default);
+  text-decoration: underline;
+}
+
+.js-breadcrumbs__item--current {
+  color: var(--js-fg-default);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.js-breadcrumbs__item-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--js-sp4);
+}
+
+.js-breadcrumbs__sep {
+  color: var(--js-border-strong);
+}
+[data-theme="dark"] {
+  --js-fg-default: #f8fafc;
+  --js-fg-muted: #cbd5e1;
+  --js-fg-subtle: #94a3b8;
+  --js-fg-inverse: #020617;
+  --js-bg-default: #0f172a;
+  --js-bg-canvas: #020617;
+  --js-bg-subtle: #1e293b;
+  --js-bg-brand-subtle: #26340a;
+  --js-border-default: #1e293b;
+  --js-border-strong: #334155;
+  --js-interactive-secondary: #c6f84e;
+  --js-interactive-secondary-hover: #b0e63a;
 }
 
 .img3-chat {
