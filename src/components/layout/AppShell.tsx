@@ -10,9 +10,11 @@ import type { Route } from "next";
 import type { StaticImageData } from "next/image";
 import logo from "../../../images/logo.png";
 
+type IconName = "home" | "sparkle" | "search" | "user" | "chat" | "bell" | "shield" | "briefcase";
+
 type NavItem = {
   labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin" | "sourcing";
-  icon: string;
+  icon: IconName;
   href:
     | "/dashboard/unavailable/dashboard"
     | "/onboarding"
@@ -33,13 +35,32 @@ type Props = {
 };
 
 const navItems: NavItem[] = [
-  { labelKey: "dashboard", icon: "⌂", href: "/dashboard/unavailable/dashboard" },
-  { labelKey: "careerGuide", icon: "◌", href: "/onboarding" },
-  { labelKey: "discoverJobs", icon: "⌕", href: "/dashboard/unavailable/discover-jobs" },
-  { labelKey: "profile", icon: "◉", href: "/profile/summary" },
-  { labelKey: "messages", icon: "⌘", href: "/dashboard/unavailable/messages" },
-  { labelKey: "notifications", icon: "◔", href: "/dashboard/unavailable/notifications" }
+  { labelKey: "dashboard", icon: "home", href: "/dashboard/unavailable/dashboard" },
+  { labelKey: "careerGuide", icon: "sparkle", href: "/onboarding" },
+  { labelKey: "discoverJobs", icon: "search", href: "/dashboard/unavailable/discover-jobs" },
+  { labelKey: "profile", icon: "user", href: "/profile/summary" },
+  { labelKey: "messages", icon: "chat", href: "/dashboard/unavailable/messages" },
+  { labelKey: "notifications", icon: "bell", href: "/dashboard/unavailable/notifications" }
 ];
+
+const ICON_PATHS: Record<IconName, React.ReactNode> = {
+  home: <path d="M3 10.5 12 3l9 7.5M5.25 9v10.5A1.5 1.5 0 0 0 6.75 21h3.75v-6h3v6h3.75a1.5 1.5 0 0 0 1.5-1.5V9" />,
+  sparkle: <path d="M12 3.5 13.9 9l5.5 1.9-5.5 1.9L12 18.3l-1.9-5.5L4.6 10.9 10.1 9 12 3.5ZM19 3v3M20.5 4.5h-3" />,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-3.6-3.6" /></>,
+  user: <><circle cx="12" cy="8" r="3.75" /><path d="M4.75 20a7.25 7.25 0 0 1 14.5 0" /></>,
+  chat: <path d="M4 5.5h16v11H9l-4 3.5v-3.5H4z" />,
+  bell: <path d="M6.5 9.5a5.5 5.5 0 0 1 11 0c0 4 1.5 5.5 1.5 5.5H5s1.5-1.5 1.5-5.5ZM10 18.5a2 2 0 0 0 4 0" />,
+  shield: <path d="M12 3l7 2.5v5.5c0 4.5-3 8-7 9.5-4-1.5-7-5-7-9.5V5.5L12 3Z" />,
+  briefcase: <><rect x="3.5" y="7.5" width="17" height="12" rx="2" /><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5M3.5 12.5h17" /></>
+};
+
+function NavIcon({ name }: { name: IconName }): React.ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICON_PATHS[name]}
+    </svg>
+  );
+}
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/onboarding") {
@@ -105,8 +126,8 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
       isAdmin
         ? [
             ...navItems,
-            { labelKey: "admin", icon: "◈", href: "/admin" },
-            { labelKey: "sourcing", icon: "⌗", href: "/admin/sourcing" }
+            { labelKey: "admin", icon: "shield", href: "/admin" },
+            { labelKey: "sourcing", icon: "briefcase", href: "/admin/sourcing" }
           ]
         : navItems,
     [isAdmin]
@@ -150,7 +171,7 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
                 className={`app-sidebar__link${isActive(pathname, item.href) ? " app-sidebar__link--active" : ""}`}
               >
                 <span className="app-sidebar__link-icon" aria-hidden="true">
-                  {item.icon}
+                  <NavIcon name={item.icon} />
                 </span>
                 <span className="app-sidebar__link-label">{tApp(item.labelKey)}</span>
               </Link>
