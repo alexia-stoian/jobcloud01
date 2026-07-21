@@ -45,6 +45,7 @@ type ProfileBundle = {
   visaSponsorship: string | null;
   relocationWillingness: string | null;
   commuteRadius: string | null;
+  sectorPreferences: unknown;
   locale: string;
 };
 
@@ -102,28 +103,59 @@ const FIELD_GROUPS: ReadonlyArray<{ heading: string; fields: FieldKey[] }> = [
   },
   {
     heading: "preferencesHeading",
-    fields: [
-      "preferredLocation",
-      "currentJobSituation",
-      "employmentObjective",
-      "targetRoles",
-      "targetSeniority",
-      "targetIndustries",
-      "preferredWorkModel",
-      "contractPreference",
-      "workRate",
-      "workPermitStatus",
-      "salaryExpectation",
-      "visaSponsorship",
-      "relocationWillingness",
-      "commuteRadius"
-    ]
+    fields: []
   },
   {
     heading: "situationHeading",
     fields: ["locale"]
   }
 ];
+
+// Preferences fields, MIRRORING the user's own Profile > Preferences exactly:
+// the engineer-oriented fields (seniority / industries / work model) show only
+// for engineer/default (no generated sector fields); visa sponsorship,
+// relocation willingness and preferred location are never shown here.
+const PREFERENCE_ALWAYS_FIELDS: FieldKey[] = ["currentJobSituation", "employmentObjective", "targetRoles"];
+const PREFERENCE_ENGINEER_FIELDS: FieldKey[] = ["targetSeniority", "targetIndustries", "preferredWorkModel"];
+const PREFERENCE_TAIL_FIELDS: FieldKey[] = [
+  "contractPreference",
+  "workRate",
+  "workPermitStatus",
+  "salaryExpectation",
+  "commuteRadius"
+];
+
+type AdminSectorField = { key: string; label: string; value: string; options: Array<{ value: string; label: string }> };
+
+/** Read the persisted sector-specific fields (≤ the stored set) for display. */
+function readAdminSectorFields(sectorPreferences: unknown): AdminSectorField[] {
+  if (!sectorPreferences || typeof sectorPreferences !== "object") return [];
+  const fields = (sectorPreferences as { fields?: unknown }).fields;
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .filter((field): field is Record<string, unknown> => Boolean(field) && typeof field === "object")
+    .map((field) => ({
+      key: typeof field.key === "string" ? field.key : "",
+      label: typeof field.label === "string" ? field.label : "",
+      value: typeof field.value === "string" ? field.value : "",
+      options: Array.isArray(field.options)
+        ? (field.options as unknown[])
+            .filter((o): o is Record<string, unknown> => Boolean(o) && typeof o === "object")
+            .map((o) => ({
+              value: typeof o.value === "string" ? o.value : "",
+              label: typeof o.label === "string" ? o.label : ""
+            }))
+        : []
+    }))
+    .filter((field) => field.label.length > 0);
+}
+
+/** Resolve a sector field's stored value to its human-readable option label. */
+function resolveSectorValue(field: AdminSectorField): string {
+  const value = field.value.trim();
+  if (!value) return "";
+  return field.options.find((option) => option.value === value)?.label ?? value;
+}
 
 type ParsedQual =
   | { kind: "tag"; text: string }
@@ -457,6 +489,16 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
     );
   };
 
+  // Preferences that mirror the user's own Profile > Preferences: engineer fields
+  // only for engineer/default, plus the persisted sector-specific fields.
+  const adminSectorFields = readAdminSectorFields(bundle?.profile?.sectorPreferences);
+  const isSectorTailored = adminSectorFields.length > 0;
+  const preferenceFieldKeys: FieldKey[] = [
+    ...PREFERENCE_ALWAYS_FIELDS,
+    ...(isSectorTailored ? [] : PREFERENCE_ENGINEER_FIELDS),
+    ...PREFERENCE_TAIL_FIELDS
+  ];
+
   const renderItems = (items: ParsedQual[]): React.ReactElement => (
     <div>
       {items.map((item, index) =>
@@ -519,12 +561,19 @@ export function AdminProfilePanel({ userId, onClose }: Props): React.ReactElemen
                 <section className="admin-section" key={group.heading}>
                   <h3 className="admin-section__title">{t(group.heading)}</h3>
                   <dl className="admin-kv">
-                    {group.fields.map((key) => (
+                    {(group.heading === "preferencesHeading" ? preferenceFieldKeys : group.fields).map((key) => (
                       <div className="admin-kv__item" key={key}>
                         <dt className="admin-kv__key">{t(`fields.${key}`)}</dt>
                         <dd style={{ margin: 0 }}>{renderValue(bundle.profile ? bundle.profile[key] : null)}</dd>
                       </div>
                     ))}
+                    {group.heading === "preferencesHeading" &&
+                      adminSectorFields.map((field) => (
+                        <div className="admin-kv__item" key={`sector-${field.key}`}>
+                          <dt className="admin-kv__key">{field.label}</dt>
+                          <dd style={{ margin: 0 }}>{renderValue(resolveSectorValue(field))}</dd>
+                        </div>
+                      ))}
                   </dl>
                 </section>
               ))}
