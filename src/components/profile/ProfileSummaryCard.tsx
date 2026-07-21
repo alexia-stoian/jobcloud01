@@ -412,6 +412,10 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   // Dynamic sector-specific fields (D-05): the server-owned defs are read from the
   // persisted store and are stable across renders; only their VALUES are editable.
   const sectorFieldDefs = useMemo(() => readSectorFieldDefs(profile.sectorPreferences), [profile.sectorPreferences]);
+  // A non-engineer sector is resolved when there are generated sector fields. For
+  // those users the engineer-oriented preference fields (seniority / industries /
+  // work model) are hidden; engineer/default keeps the full set.
+  const isSectorTailored = sectorFieldDefs.length > 0;
   const [sectorValues, setSectorValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(sectorFieldDefs.map((field) => [field.key, field.value]))
   );
@@ -1144,33 +1148,37 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
                 placeholder={t("summaryTargetRolesPlaceholder")}
               />
             </label>
-            <label>
-              {t("summaryTargetSeniority")}
-              <input
-                type="text"
-                value={targetSeniority}
-                onChange={(event) => setTargetSeniority(event.target.value)}
-                placeholder={t("summaryTargetSeniorityPlaceholder")}
-              />
-            </label>
-            <label>
-              {t("summaryTargetIndustries")}
-              <input
-                type="text"
-                value={targetIndustries}
-                onChange={(event) => setTargetIndustries(event.target.value)}
-                placeholder={t("summaryTargetIndustriesPlaceholder")}
-              />
-            </label>
-            <label>
-              {t("summaryPreferredWorkModel")}
-              <input
-                type="text"
-                value={preferredWorkModel}
-                onChange={(event) => setPreferredWorkModel(event.target.value)}
-                placeholder={t("summaryPreferredWorkModelPlaceholder")}
-              />
-            </label>
+            {!isSectorTailored && (
+              <>
+                <label>
+                  {t("summaryTargetSeniority")}
+                  <input
+                    type="text"
+                    value={targetSeniority}
+                    onChange={(event) => setTargetSeniority(event.target.value)}
+                    placeholder={t("summaryTargetSeniorityPlaceholder")}
+                  />
+                </label>
+                <label>
+                  {t("summaryTargetIndustries")}
+                  <input
+                    type="text"
+                    value={targetIndustries}
+                    onChange={(event) => setTargetIndustries(event.target.value)}
+                    placeholder={t("summaryTargetIndustriesPlaceholder")}
+                  />
+                </label>
+                <label>
+                  {t("summaryPreferredWorkModel")}
+                  <input
+                    type="text"
+                    value={preferredWorkModel}
+                    onChange={(event) => setPreferredWorkModel(event.target.value)}
+                    placeholder={t("summaryPreferredWorkModelPlaceholder")}
+                  />
+                </label>
+              </>
+            )}
             <label>
               {t("summaryContract")}
               <input type="text" value={contractPreference} onChange={(event) => setContractPreference(event.target.value)} placeholder={t("summaryContract")} />
@@ -1186,24 +1194,6 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
             <label>
               {t("summarySalary")}
               <input type="text" value={salaryExpectation} onChange={(event) => setSalaryExpectation(event.target.value)} placeholder={t("summaryOptional")} />
-            </label>
-            <label>
-              {t("summaryVisaSponsorship")}
-              <input
-                type="text"
-                value={visaSponsorship}
-                onChange={(event) => setVisaSponsorship(event.target.value)}
-                placeholder={t("summaryVisaSponsorshipPlaceholder")}
-              />
-            </label>
-            <label>
-              {t("summaryRelocationWillingness")}
-              <input
-                type="text"
-                value={relocationWillingness}
-                onChange={(event) => setRelocationWillingness(event.target.value)}
-                placeholder={t("summaryRelocationWillingnessPlaceholder")}
-              />
             </label>
             <label>
               {t("summaryCommuteRadius")}

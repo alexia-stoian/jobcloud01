@@ -271,10 +271,11 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
 ];
 
 /**
- * Universal-6 preference fields (D-06), in the order shown to non-engineer users:
+ * Universal preference fields (D-06), in the order shown to non-engineer users:
  * Current situation, Work rate, Contract type, Work permit, Salary expectation,
- * Preferred location. These reuse the EXISTING POST_CV_PREFERENCE_FLOW question
- * objects verbatim — no new copy — so tone/options stay identical to Phase 5.
+ * Preferred location, Commute radius. These reuse the EXISTING
+ * POST_CV_PREFERENCE_FLOW question objects verbatim — no new copy — so
+ * tone/options stay identical to Phase 5.
  */
 const UNIVERSAL_SIX_FIELDS: InteractiveQuestion["field"][] = [
   "currentJobSituation",
@@ -282,7 +283,8 @@ const UNIVERSAL_SIX_FIELDS: InteractiveQuestion["field"][] = [
   "contractPreference",
   "workPermitStatus",
   "salaryExpectation",
-  "preferredLocation"
+  "preferredLocation",
+  "commuteRadius"
 ];
 
 /**

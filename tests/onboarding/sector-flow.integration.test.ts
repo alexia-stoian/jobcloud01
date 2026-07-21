@@ -170,13 +170,14 @@ describe("sector onboarding full loop (Phase 12, Plan 12-4)", () => {
     seedProfile();
   });
 
-  // Step (1) — universal-6 render on top; engineer keeps the full existing flow.
-  test("universal-6 flow renders on top for non-engineers; engineer keeps the full flow", () => {
+  // Step (1) — universal preference set renders on top; engineer keeps the full flow.
+  test("universal flow renders on top for non-engineers; engineer keeps the full flow", () => {
     const universal = selectPostCvPreferenceFlow(false);
     const engineer = selectPostCvPreferenceFlow(true);
 
-    expect(universal).toHaveLength(6);
+    expect(universal).toHaveLength(7);
     expect(universal[0].field).toBe("currentJobSituation");
+    expect(universal.map((q) => q.field)).toContain("commuteRadius");
     // Engineer/default keeps the full (larger) flow unchanged — no sector block.
     expect(engineer.length).toBeGreaterThan(universal.length);
   });
