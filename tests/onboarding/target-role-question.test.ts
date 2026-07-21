@@ -25,7 +25,8 @@ vi.mock("@/lib/sourcing/anthropic", async (importOriginal) => {
 
 import {
   generateTargetRoleQuestion,
-  getTargetRoleQuestion
+  getTargetRoleQuestion,
+  getTargetRoleQuestionNoCv
 } from "@/lib/onboarding/detect-target-role";
 
 /** Build a raw model response for the CV-tailored role MCQ, optionally fenced. */
@@ -59,22 +60,22 @@ describe("generateTargetRoleQuestion", () => {
     vi.restoreAllMocks();
   });
 
-  // Branch 1 — no CV facts: open-ended static question, NO options, NO LLM call.
-  test("returns the open-ended static question when no CV facts are present", async () => {
+  // Branch 1 — no CV facts: open-ended NO-CV question, NO options, NO LLM call.
+  test("returns the open-ended no-CV question when no CV facts are present", async () => {
     const result = await generateTargetRoleQuestion({ locale: "en", cvFacts: null });
 
     expect(callAnthropic).not.toHaveBeenCalled();
     expect(result.allowCustom).toBe(true);
     expect(result.options).toBeUndefined();
-    expect(result.prompt).toBe(getTargetRoleQuestion("en"));
+    expect(result.prompt).toBe(getTargetRoleQuestionNoCv("en"));
   });
 
-  test("treats an empty CV facts object as open-ended (no LLM call)", async () => {
+  test("treats an empty CV facts object as open-ended no-CV (no LLM call)", async () => {
     const result = await generateTargetRoleQuestion({ locale: "de", cvFacts: {} });
 
     expect(callAnthropic).not.toHaveBeenCalled();
     expect(result.options).toBeUndefined();
-    expect(result.prompt).toBe(getTargetRoleQuestion("de"));
+    expect(result.prompt).toBe(getTargetRoleQuestionNoCv("de"));
   });
 
   // Branch 2 — CV facts present + model returns options: localized MCQ.

@@ -28,13 +28,42 @@ function hasFieldValue(value: string | null | undefined): boolean {
 }
 
 /**
- * Cheerful, localized backstory shown with the very FIRST onboarding ask — the
- * target-role question — nudging a CV upload first (D-09, EN/DE/FR per D-08).
+ * Sentinel answer value the CV-gate question sends when the user taps
+ * "I don't have a CV". It is NOT a real role — the POST handler intercepts it,
+ * records the decline, and advances to the open-ended role question.
  */
-const CV_FIRST_ROLE_BACKSTORY: Record<NormalizedLocale, string> = {
-  en: "First things first — feel free to upload your CV so I can tailor everything to you! 📄✨ Prefer to skip it? Just tell me the role you're aiming for.",
-  de: "Das Wichtigste zuerst — lade gerne deinen Lebenslauf hoch, damit ich alles auf dich zuschneiden kann! 📄✨ Lieber überspringen? Nenne mir einfach deine Zielrolle.",
-  fr: "Commençons par l'essentiel — n'hésite pas à téléverser ton CV pour que je personnalise tout pour toi ! 📄✨ Tu préfères passer ? Dis-moi simplement le poste que tu vises."
+const NO_CV_SENTINEL = "__no_cv__";
+
+/** Read whether the user has declined the CV upload (persisted in assistantState). */
+function readCvDeclined(assistantState: unknown): boolean {
+  return Boolean(
+    assistantState &&
+      typeof assistantState === "object" &&
+      (assistantState as Record<string, unknown>).cvDeclined === true
+  );
+}
+
+/**
+ * STEP 1 of onboarding — cheerful, localized copy that asks ONLY for the CV.
+ * The user either uploads (➕ button) or taps the single "I don't have a CV"
+ * option; there is no role question here yet (D-09, EN/DE/FR per D-08).
+ */
+const CV_GATE_BACKSTORY: Record<NormalizedLocale, string> = {
+  en: "Welcome aboard — I'm thrilled to help you land your next role! 🎉🚀",
+  de: "Willkommen — ich freue mich riesig, dir bei deinem nächsten Job zu helfen! 🎉🚀",
+  fr: "Bienvenue — ravi de t'aider à décrocher ton prochain poste ! 🎉🚀"
+};
+
+const CV_GATE_PROMPT: Record<NormalizedLocale, string> = {
+  en: "Let's kick things off with your CV! 📄✨ Tap the ➕ button below to upload it and I'll tailor everything to you. Don't have one handy? No problem — just tap the button below! 🙌",
+  de: "Starten wir mit deinem Lebenslauf! 📄✨ Tippe unten auf ➕, um ihn hochzuladen, und ich passe alles an dich an. Keinen zur Hand? Kein Problem — tippe einfach unten auf die Schaltfläche! 🙌",
+  fr: "Commençons par ton CV ! 📄✨ Appuie sur le bouton ➕ ci-dessous pour le téléverser et je personnaliserai tout pour toi. Tu n'en as pas sous la main ? Pas de souci — appuie simplement sur le bouton ci-dessous ! 🙌"
+};
+
+const CV_GATE_OPTION_LABEL: Record<NormalizedLocale, string> = {
+  en: "I don't have a CV 🙅",
+  de: "Ich habe keinen Lebenslauf 🙅",
+  fr: "Je n'ai pas de CV 🙅"
 };
 
 /** Cheerful, localized backstory once a CV has been shared, before the role ask. */
@@ -114,7 +143,8 @@ type InteractiveOnboarding = {
  */
 async function resolveInteractiveAsk(
   profile: InteractiveProfile | null,
-  onboarding: InteractiveOnboarding
+  onboarding: InteractiveOnboarding,
+  cvDeclined: boolean
 ): Promise<{
   question: unknown;
   done: boolean;
@@ -151,16 +181,38 @@ async function resolveInteractiveAsk(
   const roleIsSet = hasFieldValue(profile?.primaryRole) || hasFieldValue(profile?.targetRoles);
 
   if (!roleIsSet) {
+    const baseState = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload });
+
+    // STEP 1 — no CV yet and the user hasn't declined one: ask ONLY for the CV.
+    if (!hasCvUpload && !cvDeclined) {
+      return {
+        question: {
+          id: "primaryRole",
+          field: "primaryRole",
+          backstory: CV_GATE_BACKSTORY[locale],
+          prompt: CV_GATE_PROMPT[locale],
+          options: [{ value: NO_CV_SENTINEL, label: CV_GATE_OPTION_LABEL[locale] }],
+          allowCustom: true
+        },
+        done: false,
+        hasCvUpload,
+        completedFields: baseState.completedFields,
+        missingFields: baseState.missingFields
+      };
+    }
+
+    // STEP 2 — role question. CV present → CV-tailored MCQ; declined (no CV) →
+    // open-ended (D-01/D-08). Backstory is CV-aware; the declined branch lets the
+    // self-contained open-ended prompt speak for itself.
     const cvFacts = hasCvUpload
       ? ((onboarding?.cvExtractedFacts as Record<string, unknown> | null) ?? null)
       : null;
     const generated = await generateTargetRoleQuestion({ locale, cvFacts });
-    const baseState = getInteractiveQuestionStateForMode(profileLike, { hasCvUpload });
     return {
       question: {
         id: "primaryRole",
         field: "primaryRole",
-        backstory: hasCvUpload ? CV_DONE_ROLE_BACKSTORY[locale] : CV_FIRST_ROLE_BACKSTORY[locale],
+        backstory: hasCvUpload ? CV_DONE_ROLE_BACKSTORY[locale] : "",
         prompt: generated.prompt,
         options: generated.options,
         allowCustom: true
@@ -304,6 +356,7 @@ export async function GET(): Promise<NextResponse> {
       commuteRadius: true,
       locale: true,
       sectorPreferences: true,
+      assistantState: true,
       isMinimallyComplete: true,
       missingCriticalFields: true
     }
@@ -343,7 +396,8 @@ export async function GET(): Promise<NextResponse> {
           sectorPreferences: profile.sectorPreferences
         }
       : null,
-    onboarding
+    onboarding,
+    readCvDeclined(profile?.assistantState)
   );
 
   return NextResponse.json({
@@ -389,6 +443,106 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   });
   if (!userExists) {
     return NextResponse.json({ error: "session_invalid" }, { status: 401 });
+  }
+
+  // CV-gate decline (Phase 12, Step 1→2): the user tapped "I don't have a CV".
+  // Record the decline in assistantState (NO role is written from the sentinel)
+  // and advance to the open-ended role question. Owner-scoped throughout.
+  if (field === "primaryRole" && value === NO_CV_SENTINEL) {
+    const existing = await db.candidateProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { assistantState: true }
+    });
+    const prevState =
+      existing?.assistantState && typeof existing.assistantState === "object"
+        ? (existing.assistantState as Record<string, unknown>)
+        : (createInitialAssistantState() as unknown as Record<string, unknown>);
+
+    await db.candidateProfile.upsert({
+      where: { userId: session.user.id },
+      create: {
+        userId: session.user.id,
+        locale: "en",
+        assistantState: JSON.parse(
+          JSON.stringify({ ...createInitialAssistantState(), cvDeclined: true })
+        )
+      },
+      update: {
+        assistantState: JSON.parse(JSON.stringify({ ...prevState, cvDeclined: true }))
+      }
+    });
+
+    const declined = await db.candidateProfile.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        fullName: true,
+        currentJobSituation: true,
+        employmentObjective: true,
+        primaryRole: true,
+        preferredLocation: true,
+        targetRoles: true,
+        targetSeniority: true,
+        targetIndustries: true,
+        preferredWorkModel: true,
+        contractPreference: true,
+        workRate: true,
+        workPermitStatus: true,
+        salaryExpectation: true,
+        visaSponsorship: true,
+        relocationWillingness: true,
+        commuteRadius: true,
+        locale: true,
+        sectorPreferences: true,
+        isMinimallyComplete: true,
+        missingCriticalFields: true
+      }
+    });
+    await ensureOnboardingSession(session.user.id, normalizeLocale(declined?.locale));
+    const declinedOnboarding = await db.onboardingSession.findUnique({
+      where: { userId: session.user.id },
+      select: { cvFileName: true, cvExtractedFacts: true }
+    });
+
+    const ask = await resolveInteractiveAsk(
+      declined
+        ? {
+            fullName: declined.fullName,
+            currentJobSituation: declined.currentJobSituation,
+            employmentObjective: declined.employmentObjective,
+            primaryRole: declined.primaryRole,
+            preferredLocation: declined.preferredLocation,
+            targetRoles: declined.targetRoles,
+            targetSeniority: declined.targetSeniority,
+            targetIndustries: declined.targetIndustries,
+            preferredWorkModel: declined.preferredWorkModel,
+            contractPreference: declined.contractPreference,
+            workRate: declined.workRate,
+            workPermitStatus: declined.workPermitStatus,
+            salaryExpectation: declined.salaryExpectation,
+            visaSponsorship: declined.visaSponsorship,
+            relocationWillingness: declined.relocationWillingness,
+            commuteRadius: declined.commuteRadius,
+            locale: declined.locale,
+            sectorPreferences: declined.sectorPreferences
+          }
+        : null,
+      declinedOnboarding,
+      true
+    );
+
+    return NextResponse.json({
+      success: true,
+      saved: { field, value },
+      question: ask.question,
+      done: ask.done,
+      hasCvUpload: ask.hasCvUpload,
+      completedFields: ask.completedFields,
+      missingFields: ask.missingFields,
+      completion: {
+        isMinimallyComplete: declined?.isMinimallyComplete ?? false,
+        missingCriticalFields: (declined?.missingCriticalFields as string[] | undefined) ?? []
+      }
+    });
   }
 
   // The structured "Which role should we optimize your profile for first?"
@@ -456,6 +610,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       commuteRadius: true,
       locale: true,
       sectorPreferences: true,
+      assistantState: true,
       isMinimallyComplete: true,
       missingCriticalFields: true
     }
@@ -573,7 +728,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       locale: updatedProfile.locale,
       sectorPreferences
     },
-    onboarding
+    onboarding,
+    readCvDeclined(updatedProfile.assistantState)
   );
 
   // Assess EVERY structured answer the user gives (not just interview answers).

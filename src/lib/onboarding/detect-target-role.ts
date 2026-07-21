@@ -159,18 +159,15 @@ export async function generateTargetRoleQuestion(args: {
   locale: TargetRoleLocale;
   cvFacts?: Record<string, unknown> | null;
 }): Promise<TargetRoleQuestion> {
-  const openEnded: TargetRoleQuestion = {
-    prompt: getTargetRoleQuestion(args.locale),
-    allowCustom: true
-  };
-
+  // No CV → open-ended question that does NOT claim to have reviewed a CV.
   if (!args.cvFacts || Object.keys(args.cvFacts).length === 0) {
-    return openEnded;
+    return { prompt: getTargetRoleQuestionNoCv(args.locale), allowCustom: true };
   }
 
   const generated = await classifyRoleOptionsFromCv(args.locale, args.cvFacts);
   if (!generated) {
-    return openEnded;
+    // CV present but generation failed → the "reviewed your CV" fallback is apt.
+    return { prompt: getTargetRoleQuestion(args.locale), allowCustom: true };
   }
 
   return { prompt: generated.prompt, options: generated.options, allowCustom: true };
@@ -184,6 +181,19 @@ export function getTargetRoleQuestion(locale: "en" | "de" | "fr"): string {
     en: "I've reviewed your CV! 👀 Before we dive deeper, what role are you targeting? For example: Product Manager, UX Designer, Software Engineer, etc. This helps me tailor all my advice to your goals! 🎯",
     de: "Ich habe deinen Lebenslauf überprüft! 👀 Bevor wir tiefer einsteigen, welche Rolle strebst du an? Zum Beispiel: Produktmanager, UX-Designer, Softwareentwickler, usw. Das hilft mir, alle meine Ratschläge auf deine Ziele abzustimmen! 🎯",
     fr: "J'ai examiné ton CV! 👀 Avant d'aller plus loin, quel rôle vises-tu? Par exemple: Chef de produit, Designer UX, Ingénieur logiciel, etc. Cela m'aide à adapter tous mes conseils à tes objectifs! 🎯"
+  };
+  return questions[locale] || questions.en;
+}
+
+/**
+ * Open-ended target-role question for a user WITHOUT a CV. Unlike
+ * `getTargetRoleQuestion`, it never claims a CV was reviewed (Phase 12 fix).
+ */
+export function getTargetRoleQuestionNoCv(locale: "en" | "de" | "fr"): string {
+  const questions = {
+    en: "No worries at all! 🙌 What role are you aiming for? For example: Product Manager, UX Designer, Software Engineer… ✨ Just type whichever role fits you best! 🎯",
+    de: "Gar kein Problem! 🙌 Welche Rolle strebst du an? Zum Beispiel: Produktmanager, UX-Designer, Softwareentwickler… ✨ Schreib einfach die Rolle, die am besten zu dir passt! 🎯",
+    fr: "Aucun souci ! 🙌 Quel rôle vises-tu ? Par exemple : Chef de produit, Designer UX, Ingénieur logiciel… ✨ Écris simplement le rôle qui te correspond le mieux ! 🎯"
   };
   return questions[locale] || questions.en;
 }

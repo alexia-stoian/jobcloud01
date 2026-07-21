@@ -770,7 +770,11 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     }
 
     setIsSending(true);
-    setHistory((current) => [...current, { role: "user", text: trimmed }]);
+    // Show the option's human-readable label in the chat (not a raw value like the
+    // "__no_cv__" CV-gate sentinel); the raw value is still POSTed to the backend.
+    const interactiveDisplayText =
+      currentQuestion.options?.find((option) => option.value === trimmed)?.label ?? trimmed;
+    setHistory((current) => [...current, { role: "user", text: interactiveDisplayText }]);
     setMessage("");
     setCustomOptionDraft("");
 
