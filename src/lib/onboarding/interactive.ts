@@ -270,6 +270,42 @@ const POST_CV_PREFERENCE_FLOW: InteractiveQuestion[] = [
   }
 ];
 
+/**
+ * Universal preference fields (D-06), in the order shown to non-engineer users:
+ * Current situation, Work rate, Contract type, Work permit, Salary expectation,
+ * Preferred location, Commute radius. These reuse the EXISTING
+ * POST_CV_PREFERENCE_FLOW question objects verbatim — no new copy — so
+ * tone/options stay identical to Phase 5.
+ */
+const UNIVERSAL_SIX_FIELDS: InteractiveQuestion["field"][] = [
+  "currentJobSituation",
+  "workRate",
+  "contractPreference",
+  "workPermitStatus",
+  "salaryExpectation",
+  "preferredLocation",
+  "commuteRadius"
+];
+
+/**
+ * The universal-6 subset drawn from POST_CV_PREFERENCE_FLOW, ordered per D-06.
+ * Built by lookup (not re-authoring) so each question keeps its verbatim
+ * prompt/options; any field missing upstream is simply skipped (never throws).
+ */
+const UNIVERSAL_SIX_FLOW: InteractiveQuestion[] = UNIVERSAL_SIX_FIELDS
+  .map((field) => POST_CV_PREFERENCE_FLOW.find((question) => question.field === field))
+  .filter((question): question is InteractiveQuestion => question !== undefined);
+
+/**
+ * Select the post-CV preference flow based on the resolved sector decision:
+ * engineer/default (`usesDefaultFields === true`) keeps the FULL existing flow
+ * UNCHANGED (Pitfall 5), while non-engineer users get the universal-6 subset —
+ * the ≤3 sector-specific fields are delivered separately in Plan 12-3.
+ */
+export function selectPostCvPreferenceFlow(usesDefaultFields: boolean): InteractiveQuestion[] {
+  return usesDefaultFields ? POST_CV_PREFERENCE_FLOW : UNIVERSAL_SIX_FLOW;
+}
+
 type ProfileLike = Partial<Record<InteractiveQuestion["field"], string | null>>;
 
 function hasValue(value: string | null | undefined): boolean {
@@ -282,11 +318,23 @@ export function getInteractiveQuestionState(profile: ProfileLike): InteractiveQu
 
 export function getInteractiveQuestionStateForMode(
   profile: ProfileLike,
-  options: { hasCvUpload: boolean }
+  options: { hasCvUpload: boolean; usesDefaultFields?: boolean; cvDeclined?: boolean }
 ): InteractiveQuestionState {
-  const flow = options.hasCvUpload
-    ? POST_CV_PREFERENCE_FLOW
-    : PRE_CV_QUESTION_FLOW;
+  // Pre-CV: unchanged. Post-CV: when a non-engineer sector has been resolved
+  // (usesDefaultFields === false) narrow to the universal-6 subset; otherwise
+  // (engineer/default OR no sector decision yet — param omitted) keep the full
+  // existing flow so Phase 2/5/10/11 callers are unaffected. When the user has
+  // DECLINED a CV (Phase 12), serve the goal question + preferences directly so
+  // the flow never dead-ends re-asking for a CV they already declined.
+  let flow: InteractiveQuestion[];
+  if (options.hasCvUpload) {
+    flow = options.usesDefaultFields === false ? UNIVERSAL_SIX_FLOW : POST_CV_PREFERENCE_FLOW;
+  } else if (options.cvDeclined) {
+    const prefs = options.usesDefaultFields === false ? UNIVERSAL_SIX_FLOW : POST_CV_PREFERENCE_FLOW;
+    flow = [...PRE_CV_QUESTION_FLOW, ...prefs];
+  } else {
+    flow = PRE_CV_QUESTION_FLOW;
+  }
 
   const completedFields = flow
     .filter((question) => hasValue(profile[question.field]))

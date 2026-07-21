@@ -119,6 +119,7 @@ model CandidateProfile {
   commuteRadius         String?
   editorDraft           Json     @default("{}")
   assistantState        Json     @default("{}")
+  sectorPreferences     Json     @default("{}")
   roleSuggestionsUsed   Boolean  @default(false)
   isMinimallyComplete   Boolean  @default(false)
   missingCriticalFields Json     @default("[]")

@@ -24,6 +24,7 @@ export function buildProfileSummary(input: {
     commuteRadius: string | null;
     locale: string;
     editorDraft: Record<string, unknown> | null;
+    sectorPreferences: unknown;
   };
   completion: {
     isMinimallyComplete: boolean;
@@ -51,7 +52,8 @@ export function buildProfileSummary(input: {
       relocationWillingness: input.profile.relocationWillingness,
       commuteRadius: input.profile.commuteRadius,
       locale: input.profile.locale,
-      editorDraft: (input.profile.editorDraft as Record<string, unknown> | null) ?? null
+      editorDraft: (input.profile.editorDraft as Record<string, unknown> | null) ?? null,
+      sectorPreferences: (input.profile.sectorPreferences as unknown) ?? {}
     },
     completion: {
       isMinimallyComplete: input.profile.isMinimallyComplete,

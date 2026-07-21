@@ -33,7 +33,8 @@ export async function GET(): Promise<NextResponse> {
       salaryExpectation: true,
       visaSponsorship: true,
       relocationWillingness: true,
-      commuteRadius: true
+      commuteRadius: true,
+      sectorPreferences: true
     }
   });
 
@@ -79,6 +80,13 @@ export async function GET(): Promise<NextResponse> {
     lastInteractedAt: onboarding.lastInteractedAt?.toISOString() ?? null
   });
 
+  // Surface the persisted sector store (defs + values) so the chat and the
+  // Profile > Preferences page can rehydrate the sector fields (D-05). A still-
+  // unanswered sector question is re-attached chronologically client-side (via
+  // checkSectorQuestions), mirroring the sourcing resume fix — answered sector
+  // Q&A already live inline in conversationHistory and are left in place. Sector
+  // follow-ups are ordered within onboarding completion, before Phase 11 sourcing
+  // (Assumption A3); the sourcing resume path is unaffected.
   return NextResponse.json({
     success: true,
     onboarding,
@@ -86,6 +94,7 @@ export async function GET(): Promise<NextResponse> {
     question: state.question,
     done: state.done,
     hasCvUpload,
+    sectorPreferences: profile?.sectorPreferences ?? {},
     ...resumed
   });
 }

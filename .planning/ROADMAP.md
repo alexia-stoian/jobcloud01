@@ -235,5 +235,19 @@ Plans:
 - [ ] 11-2-PLAN.md — Generate + persist queued questions for >=60% candidates on the sourcing run, admin-gated read-back endpoint, Sourcing card Profile slide-over + Q&A / before->now section, EN/DE/FR keys, and a read-back integration test
 - [ ] 11-3-PLAN.md — Dedicated session-scoped onboarding delivery endpoint (one-at-a-time MCQ, notify-first, silent open-judge, <=5, re-score + thank-you), onboarding form Sourcing-mode wiring bypassing Phase 10 routing, and a full-loop integration test
 
+### Phase 12: Dynamic sector-aware onboarding flow: CV-first upload, then a target-role question that is CV-tailored multiple-choice (or open-ended without a CV); once the target role is set in assistant memory and Profile>Preferences>Target Role, dynamically customize the Preferences fields to the job sector (max 3 sector-specific fields) while always keeping universal fields (current situation, work rate, contract type); ask sector-specific follow-up preference questions as multiple-choice with a type-your-own option; all in the established cheerful emoji tone per prompts/prompt.txt
+
+**Goal:** Sector-aware onboarding: CV is the first ask, the target-role question is CV-tailored multiple-choice (or open-ended without a CV), and once the target role is set the Preferences fields dynamically adapt to the detected job sector (≤3 sector-specific fields on top of the universal 6, engineers unchanged), delivered as in-chat MCQ follow-ups with type-your-own and rendered/editable on Profile > Preferences — all localized (EN/DE/FR) and cheerful per prompts/prompt.txt.
+**Requirements**: D-01..D-09 (locked decisions in 12-CONTEXT.md); must not regress CVIN-*/AION-* (Phase 2), Phase 5 preference copy, Phase 10 target-role binding, Phase 11 sourcing mode.
+**Depends on:** Phase 11
+**Plans:** 4/4 plans complete
+
+Plans:
+
+- [x] 12-1-PLAN.md — Additive sectorPreferences Prisma column + null-safe localized LLM sector-classification/≤3-field generator + unit tests
+- [x] 12-2-PLAN.md — CV-first ordering, CV-tailored vs open-ended target-role question, universal-6 subset + engineer short-circuit, and sector-generation trigger on the target-role-set event
+- [x] 12-3-PLAN.md — sector:-prefixed in-chat MCQ delivery endpoint (clone sourcing), confirm-policy allowlist, resume wiring, and OnboardingCvUploadForm sector-mode
+- [x] 12-4-PLAN.md — Profile > Preferences dynamic sector block + PATCH persistence + full-loop EN/DE/FR integration test
+
 ---
 *Last updated: 2026-07-16 — added Phase 9 (Recruiter Sourcing) after Phase 8 merge*

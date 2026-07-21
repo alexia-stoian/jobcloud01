@@ -13,6 +13,7 @@ type ChatMessage = {
   text: string;
   options?: Array<{ value: string; label: string; description?: string }>;
   field?: string;
+  allowCustom?: boolean;
 };
 
 type InteractiveQuestion = {
@@ -29,6 +30,7 @@ type InteractiveResponse = {
   question: InteractiveQuestion | null;
   done: boolean;
   hasCvUpload?: boolean;
+  cvDeclined?: boolean;
   history?: ChatMessage[];
   completedFields: string[];
   missingFields: string[];
@@ -56,6 +58,16 @@ type SourcingResponse = {
   answeredCount?: number;
 };
 
+// Sector-mode delivery response (Phase 12). Shares the sourcing question payload
+// shape but is served by a DISTINCT endpoint under the `sector:` prefix so the two
+// modes never collide.
+type SectorResponse = {
+  question?: SourcingQuestionPayload | null;
+  done?: boolean;
+  answered?: Array<{ prompt: string; answerText: string }>;
+  answeredCount?: number;
+};
+
 const UI_STRINGS = {
   en: {
     intro: "Great to meet you 🙂 I will guide you step-by-step and save each confirmed answer to your profile right away.",
@@ -72,6 +84,7 @@ const UI_STRINGS = {
     completeNoCv: "Excellent! 🎉 Your core profile is taking shape! Next, let's upload your CV so I can automatically extract your experience and fill in the remaining details. This saves you tons of time! ⚡",
     placeholderDefault: "Write your answer here",
     placeholderComplete: "Profile complete. You can still type changes anytime.",
+    placeholderCvGate: "Upload your CV with ➕, or tap \"I don't have a CV\" above",
     offTrackNudge: "That does not look like an answer to this question. Let us stay on track:",
     completionHelp: [
       "🎉 Your profile is now built and ready! I've filled it as completely as I can from your CV and your answers.",
@@ -100,6 +113,7 @@ const UI_STRINGS = {
     completeNoCv: "Ausgezeichnet! 🎉 Ihr Kernprofil nimmt Form an! Als Naechstes laden wir Ihren CV hoch, damit ich Ihre Erfahrung automatisch extrahieren und die restlichen Details ausfuellen kann. Das spart Ihnen viel Zeit! ⚡",
     placeholderDefault: "Schreiben Sie Ihre Antwort hier",
     placeholderComplete: "Profil ist abgeschlossen. Sie koennen weiterhin Aenderungen eingeben.",
+    placeholderCvGate: "Lade deinen Lebenslauf mit ➕ hoch oder tippe oben auf \"Ich habe keinen Lebenslauf\"",
     offTrackNudge: "Das sieht nicht nach einer passenden Antwort auf diese Frage aus. Lassen Sie uns beim Thema bleiben:",
     completionHelp: [
       "🎉 Ihr Profil ist jetzt fertig und bereit! Ich habe es anhand Ihres CV und Ihrer Antworten so vollstaendig wie moeglich gestaltet.",
@@ -128,6 +142,7 @@ const UI_STRINGS = {
     completeNoCv: "Excellent! 🎉 Votre profil de base prend forme! Ensuite, televersons votre CV pour que j'extraie automatiquement votre experience et remplisse les details restants. Cela vous fait gagner du temps! ⚡",
     placeholderDefault: "Ecrivez votre reponse ici",
     placeholderComplete: "Profil termine. Vous pouvez encore saisir des modifications.",
+    placeholderCvGate: "Téléverse ton CV avec ➕, ou appuie sur \"Je n'ai pas de CV\" ci-dessus",
     offTrackNudge: "Cela ne semble pas repondre a la question. Restons sur le sujet:",
     completionHelp: [
       "🎉 Votre profil est maintenant complet et pret! Je l'ai rempli aussi completement que possible a partir de votre CV et de vos reponses.",
@@ -254,9 +269,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   const [hasUploadedCv, setHasUploadedCv] = useState(false);
   const [sourcingMode, setSourcingMode] = useState(false);
   const [sourcingChecked, setSourcingChecked] = useState(false);
+  const [sectorMode, setSectorMode] = useState(false);
+  const [sectorChecked, setSectorChecked] = useState(false);
   const didInitRef = useRef(false);
   const didRestoreRef = useRef(false);
   const didSourcingCheckRef = useRef(false);
+  const didSectorCheckRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToLatestMessage = useCallback((behavior: ScrollBehavior): void => {
@@ -286,7 +304,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
     setHistory((current) => {
       const base = baseHistory ?? current;
-      return [...base, { role: "assistant", text: data.question!.prompt, options, field }];
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field, allowCustom: data.question!.allowCustom }];
     });
     if (baseHistory && baseHistory.length > 0) {
       didRestoreRef.current = true;
@@ -407,6 +425,118 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     }
   }, [_locale, applySourcingResponse]);
 
+  const applySectorResponse = useCallback((data: SectorResponse, baseHistory?: ChatMessage[]): boolean => {
+    // No pending question -> not (or no longer) in Sector mode.
+    if (!data.question || data.done) {
+      return false;
+    }
+    // Mint ONE synthetic stable `field` under the DISTINCT `sector:` prefix so the
+    // existing option UI renders the sector MCQ (options only show when
+    // entry.field === currentQuestion.field). Never merged with `sourcing:`.
+    const field = `sector:${data.question.id}`;
+    const options = data.question.options;
+    setCurrentQuestion({
+      id: data.question.id,
+      field,
+      backstory: "",
+      prompt: data.question.prompt,
+      options,
+      allowCustom: data.question.allowCustom
+    });
+    setSectorMode(true);
+    // Append the pending question. On initial load `baseHistory` carries the
+    // restored transcript (prior conversation + answered Q&A); on advance no base
+    // is passed so we append to the CURRENT history, keeping earlier Q&A visible.
+    setHistory((current) => {
+      const base = baseHistory ?? current;
+      return [...base, { role: "assistant", text: data.question!.prompt, options, field, allowCustom: data.question!.allowCustom }];
+    });
+    if (baseHistory && baseHistory.length > 0) {
+      didRestoreRef.current = true;
+    }
+    return true;
+  }, []);
+
+  const checkSectorQuestions = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, {
+        cache: "no-store"
+      });
+      if (res.ok) {
+        const data = (await res.json()) as SectorResponse;
+        const answered = data.answered ?? [];
+        // Only take over when a sector question is still PENDING. If every sector
+        // field is answered (or there is no sector store), let the normal flow run
+        // — answered sector Q&A already live inline in the restored conversation.
+        if (data.question) {
+          // The persisted onboarding conversation is the CHRONOLOGICAL source of
+          // truth: answered sector Q&A were saved inline where they occurred. We
+          // restore that history verbatim and only re-attach the still-pending
+          // question — never re-appending answered Q&A at the end.
+          let resumedHistory: ChatMessage[] = [];
+          try {
+            const resumeRes = await fetch("/api/onboarding/resume", { cache: "no-store" });
+            if (resumeRes.ok) {
+              const resumed = (await resumeRes.json()) as InteractiveResponse;
+              if (Array.isArray(resumed.history)) {
+                resumedHistory = resumed.history as ChatMessage[];
+              }
+            }
+          } catch {
+            // Prior history is best-effort; proceed with just the sector question.
+          }
+
+          const prompt = data.question.prompt;
+          const last = resumedHistory[resumedHistory.length - 1];
+          if (last && last.role === "assistant" && last.text === prompt) {
+            // Already delivered and persisted inline (chronological). Re-attach
+            // interactivity to that trailing question without duplicating it.
+            applySectorResponse(data, resumedHistory.slice(0, -1));
+          } else {
+            // Not yet persisted inline — reconstruct: prior convo + this set's
+            // answered Q&A (only if not already inline) + the pending question.
+            const base = [...resumedHistory];
+            for (const pair of answered) {
+              const alreadyInline = base.some((m) => m.role === "assistant" && m.text === pair.prompt);
+              if (!alreadyInline) {
+                base.push({ role: "assistant", text: pair.prompt });
+                base.push({ role: "user", text: pair.answerText });
+              }
+            }
+            applySectorResponse(data, base);
+          }
+          didInitRef.current = true;
+        }
+      }
+    } catch {
+      // Fall through to the normal onboarding flow if the sector check fails.
+    } finally {
+      setSectorChecked(true);
+    }
+  }, [_locale, applySectorResponse]);
+
+  /**
+   * Deliver the FIRST still-pending customized sector question, appending it to
+   * the current conversation. Used right after the target role is answered so the
+   * order is: role -> sector questions -> Profile > Preferences questions. Returns
+   * true when a sector question was shown.
+   */
+  const deliverPendingSectorQuestion = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, { cache: "no-store" });
+      if (!res.ok) {
+        return false;
+      }
+      const data = (await res.json()) as SectorResponse;
+      if (data.question) {
+        return applySectorResponse(data);
+      }
+    } catch {
+      // Best-effort; the next load re-checks pending sector questions.
+    }
+    return false;
+  }, [_locale, applySectorResponse]);
+
   const applyInteractiveResponse = useCallback((data: InteractiveResponse, introText?: string): void => {
     setHasUploadedCv(Boolean(data.hasCvUpload));
     setCurrentQuestion(data.question);
@@ -424,7 +554,8 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
           role: "assistant",
           text: `${nextQuestion.backstory} ${nextQuestion.prompt}`,
           options: nextQuestion.options,
-          field: nextQuestion.field
+          field: nextQuestion.field,
+          allowCustom: nextQuestion.allowCustom
         }
       ]);
       return;
@@ -435,7 +566,9 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
         ...current,
         {
           role: "assistant",
-          text: (data.hasCvUpload ?? hasUploadedCv)
+          // A user who uploaded a CV OR explicitly declined one is past the CV
+          // step — show the completion help, never re-ask for a CV (Phase 12).
+          text: (data.hasCvUpload ?? hasUploadedCv) || data.cvDeclined
             ? i18n.completionHelp
             : i18n.completeNoCv
         }
@@ -583,13 +716,95 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return;
     }
 
+    // Sector mode: deliver answers to the dedicated sector endpoint ONLY, tag the
+    // source explicitly (option -> chosenValue, custom -> freeText), and bypass the
+    // off-track nudge. Distinct `sector:` prefix — never routed through sourcing.
+    if (sectorMode && currentQuestion.field.startsWith("sector:")) {
+      setIsSending(true);
+      // Show the human-readable option label in the chat (not the raw slug value);
+      // the raw value is still what gets sent to the backend below.
+      const displayText = sourcingSource === "freeText"
+        ? trimmed
+        : currentQuestion.options?.find((option) => option.value === trimmed)?.label ?? trimmed;
+      setHistory((current) => [...current, { role: "user", text: displayText }]);
+      setMessage("");
+      setCustomOptionDraft("");
+
+      try {
+        const questionId = currentQuestion.id;
+        const payload = sourcingSource === "freeText"
+          ? { questionId, freeText: trimmed, locale: _locale }
+          : { questionId, chosenValue: trimmed, locale: _locale };
+
+        const response = await fetch("/api/onboarding/sector-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = "/login?callbackUrl=/onboarding";
+            return;
+          }
+          setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+          return;
+        }
+
+        const data = (await response.json()) as SectorResponse;
+        if (data.done) {
+          // Sector follow-ups finished -> continue the normal onboarding flow with
+          // the universal fields. Fetch the next interactive question and APPEND it
+          // (never resume-replace) so the sector Q&A stay visible in the chat.
+          setSectorMode(false);
+          setCurrentQuestion(null);
+          try {
+            const nextInteractive = await fetch("/api/onboarding/interactive", { cache: "no-store" });
+            if (nextInteractive.ok) {
+              applyInteractiveResponse((await nextInteractive.json()) as InteractiveResponse);
+            }
+          } catch {
+            // Best-effort continuation; the next visit re-loads the pending question.
+          }
+          return;
+        }
+
+        // Advance: pull the next sector question one at a time.
+        const nextRes = await fetch(`/api/onboarding/sector-questions?locale=${_locale}`, {
+          cache: "no-store"
+        });
+        const advanced = nextRes.ok && applySectorResponse((await nextRes.json()) as SectorResponse);
+        if (!advanced) {
+          setSectorMode(false);
+          setCurrentQuestion(null);
+          try {
+            const nextInteractive = await fetch("/api/onboarding/interactive", { cache: "no-store" });
+            if (nextInteractive.ok) {
+              applyInteractiveResponse((await nextInteractive.json()) as InteractiveResponse);
+            }
+          } catch {
+            // Best-effort continuation.
+          }
+        }
+      } catch {
+        setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     if (isClearlyOffTrackAnswer(trimmed, currentQuestion)) {
       appendOffTrackNudge(trimmed, currentQuestion);
       return;
     }
 
     setIsSending(true);
-    setHistory((current) => [...current, { role: "user", text: trimmed }]);
+    // Show the option's human-readable label in the chat (not a raw value like the
+    // "__no_cv__" CV-gate sentinel); the raw value is still POSTed to the backend.
+    const interactiveDisplayText =
+      currentQuestion.options?.find((option) => option.value === trimmed)?.label ?? trimmed;
+    setHistory((current) => [...current, { role: "user", text: interactiveDisplayText }]);
     setMessage("");
     setCustomOptionDraft("");
 
@@ -627,12 +842,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       }
 
       applyInteractiveResponse(data);
+      // The interactive flow holds (question:null, not done) when customized sector
+      // questions are pending after the target role is set — deliver the first one
+      // now so sector questions come BEFORE the remaining preference questions.
+      if (!data.question && !data.done) {
+        await deliverPendingSectorQuestion();
+      }
     } catch {
       setHistory((current) => [...current, { role: "assistant", text: i18n.saveFailed }]);
     } finally {
       setIsSending(false);
     }
-  }, [_locale, applyInteractiveResponse, applySourcingResponse, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode]);
+  }, [_locale, applyInteractiveResponse, applySourcingResponse, applySectorResponse, deliverPendingSectorQuestion, currentQuestion, i18n.blockedFallback, i18n.saveFailed, isSending, loadInteractiveQuestion, sourcingMode, sectorMode]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -852,6 +1073,14 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return true;
     }
 
+    // Target-role fields must accept ANY real role on the planet, including
+    // single-word ones (Doctor, Nurse, Chef, Electrician…). Obvious garbage is
+    // already filtered above, so anything that survives is treated as a valid
+    // custom role — never nudged as off-track.
+    if (question.field === "primaryRole" || question.field === "targetRoles") {
+      return false;
+    }
+
     const normalizedOptionValues = question.options?.map((option) => normalizeForMatch(option.value)) ?? [];
     const normalizedOptionLabels = question.options?.map((option) => normalizeForMatch(option.label)) ?? [];
 
@@ -890,10 +1119,6 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
       return /^(idk|none|n a|test|random)$/.test(normalizedMatch);
     }
 
-    if ((question.field === "targetRoles" || question.field === "primaryRole") && normalizedMatch.split(/\s+/).length < 2) {
-      return true;
-    }
-
     return false;
   }
 
@@ -925,6 +1150,8 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
     // Route to profile-answer save or advisory assistant based on message intent.
     if (sourcingMode && currentQuestion?.field.startsWith("sourcing:")) {
       await submitAnswerValue(message, "freeText");
+    } else if (sectorMode && currentQuestion?.field.startsWith("sector:")) {
+      await submitAnswerValue(message, "freeText");
     } else if (currentQuestion && !shouldTreatAsAdvisoryMessage(message, currentQuestion)) {
       await submitAnswerValue(message);
     } else {
@@ -949,9 +1176,25 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
   }, [checkSourcingQuestions]);
 
   useEffect(() => {
-    // Wait for the sourcing check to resolve first so a pending sourcing set
-    // always takes priority over the normal interactive flow on load.
-    if (!sourcingChecked) {
+    // Run the sector check AFTER the sourcing check resolves so a pending sourcing
+    // set keeps priority. Skip entirely if sourcing took over (both modes stay
+    // independent). Sector follow-ups are ordered before Phase 11 sourcing (A3).
+    if (!sourcingChecked || didSectorCheckRef.current) {
+      return;
+    }
+    didSectorCheckRef.current = true;
+    if (sourcingMode) {
+      setSectorChecked(true);
+      return;
+    }
+    void checkSectorQuestions();
+  }, [sourcingChecked, sourcingMode, checkSectorQuestions]);
+
+  useEffect(() => {
+    // Wait for BOTH the sourcing and sector checks to resolve first so a pending
+    // sourcing set or sector question always takes priority over the normal
+    // interactive flow on load.
+    if (!sourcingChecked || !sectorChecked) {
       return;
     }
     if (didInitRef.current || isSending || history.length > 0) {
@@ -960,7 +1203,7 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
 
     didInitRef.current = true;
     void loadInteractiveQuestion();
-  }, [sourcingChecked, history.length, isSending, loadInteractiveQuestion]);
+  }, [sourcingChecked, sectorChecked, history.length, isSending, loadInteractiveQuestion]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -975,6 +1218,12 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
 
     scrollToLatestMessage(history.length <= 1 ? "auto" : "smooth");
   }, [history.length, scrollToLatestMessage]);
+
+  // The CV-gate (Step 1) offers ONLY the ➕ upload and the single "I don't have a
+  // CV" button — no free-text answer. Detected by its sentinel option value.
+  const isCvGate =
+    currentQuestion?.field === "primaryRole" &&
+    (currentQuestion.options?.some((option) => option.value === "__no_cv__") ?? false);
 
   return (
     <section className="img3-panel img3-panel--conversation">
@@ -1007,22 +1256,24 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
                       </span>
                     </button>
                   ))}
-                  <div className="img3-option">
-                    <input
-                      id="inline-custom-option"
-                      className="img3-option__custom-input img3-option__custom-input--standalone"
-                      value={customOptionDraft}
-                      onChange={(event) => setCustomOptionDraft(event.target.value)}
-                      placeholder={currentQuestion?.placeholder ?? "Or type your own answer…"}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void submitAnswerValue(customOptionDraft, "freeText");
-                        }
-                      }}
-                      disabled={isSending}
-                    />
-                  </div>
+                  {entry.allowCustom ? (
+                    <div className="img3-option">
+                      <input
+                        id="inline-custom-option"
+                        className="img3-option__custom-input img3-option__custom-input--standalone"
+                        value={customOptionDraft}
+                        onChange={(event) => setCustomOptionDraft(event.target.value)}
+                        placeholder={currentQuestion?.placeholder ?? "Or type your own answer…"}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void submitAnswerValue(customOptionDraft, "freeText");
+                          }
+                        }}
+                        disabled={isSending}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1061,15 +1312,18 @@ export function OnboardingCvUploadForm({ locale: _locale }: Props): React.ReactE
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={onInputKeyDown}
             rows={1}
+            disabled={isCvGate}
             placeholder={
-              currentQuestion?.placeholder
-                ? currentQuestion.placeholder
-                : isDone
-                  ? i18n.placeholderComplete
-                  : i18n.placeholderDefault
+              isCvGate
+                ? i18n.placeholderCvGate
+                : currentQuestion?.placeholder
+                  ? currentQuestion.placeholder
+                  : isDone
+                    ? i18n.placeholderComplete
+                    : i18n.placeholderDefault
             }
           />
-          <button type="button" className="img3-bottom-input__send" onClick={submitAnswer} disabled={message.trim().length === 0 || isSending || isUploading}>
+          <button type="button" className="img3-bottom-input__send" onClick={submitAnswer} disabled={isCvGate || message.trim().length === 0 || isSending || isUploading}>
             <svg className="img3-bottom-input__send-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M12 18V6" />
               <path d="M7.5 10.5L12 6l4.5 4.5" />
