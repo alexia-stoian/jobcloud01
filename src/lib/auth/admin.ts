@@ -1,27 +1,19 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 
 /**
  * Shared, server-only admin authorization. This is the single source of truth
  * for "is this caller an admin?" and is reused by every admin route and page.
  *
- * A caller is an admin if their persisted `User.role === "ADMIN"`, OR — for
- * legacy Phase 7 compatibility — the `SIGNALS_ADMIN_ENABLED` gate is on and the
- * caller's id is present in the `SIGNALS_ADMIN_USER_IDS` allowlist.
+ * A caller is an admin ONLY if their persisted `User.role === "ADMIN"`. There is
+ * exactly one admin account (see scripts/seed-admin.mjs); every other user is a
+ * job seeker and can neither see nor access the Admin/Sourcing surfaces.
  */
 
-function parseAllowlist(): string[] {
-  return (env.SIGNALS_ADMIN_USER_IDS ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-}
-
 /**
- * Resolve whether the given user id is an admin. Combines the durable `role`
- * marker with the legacy signals gate so the whole admin area shares one rule.
+ * Resolve whether the given user id is an admin, strictly from the durable
+ * `User.role` marker.
  */
 export async function resolveIsAdmin(userId: string): Promise<boolean> {
   if (!userId) {
@@ -33,22 +25,7 @@ export async function resolveIsAdmin(userId: string): Promise<boolean> {
     select: { role: true }
   });
 
-  if (user?.role === "ADMIN") {
-    return true;
-  }
-
-  // Legacy reconciliation: preserve the Phase 7 dev gate so nothing regresses.
-  // When SIGNALS_ADMIN_ENABLED is on, the original behavior granted access to any
-  // authenticated user (there was no allowlist requirement). Keep that: allow when
-  // the allowlist is empty (dev mode) OR the caller is explicitly allowlisted.
-  if (env.SIGNALS_ADMIN_ENABLED) {
-    const allowlist = parseAllowlist();
-    if (allowlist.length === 0 || allowlist.includes(userId)) {
-      return true;
-    }
-  }
-
-  return false;
+  return user?.role === "ADMIN";
 }
 
 /**
