@@ -1,7 +1,7 @@
 import { auth } from "@/auth/config";
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
-import { OnboardingCvUploadForm } from "@/components/onboarding/OnboardingCvUploadForm";
+import { CareerGuideChat } from "@/components/onboarding/CareerGuideChat";
 import { AppShellServer } from "@/components/layout/AppShellServer";
 
 export default async function OnboardingPage(): Promise<React.ReactElement> {
@@ -15,7 +15,7 @@ export default async function OnboardingPage(): Promise<React.ReactElement> {
 
   return (
     <AppShellServer>
-      <OnboardingCvUploadForm locale={normalizedLocale} />
+      <CareerGuideChat locale={normalizedLocale} />
     </AppShellServer>
   );
 }
