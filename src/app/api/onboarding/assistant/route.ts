@@ -20,7 +20,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  message: z.string().trim().min(1).max(6000),
+  message: z.string().trim().min(1).max(20000),
   locale: z.enum(["en", "de", "fr"]).optional()
 });
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // The agent owns the conversation; one persistent session per user.
   const sessionId = deriveCareerGuideSessionId(userId);
-  const answer = await invokeCareerGuideAgent({ prompt: message, sessionId });
+  const reply = await invokeCareerGuideAgent({ prompt: message, sessionId });
 
   // Keep recruiter-signal inference live (invisible; feeds Admin > Profile).
   // Awaited so state persists, but it can never throw or block the reply.
@@ -61,5 +61,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     sessionId: null
   });
 
-  return NextResponse.json({ answer: answer ?? FALLBACK_REPLY });
+  return NextResponse.json({
+    answer: reply?.text ?? FALLBACK_REPLY,
+    options: reply?.options ?? [],
+    openField: reply?.openField ?? true
+  });
 }

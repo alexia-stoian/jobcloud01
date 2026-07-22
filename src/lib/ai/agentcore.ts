@@ -50,11 +50,35 @@ export function deriveCareerGuideSessionId(userId: string): string {
   return base.length >= 33 ? base : base.padEnd(33, "0");
 }
 
-/** Unwrap the agent's final text: a plain string, or a JSON object with a common text field. */
-function unwrapReply(raw: string): string {
+/** A parsed reply from the Career Guide agent. */
+export type AgentReply = {
+  text: string;
+  options: string[];
+  openField: boolean;
+};
+
+/** Coerce an options entry (string or `{ label }`/`{ value }` object) to a label string. */
+function optionLabel(entry: unknown): string {
+  if (typeof entry === "string") {
+    return entry.trim();
+  }
+  if (entry && typeof entry === "object") {
+    const obj = entry as Record<string, unknown>;
+    if (typeof obj.label === "string") {
+      return obj.label.trim();
+    }
+    if (typeof obj.value === "string") {
+      return obj.value.trim();
+    }
+  }
+  return "";
+}
+
+/** Unwrap the agent's final payload: text + optional clickable options + open-field flag. */
+function unwrapReply(raw: string): AgentReply {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return "";
+    return { text: "", options: [], openField: true };
   }
 
   let parsed: unknown;
@@ -62,37 +86,44 @@ function unwrapReply(raw: string): string {
     parsed = JSON.parse(trimmed);
   } catch {
     // Not JSON — the raw text is the reply.
-    return trimmed;
+    return { text: trimmed, options: [], openField: true };
   }
 
   if (typeof parsed === "string") {
-    return parsed;
+    return { text: parsed, options: [], openField: true };
   }
 
   if (parsed && typeof parsed === "object") {
     const obj = parsed as Record<string, unknown>;
-    // Common single-field shapes.
+
+    let text = "";
     for (const key of ["message", "result", "output", "response", "text", "completion", "answer"]) {
       const value = obj[key];
       if (typeof value === "string" && value.trim().length > 0) {
-        return value;
+        text = value;
+        break;
       }
     }
     // Anthropic-style content array: [{ type: "text", text }]
-    if (Array.isArray(obj.content)) {
-      const text = (obj.content as Array<{ type?: unknown; text?: unknown }>)
+    if (!text && Array.isArray(obj.content)) {
+      text = (obj.content as Array<{ text?: unknown }>)
         .filter((part) => part && typeof part.text === "string")
         .map((part) => part.text as string)
         .join("")
         .trim();
-      if (text.length > 0) {
-        return text;
-      }
     }
+
+    const options = Array.isArray(obj.options)
+      ? (obj.options as unknown[]).map(optionLabel).filter((label) => label.length > 0)
+      : [];
+
+    // The agent may signal whether free-text is allowed; default to allowed.
+    const openField = obj.open_field !== false;
+
+    return { text: text || trimmed, options, openField };
   }
 
-  // Fall back to the raw body so nothing is silently lost.
-  return trimmed;
+  return { text: trimmed, options: [], openField: true };
 }
 
 /**
@@ -101,10 +132,10 @@ function unwrapReply(raw: string): string {
  * we concatenate the text deltas into the full message, then unwrap it. A plain
  * (non-SSE) body is unwrapped directly.
  */
-function parseAgentResponse(raw: string): string {
+function parseAgentResponse(raw: string): AgentReply {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return "";
+    return { text: "", options: [], openField: true };
   }
 
   if (/^\s*(event:|data:)/m.test(trimmed)) {
@@ -140,12 +171,12 @@ function parseAgentResponse(raw: string): string {
 
 /**
  * Invoke the Career Guide AgentCore runtime with a single user prompt and return
- * the agent's reply text, or `null` on any misconfiguration/failure.
+ * the agent's reply (text + options), or `null` on any misconfiguration/failure.
  */
 export async function invokeCareerGuideAgent(args: {
   prompt: string;
   sessionId: string;
-}): Promise<string | null> {
+}): Promise<AgentReply | null> {
   const arn = runtimeArn();
   if (!arn) {
     return null;
