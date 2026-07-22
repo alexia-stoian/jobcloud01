@@ -13,6 +13,7 @@
  */
 
 import { env } from "@/lib/env";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 import type { CandidateReport, RecruiterNeeds, ScoredCandidate, SourcingVerdict } from "./types";
 
 type AnthropicTextContent = { type: "text"; text: string };
@@ -51,13 +52,11 @@ async function callAnthropic(prompt: string, maxTokens: number): Promise<string 
   // a multi-line .env value silently corrupting the credential). The key is never
   // logged, never returned in any API response, and only ever travels from this
   // server to Anthropic over HTTPS — it is never exposed to the browser.
-  const anthropicApiKey = (process.env.ANTHROPIC_API_KEY ?? env.ANTHROPIC_API_KEY ?? "").replace(
+  const anthropicApiKey = (process.env.AWS_BEARER_TOKEN_BEDROCK ?? env.AWS_BEARER_TOKEN_BEDROCK ?? "").replace(
     /\s+/g,
     ""
   );
-  const anthropicModel = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
-    .replace(/["'`\r\n]/g, "")
-    .trim();
+  const anthropicModel = getBedrockModel();
 
   if (!anthropicApiKey || !anthropicModel) {
     return null;
@@ -67,20 +66,12 @@ async function callAnthropic(prompt: string, maxTokens: number): Promise<string 
   const timeout = setTimeout(() => controller.abort(), 55000);
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(anthropicModel), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(anthropicApiKey),
       body: JSON.stringify({
-        model: anthropicModel,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: maxTokens,
-        // Disable extended thinking: this is a structured JSON-extraction task, so
-        // "thinking" only burns the token budget (truncating the JSON before it
-        // closes) and adds latency. Without it the model returns clean JSON fast.
-        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }]
       }),
       signal: controller.signal,

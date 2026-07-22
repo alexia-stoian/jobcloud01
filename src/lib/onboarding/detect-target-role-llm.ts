@@ -24,6 +24,8 @@
  * classifier (the locked EN/DE/FR scope). The gate is deliberately permissive — the LLM
  * makes the final decision — so a broad match here is safe.
  */
+import { bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
+
 const INTENT_HINT =
   /(?:\bi\s+(?:want|aim|plan|hope|wish|would\s+like|'?d\s+like|intend)\b|\bi'?m\s+(?:targeting|aiming|looking|pursuing|switching|moving|transitioning)\b|\bmy\s+goal\b|\baiming\s+for\b|\bswitch\s+to\b|\bmove\s+into\b|\boptimize\s+for\b|\btarget(?:ing)?\s+role\b|\bich\s+(?:möchte|will|strebe|plane|wünsche|möchte\s+gern)\b|\bmein\s+ziel\b|\bwechseln\s+zu\b|\bwerden\s+möchte\b|\bje\s+(?:veux|voudrais|souhaite|vise|compte|aimerais|désire)\b|\bmon\s+objectif\b|\bpasser\s+à|\bdevenir\b)/i;
 
@@ -112,15 +114,11 @@ export async function detectTargetRoleIntent({
 
     let text: string | null;
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch(bedrockInvokeUrl(model), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01"
-        },
+        headers: bedrockHeaders(apiKey),
         body: JSON.stringify({
-          model,
+          anthropic_version: BEDROCK_ANTHROPIC_VERSION,
           max_tokens: 20,
           system,
           messages: [{ role: "user", content: message }]

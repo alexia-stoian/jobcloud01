@@ -10,6 +10,7 @@
  */
 
 import type { CandidateProfile } from "@prisma/client";
+import { bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 import type { ExtractedCvFacts } from "@/lib/cv/extract";
 
 type AnthropicTextContent = {
@@ -168,15 +169,11 @@ export async function generateCoverLetter(
   // Build the prompt for cover letter generation
   const prompt = buildCoverLetterPrompt(request);
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(bedrockInvokeUrl(anthropicModel), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": anthropicApiKey,
-      "anthropic-version": "2023-06-01"
-    },
+    headers: bedrockHeaders(anthropicApiKey),
     body: JSON.stringify({
-      model: anthropicModel,
+      anthropic_version: BEDROCK_ANTHROPIC_VERSION,
       max_tokens: 2048,
       messages: [
         {
@@ -188,7 +185,7 @@ export async function generateCoverLetter(
   });
 
   if (!response.ok) {
-    throw new Error(`Anthropic API error: ${response.status}`);
+    throw new Error(`Bedrock API error: ${response.status}`);
   }
 
   const data = (await response.json()) as AnthropicResponse;

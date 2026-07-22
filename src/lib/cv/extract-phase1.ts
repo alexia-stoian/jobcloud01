@@ -1,4 +1,5 @@
 import { env } from "@/lib/env";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 
 // Enhanced data types with structured metadata
 export type WorkExperience = {
@@ -88,10 +89,8 @@ type AnthropicResponse = {
 };
 
 async function callAnthropic(prompt: string): Promise<string | null> {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
-  const anthropicModel = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
-    .replace(/["'`\r\n]/g, "")
-    .trim();
+  const anthropicApiKey = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || env.AWS_BEARER_TOKEN_BEDROCK?.trim();
+  const anthropicModel = getBedrockModel();
 
   if (!anthropicApiKey || !anthropicModel) {
     return null;
@@ -101,15 +100,11 @@ async function callAnthropic(prompt: string): Promise<string | null> {
   const timeout = setTimeout(() => controller.abort(), 50000);
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(anthropicModel), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(anthropicApiKey),
       body: JSON.stringify({
-        model: anthropicModel,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: 3500,
         messages: [{ role: "user", content: prompt }]
       }),

@@ -13,7 +13,7 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("@/auth/config", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
-vi.mock("@/lib/env", () => ({ env: { ANTHROPIC_API_KEY: "test-key", ANTHROPIC_MODEL: "claude-test" } }));
+vi.mock("@/lib/env", () => ({ env: { ANTHROPIC_API_KEY: "test-key", ANTHROPIC_MODEL: "claude-test", AWS_BEARER_TOKEN_BEDROCK: "test-bedrock-key", BEDROCK_REGION: "eu-west-1", BEDROCK_MODEL_ID: "eu.anthropic.claude-sonnet-5" } }));
 vi.mock("@/lib/ai/domain-guard", () => ({ isJobDomainMessage: isJobDomainMessageMock, OFF_TOPIC_RESPONSE: "off-topic" }));
 vi.mock("@/lib/profile/memory", () => ({ buildDurableProfileMemory: buildDurableProfileMemoryMock }));
 

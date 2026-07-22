@@ -16,7 +16,6 @@
     "prisma:validate": "prisma validate"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
     "@auth/prisma-adapter": "^2.7.4",
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^6.11.1",

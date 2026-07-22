@@ -17,8 +17,12 @@ const schema = z.object({
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
   EMAIL_FROM: z.string().email().default("noreply@jobcloud01.local"),
   EMAIL_PROVIDER: z.enum(["console"]).default("console"),
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-5"),
+  // Amazon Bedrock powers ALL LLM features (onboarding assistant, sourcing,
+  // signals, CV extraction, guidance, interview). API key is a Bearer token;
+  // region + model id resolve the InvokeModel endpoint.
+  AWS_BEARER_TOKEN_BEDROCK: z.string().min(1).optional(),
+  BEDROCK_REGION: z.string().min(1).default("eu-west-1"),
+  BEDROCK_MODEL_ID: z.string().min(1).default("eu.anthropic.claude-sonnet-5"),
   // Recruiter-signals dev/admin/recruiter gate. Defaults OFF: the admin API is
   // invisible (404) and the panel never renders unless explicitly enabled.
   SIGNALS_ADMIN_ENABLED: booleanFlag,
@@ -35,8 +39,9 @@ export const env = schema.parse({
   APP_BASE_URL: process.env.APP_BASE_URL,
   EMAIL_FROM: process.env.EMAIL_FROM,
   EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
+  AWS_BEARER_TOKEN_BEDROCK: process.env.AWS_BEARER_TOKEN_BEDROCK,
+  BEDROCK_REGION: process.env.BEDROCK_REGION,
+  BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID,
   SIGNALS_ADMIN_ENABLED: process.env.SIGNALS_ADMIN_ENABLED,
   SIGNALS_ADMIN_USER_IDS: process.env.SIGNALS_ADMIN_USER_IDS,
   NEXT_PUBLIC_SIGNALS_ADMIN: process.env.NEXT_PUBLIC_SIGNALS_ADMIN

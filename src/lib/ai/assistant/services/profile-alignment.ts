@@ -10,6 +10,7 @@
  */
 
 import type { CandidateProfile, ProfileQualification } from "@prisma/client";
+import { bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 
 export interface AlignmentResult {
   aligned: boolean;
@@ -98,15 +99,11 @@ VERDICT: ALIGNED or MISALIGNED
 REASON: <one short sentence explaining why>`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(model), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(apiKey),
       body: JSON.stringify({
-        model,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: 300,
         messages: [{ role: "user", content: prompt }]
       })

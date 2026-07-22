@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { env } from "@/lib/env";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 import { DurableProfileMemory } from "@/lib/profile/memory";
 import {
   buildInterviewPrompt,
@@ -6,9 +7,40 @@ import {
   InterviewType,
 } from "./prompts";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+/**
+ * Call Amazon Bedrock (Claude via the InvokeModel endpoint) with an optional
+ * system prompt and a single user message; returns the first text block. Throws
+ * on missing credentials or a non-OK response so callers keep their existing
+ * try/catch behavior (previously provided by the Anthropic SDK).
+ */
+async function callBedrockText(opts: {
+  system?: string;
+  content: string;
+  maxTokens: number;
+}): Promise<string> {
+  const apiKey = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || env.AWS_BEARER_TOKEN_BEDROCK?.trim();
+  if (!apiKey) {
+    throw new Error("Bedrock API key not configured");
+  }
+  const body: Record<string, unknown> = {
+    anthropic_version: BEDROCK_ANTHROPIC_VERSION,
+    max_tokens: opts.maxTokens,
+    messages: [{ role: "user", content: opts.content }],
+  };
+  if (opts.system) {
+    body.system = opts.system;
+  }
+  const response = await fetch(bedrockInvokeUrl(getBedrockModel()), {
+    method: "POST",
+    headers: bedrockHeaders(apiKey),
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Bedrock API error: ${response.status}`);
+  }
+  const data = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
+  return data.content?.find((c) => c.type === "text")?.text ?? "";
+}
 
 /**
  * Interview response type - what Claude returns
@@ -78,21 +110,12 @@ export async function generateFirstQuestion(
       locale
     );
 
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 500,
+    const responseText = await callBedrockText({
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content:
-            "Please start the interview with your opening question. Remember to respond in valid JSON format.",
-        },
-      ],
+      content:
+        "Please start the interview with your opening question. Remember to respond in valid JSON format.",
+      maxTokens: 500,
     });
-
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
     return parseInterviewResponse(responseText);
   } catch (error) {
     console.error("Error generating first question:", error);
@@ -126,20 +149,11 @@ export async function scoreAnswerAndGenerateFeedback(
       questionCount
     );
 
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 500,
+    const responseText = await callBedrockText({
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: followUpPrompt,
-        },
-      ],
+      content: followUpPrompt,
+      maxTokens: 500,
     });
-
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
     return parseInterviewResponse(responseText);
   } catch (e) {
     console.error("Error scoring answer:", e);
@@ -185,13 +199,9 @@ export async function generateSessionSummary(
       allQuestions.reduce((sum, q) => sum + q.score, 0) / allQuestions.length
     );
 
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 800,
-      messages: [
-        {
-          role: "user",
-          content: `Analyze this ${interviewType} interview and provide a structured summary:
+    const responseText =
+      (await callBedrockText({
+        content: `Analyze this ${interviewType} interview and provide a structured summary:
 
 ${questionsText}
 
@@ -204,12 +214,8 @@ Provide response in JSON format:
   "improvements": ["[improvement area 1]", "[improvement area 2]", "[improvement area 3]"],
   "recommendations": ["[actionable recommendation 1]", "[actionable recommendation 2]"]
 }`,
-        },
-      ],
-    });
-
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "{}";
+        maxTokens: 800,
+      })) || "{}";
 
     let parsed;
     try {

@@ -8,6 +8,7 @@
  */
 
 import { env } from "@/lib/env";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 import { loadSignalState, saveSignalState } from "./signal-dal";
 import { buildInferencePrompt } from "./prompt";
 import {
@@ -59,15 +60,13 @@ export async function inferSignals(args: InferSignalsArgs): Promise<SignalRecord
     return prior;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
+  const apiKey = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || env.AWS_BEARER_TOKEN_BEDROCK?.trim();
   if (!apiKey) {
     // Nothing to infer with — return priors unchanged.
     return prior;
   }
 
-  const model = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
-    .replace(/["'`\r\n]/g, "")
-    .trim();
+  const model = getBedrockModel();
 
   const priorClaimsToCheck = runConsistencyPass(prior, trimmedInput);
 
@@ -82,15 +81,11 @@ export async function inferSignals(args: InferSignalsArgs): Promise<SignalRecord
 
   let updates: SignalUpdate[];
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(model), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: bedrockHeaders(apiKey),
       body: JSON.stringify({
-        model,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: 4096,
         system,
         messages: [{ role: "user", content: user }],

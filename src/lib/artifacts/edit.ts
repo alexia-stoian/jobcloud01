@@ -13,6 +13,7 @@ import { env } from "@/lib/env";
 import * as artifactDAL from '@/lib/artifacts/dal';
 import type { ArtifactType } from '@/lib/artifacts/dal';
 import { checkCoverLetterAlignment, buildMisalignmentMessage } from '@/lib/ai/assistant/services/profile-alignment';
+import { bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from '@/lib/ai/bedrock';
 
 export interface EditIntent {
   detected: boolean;
@@ -467,15 +468,11 @@ Output ONLY the translated cover letter text. Do not include any commentary or p
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(anthropicModel), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(anthropicApiKey),
       body: JSON.stringify({
-        model: anthropicModel,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: 4096,
         messages: [
           {
@@ -487,7 +484,7 @@ Output ONLY the translated cover letter text. Do not include any commentary or p
     });
 
     if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.status}`);
+      throw new Error(`Bedrock API error: ${response.status}`);
     }
 
     const data = await response.json() as { content?: Array<{ type?: string; text?: string }> };

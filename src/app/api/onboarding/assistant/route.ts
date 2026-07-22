@@ -20,6 +20,7 @@ import { detectEditIntent, handleArtifactEditWorkflow } from "@/lib/artifacts/ed
 import { runInferenceSafely } from "@/lib/ai/signals/hook";
 import { loadSignalState } from "@/lib/ai/signals/signal-dal";
 import { SIGNAL_REGISTRY, PROBE_THRESHOLD } from "@/lib/ai/signals/signal-definitions";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 
 type AssistantRequestBody = {
   message?: string;
@@ -93,10 +94,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "message_required" }, { status: 400 });
   }
 
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
-  const anthropicModel = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
-    .replace(/["'`\r\n]/g, "")
-    .trim();
+  // All LLM features run on Amazon Bedrock (Claude via the InvokeModel
+  // endpoint) using the Bedrock bearer token.
+  const anthropicApiKey = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || env.AWS_BEARER_TOKEN_BEDROCK?.trim();
+  const anthropicModel = getBedrockModel();
 
   if (!anthropicApiKey) {
     return NextResponse.json({ error: "assistant_not_configured" }, { status: 503 });
@@ -982,15 +983,11 @@ async function callAnthropicAssistant({
     // Use a high token limit to avoid truncating cover letters, mock interviews, and detailed responses
     const maxTokens = 4096;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(anthropicModel), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(anthropicApiKey),
       body: JSON.stringify({
-        model: anthropicModel,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: maxTokens,
         system: fullSystemPrompt.trim(),
         messages: [{ role: "user", content: userMessage }]
@@ -1003,18 +1000,18 @@ async function callAnthropicAssistant({
 
     if (!response.ok) {
       const errorMessage = data.error?.message ?? `HTTP ${response.status}`;
-      console.error(`Anthropic API error: ${errorMessage}`, {
+      console.error(`Bedrock API error: ${errorMessage}`, {
         status: response.status,
         messageLength: userMessage.length,
         systemPromptLength: fullSystemPrompt.length
       });
-      throw new Error(`Anthropic error ${response.status}: ${errorMessage}`);
+      throw new Error(`Bedrock error ${response.status}: ${errorMessage}`);
     }
 
     const answer = data.content?.find((part) => part.type === "text")?.text?.trim();
 
     if (!answer) {
-      throw new Error("Empty response from Anthropic");
+      throw new Error("Empty response from Bedrock");
     }
 
     return answer;

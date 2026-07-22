@@ -22,7 +22,10 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/env", () => ({
   env: {
     ANTHROPIC_API_KEY: "test-key",
-    ANTHROPIC_MODEL: "claude-test"
+    ANTHROPIC_MODEL: "claude-test",
+    AWS_BEARER_TOKEN_BEDROCK: "test-bedrock-key",
+    BEDROCK_REGION: "eu-west-1",
+    BEDROCK_MODEL_ID: "eu.anthropic.claude-sonnet-5"
   }
 }));
 

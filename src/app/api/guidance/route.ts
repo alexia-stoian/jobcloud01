@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import { env } from "@/lib/env";
+import { getBedrockModel, bedrockInvokeUrl, bedrockHeaders, BEDROCK_ANTHROPIC_VERSION } from "@/lib/ai/bedrock";
 import { db } from "@/lib/db";
 import { buildDurableProfileMemory } from "@/lib/profile/memory";
 import { computeCompletion } from "@/lib/profile/completion-gate";
@@ -63,10 +64,8 @@ Be direct, warm, specific, and practical. Use short paragraphs. No fluff.`;
 }
 
 async function callAnthropic(prompt: string, locale: string): Promise<string | null> {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
-  const anthropicModel = (process.env.ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL)
-    .replace(/["'`\r\n]/g, "")
-    .trim();
+  const anthropicApiKey = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || env.AWS_BEARER_TOKEN_BEDROCK?.trim();
+  const anthropicModel = getBedrockModel();
 
   if (!anthropicApiKey || !anthropicModel) {
     return null;
@@ -78,15 +77,11 @@ async function callAnthropic(prompt: string, locale: string): Promise<string | n
   const timeout = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(bedrockInvokeUrl(anthropicModel), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: bedrockHeaders(anthropicApiKey),
       body: JSON.stringify({
-        model: anthropicModel,
+        anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: 1800,
         system: `You are a career coach. ${localeNote} Always return valid JSON only, no markdown fences.`,
         messages: [{ role: "user", content: prompt }]

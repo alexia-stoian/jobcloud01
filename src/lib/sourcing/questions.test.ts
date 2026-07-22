@@ -66,8 +66,7 @@ const LLM_PAYLOAD = JSON.stringify({
 });
 
 beforeEach(() => {
-  process.env.ANTHROPIC_API_KEY = "test-key";
-  process.env.ANTHROPIC_MODEL = "claude-test";
+  process.env.AWS_BEARER_TOKEN_BEDROCK = "test-key";
 });
 
 afterEach(() => {
@@ -132,7 +131,7 @@ describe("generateGapQuestions — shape + option stripping", () => {
 describe("generateGapQuestions — graceful degradation", () => {
   // u3: no key or a non-ok response yields [] (no questions generated).
   test("returns [] when the API key is absent", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.AWS_BEARER_TOKEN_BEDROCK;
     const fetchMock = vi.fn(async () => anthropicOk(LLM_PAYLOAD));
     vi.stubGlobal("fetch", fetchMock);
 
