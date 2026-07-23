@@ -25,6 +25,7 @@ export function buildProfileSummary(input: {
     locale: string;
     editorDraft: Record<string, unknown> | null;
     sectorPreferences: unknown;
+    updatedAt: string;
   };
   completion: {
     isMinimallyComplete: boolean;
@@ -53,7 +54,8 @@ export function buildProfileSummary(input: {
       commuteRadius: input.profile.commuteRadius,
       locale: input.profile.locale,
       editorDraft: (input.profile.editorDraft as Record<string, unknown> | null) ?? null,
-      sectorPreferences: (input.profile.sectorPreferences as unknown) ?? {}
+      sectorPreferences: (input.profile.sectorPreferences as unknown) ?? {},
+      updatedAt: input.profile.updatedAt.toISOString()
     },
     completion: {
       isMinimallyComplete: input.profile.isMinimallyComplete,

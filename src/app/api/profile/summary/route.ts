@@ -36,6 +36,9 @@ type ProfileDraftPayload = {
   // Sector preference VALUES only — labels/questions/options are server-owned
   // field definitions and are NEVER trusted from the client (T-12-13).
   sectorPreferences?: { fields?: Array<{ key?: unknown; value?: unknown }> };
+  // Freshness marker used to reconcile stale drafts against out-of-band column
+  // updates (e.g. Career Guide agent). Stamped server-side on every save.
+  _savedAt?: string;
 };
 
 /** Untrusted sector VALUES are clamped/trimmed before they persist (V5). */
@@ -238,7 +241,7 @@ export async function PATCH(request: Request): Promise<NextResponse> {
         visaSponsorship: normalizeString(draft.visaSponsorship),
         relocationWillingness: normalizeString(draft.relocationWillingness),
         commuteRadius: normalizeString(draft.commuteRadius),
-        editorDraft: JSON.parse(JSON.stringify(draft)),
+        editorDraft: JSON.parse(JSON.stringify({ ...draft, _savedAt: new Date().toISOString() })),
         ...(nextSectorPreferences
           ? { sectorPreferences: JSON.parse(JSON.stringify(nextSectorPreferences)) }
           : {})
