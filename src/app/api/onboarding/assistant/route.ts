@@ -102,6 +102,25 @@ function toStr(value: unknown): string | null {
   return null;
 }
 
+/** Normalize a date-ish value to `YYYY-MM-DD` (for the Birth date input), or null. */
+function toIsoDate(value: unknown): string | null {
+  const s = toStr(value);
+  if (!s) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
+  }
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  const year = parsed.getUTCFullYear();
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Map the agent's `profile` object onto CandidateProfile columns. Translates the
  * legacy ad-hoc keys (`target_role`, `job_sector`, `location`) and passes through
@@ -224,14 +243,15 @@ function buildQualificationRows(quals: Record<string, unknown>): Array<{ categor
 
 /**
  * Extract the draft-only profile fields (Professional headline, Value
- * proposition) from the agent's payload. These have no CandidateProfile column —
- * they live in `editorDraft` — so they need separate handling from `mapAgentProfile`.
+ * proposition, phone, birth date) from the agent's payload. These have no
+ * CandidateProfile column — they live in `editorDraft` — so they need separate
+ * handling from `mapAgentProfile`.
  */
 function extractDraftFields(
   profile: Record<string, unknown>,
   data: Record<string, unknown>
-): { profileHeadline?: string; valueProposition?: string } {
-  const out: { profileHeadline?: string; valueProposition?: string } = {};
+): { profileHeadline?: string; valueProposition?: string; phone?: string; birthDate?: string } {
+  const out: { profileHeadline?: string; valueProposition?: string; phone?: string; birthDate?: string } = {};
   const headline =
     toStr(profile.profileHeadline) ??
     toStr(profile.headline) ??
@@ -247,6 +267,25 @@ function extractDraftFields(
     toStr(data.value_proposition);
   if (valueProp) {
     out.valueProposition = valueProp;
+  }
+  const phone =
+    toStr(profile.phone) ??
+    toStr(profile.phoneNumber) ??
+    toStr(profile.phone_number) ??
+    toStr(data.phone);
+  if (phone) {
+    out.phone = phone;
+  }
+  // The Birth date field is an <input type="date"> → normalize to YYYY-MM-DD.
+  const birthDate =
+    toIsoDate(profile.birthDate) ??
+    toIsoDate(profile.birth_date) ??
+    toIsoDate(profile.dateOfBirth) ??
+    toIsoDate(profile.date_of_birth) ??
+    toIsoDate(data.birthDate) ??
+    toIsoDate(data.birth_date);
+  if (birthDate) {
+    out.birthDate = birthDate;
   }
   return out;
 }
