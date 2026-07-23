@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 
 type Locale = "en" | "de" | "fr";
@@ -54,6 +55,7 @@ const NOTE: Record<Locale, string> = {
  * options it returns are rendered as clickable boxes under its latest reply.
  */
 export function CareerGuideChat({ locale }: Props): React.ReactElement {
+  const router = useRouter();
   const [history, setHistory] = useState<ChatMessage[]>([{ role: "assistant", text: GREETING[locale] }]);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -141,13 +143,17 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
             options: Array.isArray(data.options) ? data.options.filter((o) => o.trim().length > 0) : []
           }
         ]);
+        // The agent may have persisted profile/qualification updates server-side.
+        // Invalidate the App Router cache so a later visit to /profile/summary
+        // (e.g. via the sidebar) refetches fresh data instead of a stale page.
+        router.refresh();
       } catch {
         setHistory((current) => [...current, { role: "assistant", text: ERROR_REPLY[locale] }]);
       } finally {
         setIsSending(false);
       }
     },
-    [locale]
+    [locale, router]
   );
 
   const sendTyped = useCallback(async (): Promise<void> => {
