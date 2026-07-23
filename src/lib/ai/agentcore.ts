@@ -32,6 +32,12 @@ function runtimeArn(): string | undefined {
   return arn.length > 0 ? arn : undefined;
 }
 
+/** The deployed Application Coach runtime ARN (cover letters + interview practice). */
+function applicationCoachRuntimeArn(): string | undefined {
+  const arn = (process.env.APPLICATIONCOACH_RUNTIME_ARN ?? env.APPLICATIONCOACH_RUNTIME_ARN ?? "").trim();
+  return arn.length > 0 ? arn : undefined;
+}
+
 let cachedClient: BedrockAgentCoreClient | null = null;
 function getClient(): BedrockAgentCoreClient {
   if (!cachedClient) {
@@ -47,6 +53,16 @@ function getClient(): BedrockAgentCoreClient {
  */
 export function deriveCareerGuideSessionId(userId: string): string {
   const base = `careerguide-session-${userId}`;
+  return base.length >= 33 ? base : base.padEnd(33, "0");
+}
+
+/**
+ * Derive a stable per-user Application Coach session id (>= 33 chars). Uses a
+ * distinct prefix from the Career Guide session so the two agents keep entirely
+ * separate conversation memories for the same user.
+ */
+export function deriveApplicationCoachSessionId(userId: string): string {
+  const base = `appcoach-session-${userId}`;
   return base.length >= 33 ? base : base.padEnd(33, "0");
 }
 
@@ -178,8 +194,38 @@ export async function invokeCareerGuideAgent(args: {
   prompt: string;
   sessionId: string;
 }): Promise<AgentReply | null> {
-  const arn = runtimeArn();
-  if (!arn) {
+  return invokeAgent({ arn: runtimeArn(), prompt: args.prompt, sessionId: args.sessionId, label: "Career Guide" });
+}
+
+/**
+ * Invoke the Application Coach AgentCore runtime (cover letters + interview
+ * practice) with a single user prompt. Returns the agent's reply, or `null` on
+ * any misconfiguration/failure.
+ */
+export async function invokeApplicationCoachAgent(args: {
+  prompt: string;
+  sessionId: string;
+}): Promise<AgentReply | null> {
+  return invokeAgent({
+    arn: applicationCoachRuntimeArn(),
+    prompt: args.prompt,
+    sessionId: args.sessionId,
+    label: "Application Coach"
+  });
+}
+
+/**
+ * Shared AgentCore invocation. Sends `{ prompt }` to the given runtime with a
+ * per-user session id and parses the SSE reply. All failures resolve to `null`
+ * so callers degrade gracefully — invocation never throws into a handler.
+ */
+async function invokeAgent(args: {
+  arn: string | undefined;
+  prompt: string;
+  sessionId: string;
+  label: string;
+}): Promise<AgentReply | null> {
+  if (!args.arn) {
     return null;
   }
 
@@ -188,11 +234,11 @@ export async function invokeCareerGuideAgent(args: {
   try {
     const result = await getClient().send(
       new InvokeAgentRuntimeCommand({
-        agentRuntimeArn: arn,
+        agentRuntimeArn: args.arn,
         qualifier: "DEFAULT",
         runtimeSessionId: args.sessionId,
         contentType: "application/json",
-        accept: "application/json",
+        accept: "text/event-stream",
         payload
       })
     );
@@ -207,7 +253,10 @@ export async function invokeCareerGuideAgent(args: {
 
     return parseAgentResponse(raw);
   } catch (error) {
-    console.error("[agentcore] Career Guide invocation failed:", error instanceof Error ? error.message : error);
+    console.error(
+      `[agentcore] ${args.label} invocation failed:`,
+      error instanceof Error ? error.message : error
+    );
     return null;
   }
 }

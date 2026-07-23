@@ -26,6 +26,9 @@ const schema = z.object({
   // Bedrock AgentCore runtime ARN powering the Career Guide assistant chat.
   // Invoked with SigV4 (inbound auth = AWS_IAM) from the standard credential chain.
   CAREERGUIDE_RUNTIME_ARN: z.string().min(1).optional(),
+  // Bedrock AgentCore runtime ARN powering the Application Coach (cover letters
+  // + interview practice). Same SigV4/AWS_IAM inbound auth as Career Guide.
+  APPLICATIONCOACH_RUNTIME_ARN: z.string().min(1).optional(),
   // Recruiter-signals dev/admin/recruiter gate. Defaults OFF: the admin API is
   // invisible (404) and the panel never renders unless explicitly enabled.
   SIGNALS_ADMIN_ENABLED: booleanFlag,
@@ -46,6 +49,7 @@ export const env = schema.parse({
   BEDROCK_REGION: process.env.BEDROCK_REGION,
   BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID,
   CAREERGUIDE_RUNTIME_ARN: process.env.CAREERGUIDE_RUNTIME_ARN,
+  APPLICATIONCOACH_RUNTIME_ARN: process.env.APPLICATIONCOACH_RUNTIME_ARN,
   SIGNALS_ADMIN_ENABLED: process.env.SIGNALS_ADMIN_ENABLED,
   SIGNALS_ADMIN_USER_IDS: process.env.SIGNALS_ADMIN_USER_IDS,
   NEXT_PUBLIC_SIGNALS_ADMIN: process.env.NEXT_PUBLIC_SIGNALS_ADMIN
