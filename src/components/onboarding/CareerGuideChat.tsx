@@ -58,12 +58,61 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [history, isSending, isUploading]);
+
+  // Restore the saved conversation on mount so a refresh doesn't lose history.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/onboarding/history", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            history?: Array<{ role?: string; text?: string; options?: unknown }>;
+          };
+          const restored = (data.history ?? [])
+            .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string")
+            .map((m) => ({
+              role: m.role as "user" | "assistant",
+              text: m.text as string,
+              options: Array.isArray(m.options)
+                ? (m.options as unknown[]).filter((o): o is string => typeof o === "string")
+                : undefined
+            }));
+          if (!cancelled && restored.length > 0) {
+            setHistory(restored);
+          }
+        }
+      } catch {
+        // Ignore — start from the greeting.
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist the conversation after each change (once the initial load is done).
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    void fetch("/api/onboarding/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history })
+    }).catch(() => undefined);
+  }, [history, hydrated]);
 
   // Send a prompt to the agent and append its reply. The caller is responsible
   // for appending the user-facing bubble (typed text / tapped option / CV note).

@@ -25,6 +25,24 @@ function isValidMessage(value: unknown): value is ConversationMessage {
   );
 }
 
+/** Load the signed-in user's saved conversation so the chat survives refreshes. */
+export async function GET(): Promise<NextResponse> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const onboarding = await db.onboardingSession.findUnique({
+    where: { userId: session.user.id },
+    select: { conversationHistory: true }
+  });
+
+  const stored = onboarding?.conversationHistory;
+  const history = Array.isArray(stored) ? stored.filter(isValidMessage) : [];
+
+  return NextResponse.json({ history });
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
   if (!session?.user?.id) {
