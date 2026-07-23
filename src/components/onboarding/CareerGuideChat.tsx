@@ -71,7 +71,7 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/onboarding/history", { cache: "no-store" });
+        const res = await fetch("/api/career-guide/history", { cache: "no-store" });
         if (res.ok) {
           const data = (await res.json()) as {
             history?: Array<{ role?: string; text?: string; options?: unknown }>;
@@ -107,7 +107,7 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
     if (!hydrated) {
       return;
     }
-    void fetch("/api/onboarding/history", {
+    void fetch("/api/career-guide/history", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history })

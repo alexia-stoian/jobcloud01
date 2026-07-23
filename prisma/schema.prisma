@@ -173,6 +173,7 @@ model OnboardingSession {
   cvExtractedFacts      Json     @default("{}")
   cvUncertainFacts      Json     @default("{}")
   conversationHistory   Json     @default("[]")
+  agentConversation     Json     @default("[]")
   pendingQuestions      Json     @default("[]")
   skippedQuestionIds    Json     @default("[]")
   confirmedQuestionIds  Json     @default("[]")
