@@ -24,12 +24,13 @@ import { JsLogo } from "./JsLogo";
 type IconName = "home" | "sparkle" | "search" | "user" | "chat" | "bell" | "shield" | "briefcase";
 
 type NavItem = {
-  labelKey: "dashboard" | "careerGuide" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin" | "sourcing";
+  labelKey: "dashboard" | "careerGuide" | "applicationCoach" | "discoverJobs" | "profile" | "messages" | "notifications" | "admin" | "sourcing";
   icon: IconName;
   badge?: "new";
   href:
     | "/dashboard/unavailable/dashboard"
     | "/onboarding"
+    | "/application-coach"
     | "/dashboard/unavailable/discover-jobs"
     | "/profile/summary"
     | "/dashboard/unavailable/messages"
@@ -49,6 +50,7 @@ type Props = {
 const navItems: NavItem[] = [
   { labelKey: "dashboard", icon: "home", href: "/dashboard/unavailable/dashboard" },
   { labelKey: "careerGuide", icon: "sparkle", badge: "new", href: "/onboarding" },
+  { labelKey: "applicationCoach", icon: "chat", badge: "new", href: "/application-coach" },
   { labelKey: "discoverJobs", icon: "search", href: "/dashboard/unavailable/discover-jobs" },
   { labelKey: "profile", icon: "user", href: "/profile/summary" },
   { labelKey: "messages", icon: "chat", href: "/dashboard/unavailable/messages" },
@@ -74,6 +76,10 @@ function NavIcon({ name }: { name: IconName }): React.ReactElement {
 function isActive(pathname: string, href: string): boolean {
   if (href === "/onboarding") {
     return pathname.startsWith("/onboarding") || pathname.startsWith("/career-guide");
+  }
+
+  if (href === "/application-coach") {
+    return pathname.startsWith("/application-coach");
   }
 
   if (href === "/profile/summary") {
@@ -118,6 +124,10 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
   const appTitle = useMemo(() => {
     if (pathname.startsWith("/onboarding") || pathname.startsWith("/career-guide")) {
       return "Onboarding";
+    }
+
+    if (pathname.startsWith("/application-coach")) {
+      return tApp("applicationCoach");
     }
 
     if (pathname.startsWith("/profile/chat")) {

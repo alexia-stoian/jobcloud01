@@ -23,6 +23,7 @@
     "admin": "Admin",
     "sourcing": "Sourcing",
     "careerGuide": "Karriereberater",
+    "applicationCoach": "Bewerbungs-Coach",
     "notImplemented": "Noch nicht implementiert"
   },
   "auth": {
