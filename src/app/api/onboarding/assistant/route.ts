@@ -29,26 +29,32 @@ const FALLBACK_REPLY =
   "Sorry, I could not reach the Career Guide assistant just now. Please try again in a moment.";
 
 /**
- * CandidateProfile string fields the agent may set directly (when it emits keys
- * that already match the schema). Keeping this an allowlist prevents the agent
- * from writing arbitrary columns.
+ * CandidateProfile string columns the agent may set directly (when it emits keys
+ * that already match the schema). An allowlist prevents writing arbitrary columns.
  */
 const DIRECT_PROFILE_FIELDS = new Set([
   "fullName",
-  "primaryRole",
   "currentJobSituation",
   "employmentObjective",
+  "primaryRole",
   "preferredLocation",
-  "contractPreference",
-  "workRate",
-  "workPermitStatus",
-  "salaryExpectation",
   "targetRoles",
   "targetSeniority",
   "targetIndustries",
   "preferredWorkModel",
+  "contractPreference",
+  "workRate",
+  "workPermitStatus",
+  "salaryExpectation",
+  "workAuthorization",
+  "visaSponsorship",
+  "relocationWillingness",
   "commuteRadius"
 ]);
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 /** Coerce a value to a trimmed non-empty string, or null. */
 function toStr(value: unknown): string | null {
@@ -63,9 +69,9 @@ function toStr(value: unknown): string | null {
 }
 
 /**
- * Map the agent's `profile` object onto CandidateProfile columns. The agent uses
- * its own ad-hoc keys (`target_role`, `job_sector`, ...); we translate the ones
- * we understand and pass through any key already named like a schema field.
+ * Map the agent's `profile` object onto CandidateProfile columns. Translates the
+ * legacy ad-hoc keys (`target_role`, `job_sector`, `location`) and passes through
+ * any key already named like a schema field.
  */
 function mapAgentProfile(profile: Record<string, unknown>): Record<string, string> {
   const data: Record<string, string> = {};
@@ -75,19 +81,15 @@ function mapAgentProfile(profile: Record<string, unknown>): Record<string, strin
     data.primaryRole = targetRole;
     data.targetRoles = targetRole;
   }
-
   const sector = toStr(profile.job_sector);
   if (sector) {
     data.targetIndustries = sector;
   }
-
   const location = toStr(profile.preferred_location) ?? toStr(profile.location);
   if (location) {
     data.preferredLocation = location;
   }
 
-  // Any key already named like a schema field passes straight through — so once
-  // the agent emits schema-aligned keys, they persist with no further changes.
   for (const [key, value] of Object.entries(profile)) {
     if (DIRECT_PROFILE_FIELDS.has(key)) {
       const str = toStr(value);
@@ -101,16 +103,136 @@ function mapAgentProfile(profile: Record<string, unknown>): Record<string, strin
 }
 
 /**
- * Persist the agent's collected profile fields to the signed-in user's
- * CandidateProfile. Best-effort: never throws into the request handler.
+ * Merge the agent's role-based `preferences` block into the existing
+ * `sectorPreferences` JSON (shape: `{ sector, generatedForRole, fields: [{ key,
+ * label, value, options }] }`). Fields are merged by `key`. Returns null when
+ * there is nothing usable to persist.
  */
-async function persistAgentProfile(userId: string, profile: Record<string, unknown>): Promise<void> {
-  const data = mapAgentProfile(profile);
-  if (Object.keys(data).length === 0) {
-    return;
+function mergeSectorPreferences(
+  existing: unknown,
+  preferences: Record<string, unknown>
+): Record<string, unknown> | null {
+  const rawFields = Array.isArray(preferences.fields) ? preferences.fields : [];
+  const incoming = rawFields
+    .map((field) => {
+      if (!isObject(field)) {
+        return null;
+      }
+      const key = toStr(field.key);
+      if (!key) {
+        return null;
+      }
+      const options = Array.isArray(field.options)
+        ? (field.options as unknown[]).map(toStr).filter((o): o is string => Boolean(o))
+        : [];
+      return { key, label: toStr(field.label) ?? key, value: toStr(field.value) ?? "", options };
+    })
+    .filter((f): f is { key: string; label: string; value: string; options: string[] } => f !== null);
+
+  if (incoming.length === 0) {
+    return null;
   }
+
+  const role = toStr(preferences.role) ?? toStr(preferences.target_role) ?? toStr(preferences.generatedForRole);
+  const base = isObject(existing) ? existing : {};
+  const byKey = new Map<string, Record<string, unknown>>();
+  if (Array.isArray(base.fields)) {
+    for (const field of base.fields) {
+      const key = isObject(field) ? toStr(field.key) : null;
+      if (key) {
+        byKey.set(key, field as Record<string, unknown>);
+      }
+    }
+  }
+  for (const field of incoming) {
+    byKey.set(field.key, { ...(byKey.get(field.key) ?? {}), ...field });
+  }
+
+  return {
+    ...base,
+    sector: toStr(base.sector) ?? role ?? null,
+    generatedForRole: role ?? toStr(base.generatedForRole) ?? null,
+    fields: Array.from(byKey.values())
+  };
+}
+
+/**
+ * Convert the agent's `qualifications` block (from CV parsing) into
+ * ProfileQualification rows. Skills stay plain strings; languages / experience /
+ * education / certifications are stored as JSON blobs (matching the reader in
+ * src/lib/sourcing/aggregate.ts and the CV extractor).
+ */
+function buildQualificationRows(quals: Record<string, unknown>): Array<{ category: string; value: string }> {
+  const rows: Array<{ category: string; value: string }> = [];
+  const push = (arr: unknown, category: string): void => {
+    if (!Array.isArray(arr)) {
+      return;
+    }
+    for (const item of arr) {
+      if (typeof item === "string") {
+        const value = item.trim();
+        if (value) {
+          rows.push({ category, value });
+        }
+      } else if (isObject(item)) {
+        rows.push({ category, value: JSON.stringify(item) });
+      }
+    }
+  };
+  push(quals.skills, "skill");
+  push(quals.languages, "language");
+  push(quals.experience, "experience");
+  push(quals.education, "diploma");
+  push(quals.certifications, "certification");
+  return rows;
+}
+
+/**
+ * Persist everything the agent collected — standard profile fields, role-based
+ * Preferences, and CV-derived qualifications — to the signed-in user's profile.
+ * Best-effort: never throws into the request handler.
+ */
+async function persistAgentData(userId: string, data: Record<string, unknown>): Promise<void> {
   try {
-    await db.candidateProfile.updateMany({ where: { userId }, data });
+    const profile = isObject(data.profile) ? data.profile : {};
+    const preferences = isObject(data.preferences) ? data.preferences : null;
+    const qualifications = isObject(data.qualifications) ? data.qualifications : null;
+
+    const scalar = mapAgentProfile(profile);
+    if (Object.keys(scalar).length === 0 && !preferences && !qualifications) {
+      return;
+    }
+
+    const existing = await db.candidateProfile.findUnique({
+      where: { userId },
+      select: { id: true, sectorPreferences: true }
+    });
+    if (!existing) {
+      return;
+    }
+
+    const updateData: Record<string, unknown> = { ...scalar };
+    if (preferences) {
+      const merged = mergeSectorPreferences(existing.sectorPreferences, preferences);
+      if (merged) {
+        updateData.sectorPreferences = merged;
+      }
+    }
+    if (Object.keys(updateData).length > 0) {
+      await db.candidateProfile.update({ where: { userId }, data: updateData });
+    }
+
+    if (qualifications) {
+      const rows = buildQualificationRows(qualifications);
+      if (rows.length > 0) {
+        await db.$transaction([
+          db.profileQualification.deleteMany({ where: { profileId: existing.id } }),
+          db.profileQualification.createMany({
+            data: rows.map((row) => ({ ...row, profileId: existing.id }))
+          })
+        ]);
+      }
+    }
   } catch (error) {
     console.error(
       "[career-guide] profile persist failed:",
@@ -144,10 +266,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const sessionId = deriveCareerGuideSessionId(userId);
   const reply = await invokeCareerGuideAgent({ prompt: message, sessionId });
 
-  // Persist any profile fields the agent collected onto the user's profile so
-  // answers land in the right Profile fields immediately. Best-effort.
-  if (reply?.profile && Object.keys(reply.profile).length > 0) {
-    await persistAgentProfile(userId, reply.profile);
+  // Persist everything the agent collected (standard fields, role-based
+  // Preferences, CV qualifications) onto the user's profile. Best-effort.
+  if (reply?.data && Object.keys(reply.data).length > 0) {
+    await persistAgentData(userId, reply.data);
   }
 
   // Keep recruiter-signal inference live (invisible; feeds Admin > Profile).
