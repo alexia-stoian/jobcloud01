@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/agentcore";
 import { detectActiveAgent } from "@/lib/ai/agent-router";
 import { persistCoverLetter, persistInterview } from "@/lib/ai/application-coach-persistence";
+import { buildCandidateContext } from "@/lib/profile/agent-context";
 import { runInferenceSafely } from "@/lib/ai/signals/hook";
 
 /**
@@ -282,7 +283,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (activeAgent === "application_coach") {
     const sessionId = deriveApplicationCoachSessionId(userId);
-    const reply = await invokeApplicationCoachAgent({ prompt: message, sessionId });
+
+    // Ground the Application Coach in THIS user's profile so cover letters and
+    // interview practice are personalized. Loaded by userId → never shared
+    // across accounts. Prepended as reference context to every coach turn.
+    const context = await buildCandidateContext(userId);
+    const prompt = context
+      ? `[CANDIDATE PROFILE — personalize the cover letter / interview to this candidate. Use only these facts; do not invent employers, dates, or achievements.]\n${context}\n\n---\nUser message: ${message}`
+      : message;
+
+    const reply = await invokeApplicationCoachAgent({ prompt, sessionId });
 
     // Persist any cover letter / interview data the agent produced. Best-effort.
     if (reply?.data && Object.keys(reply.data).length > 0) {
