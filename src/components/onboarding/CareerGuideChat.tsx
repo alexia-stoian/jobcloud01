@@ -169,50 +169,52 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
   const busy = isSending || isUploading;
 
   return (
-    <section className="img3-panel img3-panel--conversation">
-      <div className="img3-chat img3-chat--conversation">
-        <div className="img3-chat__right img3-chat__right--conversation">
-          {history.map((entry, index) => {
-            const showOptions =
-              entry.role === "assistant" &&
-              Array.isArray(entry.options) &&
-              entry.options.length > 0 &&
-              index === history.length - 1 &&
-              !isSending;
-            return (
-              <div
-                key={`${entry.role}-${index}`}
-                className={`img3-bubble ${entry.role === "user" ? "img3-bubble--user" : "img3-bubble--assistant"}`}
-              >
-                <div className="img3-bubble__text img3-bubble__text--multiline">
-                  {entry.role === "assistant" ? <ReactMarkdown>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}
-                </div>
-                {showOptions ? (
-                  <div className="img3-options" role="group" aria-label="Suggested answers">
-                    {entry.options!.map((option, optionIndex) => (
-                      <button
-                        key={`${option}-${optionIndex}`}
-                        type="button"
-                        className="img3-option"
-                        disabled={busy}
-                        onClick={() => void chooseOption(option)}
-                      >
-                        <span className="img3-option__content">
-                          <span className="img3-option__label">{option}</span>
-                        </span>
-                      </button>
-                    ))}
+    <section className="img3-panel img3-panel--conversation cg-conversation">
+      <div className="cg-conversation__scroll">
+        <div className="img3-chat img3-chat--conversation">
+          <div className="img3-chat__right img3-chat__right--conversation">
+            {history.map((entry, index) => {
+              const showOptions =
+                entry.role === "assistant" &&
+                Array.isArray(entry.options) &&
+                entry.options.length > 0 &&
+                index === history.length - 1 &&
+                !isSending;
+              return (
+                <div
+                  key={`${entry.role}-${index}`}
+                  className={`img3-bubble ${entry.role === "user" ? "img3-bubble--user" : "img3-bubble--assistant"}`}
+                >
+                  <div className="img3-bubble__text img3-bubble__text--multiline">
+                    {entry.role === "assistant" ? <ReactMarkdown>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}
                   </div>
-                ) : null}
+                  {showOptions ? (
+                    <div className="img3-options" role="group" aria-label="Suggested answers">
+                      {entry.options!.map((option, optionIndex) => (
+                        <button
+                          key={`${option}-${optionIndex}`}
+                          type="button"
+                          className="img3-option"
+                          disabled={busy}
+                          onClick={() => void chooseOption(option)}
+                        >
+                          <span className="img3-option__content">
+                            <span className="img3-option__label">{option}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            {busy ? (
+              <div className="img3-bubble img3-bubble--assistant">
+                <div className="img3-bubble__text img3-bubble__text--multiline">…</div>
               </div>
-            );
-          })}
-          {busy ? (
-            <div className="img3-bubble img3-bubble--assistant">
-              <div className="img3-bubble__text img3-bubble__text--multiline">…</div>
-            </div>
-          ) : null}
-          <div ref={endRef} aria-hidden="true" />
+            ) : null}
+            <div ref={endRef} aria-hidden="true" />
+          </div>
         </div>
       </div>
 

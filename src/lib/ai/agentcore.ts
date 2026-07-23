@@ -55,6 +55,7 @@ export type AgentReply = {
   text: string;
   options: string[];
   openField: boolean;
+  profile: Record<string, unknown>;
 };
 
 /** Coerce an options entry (string or `{ label }`/`{ value }` object) to a label string. */
@@ -78,7 +79,7 @@ function optionLabel(entry: unknown): string {
 function unwrapReply(raw: string): AgentReply {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return { text: "", options: [], openField: true };
+    return { text: "", options: [], openField: true, profile: {} };
   }
 
   let parsed: unknown;
@@ -86,11 +87,11 @@ function unwrapReply(raw: string): AgentReply {
     parsed = JSON.parse(trimmed);
   } catch {
     // Not JSON — the raw text is the reply.
-    return { text: trimmed, options: [], openField: true };
+    return { text: trimmed, options: [], openField: true, profile: {} };
   }
 
   if (typeof parsed === "string") {
-    return { text: parsed, options: [], openField: true };
+    return { text: parsed, options: [], openField: true, profile: {} };
   }
 
   if (parsed && typeof parsed === "object") {
@@ -119,11 +120,15 @@ function unwrapReply(raw: string): AgentReply {
 
     // The agent may signal whether free-text is allowed; default to allowed.
     const openField = obj.open_field !== false;
+    const profile =
+      obj.profile && typeof obj.profile === "object" && !Array.isArray(obj.profile)
+        ? (obj.profile as Record<string, unknown>)
+        : {};
 
-    return { text: text || trimmed, options, openField };
+    return { text: text || trimmed, options, openField, profile };
   }
 
-  return { text: trimmed, options: [], openField: true };
+  return { text: trimmed, options: [], openField: true, profile: {} };
 }
 
 /**
@@ -135,7 +140,7 @@ function unwrapReply(raw: string): AgentReply {
 function parseAgentResponse(raw: string): AgentReply {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return { text: "", options: [], openField: true };
+    return { text: "", options: [], openField: true, profile: {} };
   }
 
   if (/^\s*(event:|data:)/m.test(trimmed)) {
