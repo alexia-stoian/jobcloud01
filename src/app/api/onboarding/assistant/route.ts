@@ -289,7 +289,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // across accounts. Prepended as reference context to every coach turn.
     const context = await buildCandidateContext(userId);
     const prompt = context
-      ? `[CANDIDATE PROFILE — personalize the cover letter / interview to this candidate. Use only these facts; do not invent employers, dates, or achievements.]\n${context}\n\n---\nUser message: ${message}`
+      ? `[CANDIDATE PROFILE — personalize the cover letter / interview to this candidate. Use only these facts; do not invent employers, dates, or achievements. When you write a cover letter, include the full letter text in your message reply to the user, not only in a separate field.]\n${context}\n\n---\nUser message: ${message}`
       : message;
 
     const reply = await invokeApplicationCoachAgent({ prompt, sessionId });
@@ -311,8 +311,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sessionId: null
     });
 
+    // Surface the full cover letter IN the chat message. The agent returns the
+    // letter body in `cover_letter.content` (a separate field) while `message`
+    // is only a short lead-in — so append the letter unless it's already there.
+    let answer = reply?.text ?? FALLBACK_REPLY;
+    const coverLetter = reply?.data?.cover_letter;
+    if (isObject(coverLetter)) {
+      const content = typeof coverLetter.content === "string" ? coverLetter.content.trim() : "";
+      if (content && !answer.includes(content)) {
+        answer = `${answer}\n\n${content}`;
+      }
+    }
+
     return NextResponse.json({
-      answer: reply?.text ?? FALLBACK_REPLY,
+      answer,
       options: reply?.options ?? [],
       openField: reply?.openField ?? true,
       activeAgent
