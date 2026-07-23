@@ -63,6 +63,22 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
   const [hydrated, setHydrated] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Which agent is currently leading the conversation. The Career Guide hands off
+  // to the Application Coach for cover letters / interview practice; this sticky
+  // value keeps follow-up turns with whoever is leading. Persisted so a refresh
+  // doesn't drop the handoff context.
+  const activeAgentRef = useRef<"career_guide" | "application_coach">("career_guide");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("careerguide-active-agent");
+      if (saved === "application_coach" || saved === "career_guide") {
+        activeAgentRef.current = saved;
+      }
+    } catch {
+      // Ignore — default to the Career Guide.
+    }
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -125,7 +141,7 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
         const response = await fetch("/api/onboarding/assistant", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: prompt, locale })
+          body: JSON.stringify({ message: prompt, locale, activeAgent: activeAgentRef.current })
         });
 
         if (!response.ok) {
@@ -133,7 +149,20 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
           return;
         }
 
-        const data = (await response.json()) as { answer?: string; options?: string[] };
+        const data = (await response.json()) as {
+          answer?: string;
+          options?: string[];
+          activeAgent?: "career_guide" | "application_coach";
+        };
+        // Remember which agent is now leading so the next turn routes correctly.
+        if (data.activeAgent === "career_guide" || data.activeAgent === "application_coach") {
+          activeAgentRef.current = data.activeAgent;
+          try {
+            window.localStorage.setItem("careerguide-active-agent", data.activeAgent);
+          } catch {
+            // Ignore persistence errors.
+          }
+        }
         const answer = data.answer?.trim();
         setHistory((current) => [
           ...current,

@@ -2,15 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
-import { invokeCareerGuideAgent, deriveCareerGuideSessionId } from "@/lib/ai/agentcore";
+import {
+  invokeCareerGuideAgent,
+  deriveCareerGuideSessionId,
+  invokeApplicationCoachAgent,
+  deriveApplicationCoachSessionId
+} from "@/lib/ai/agentcore";
+import { detectActiveAgent } from "@/lib/ai/agent-router";
+import { persistCoverLetter, persistInterview } from "@/lib/ai/application-coach-persistence";
 import { runInferenceSafely } from "@/lib/ai/signals/hook";
 
 /**
  * Career Guide free-form assistant chat.
  *
  * The assistant brain now lives entirely in the Amazon Bedrock AgentCore runtime
- * (see src/lib/ai/agentcore.ts) — this route simply forwards the user's message
- * to the deployed agent and returns its reply as `{ answer }`.
+ * (see src/lib/ai/agentcore.ts) — this route forwards the user's message to the
+ * deployed agent and returns its reply as `{ answer, options, openField }`.
+ *
+ * Two agents share this one chat: the Career Guide (default) and the Application
+ * Coach (cover letters + interview practice). Routing is sticky and keyword-based
+ * (see src/lib/ai/agent-router.ts) until the agents own the handoff themselves.
+ * The active agent is carried by the client and echoed back on each reply.
  *
  * Recruiter-signal inference still runs on each message (invisible; feeds
  * Admin > Profile) via `runInferenceSafely`, which never throws or leaks signal
@@ -22,7 +34,8 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   message: z.string().trim().min(1).max(20000),
-  locale: z.enum(["en", "de", "fr"]).optional()
+  locale: z.enum(["en", "de", "fr"]).optional(),
+  activeAgent: z.enum(["career_guide", "application_coach"]).optional()
 });
 
 const FALLBACK_REPLY =
@@ -262,7 +275,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { message } = parsed.data;
 
-  // The agent owns the conversation; one persistent session per user.
+  // Route this turn to the right agent (sticky, keyword-based). The client
+  // carries the previously-active agent so follow-up turns stay with whoever is
+  // leading (e.g. cover-letter refinements keep reaching the Application Coach).
+  const activeAgent = detectActiveAgent(message, parsed.data.activeAgent ?? "career_guide");
+
+  if (activeAgent === "application_coach") {
+    const sessionId = deriveApplicationCoachSessionId(userId);
+    const reply = await invokeApplicationCoachAgent({ prompt: message, sessionId });
+
+    // Persist any cover letter / interview data the agent produced. Best-effort.
+    if (reply?.data && Object.keys(reply.data).length > 0) {
+      if (isObject(reply.data.cover_letter)) {
+        await persistCoverLetter(userId, reply.data.cover_letter);
+      }
+      if (isObject(reply.data.interview)) {
+        await persistInterview(userId, reply.data.interview);
+      }
+    }
+
+    await runInferenceSafely({
+      userId,
+      newInput: message.slice(0, 6000),
+      source: "message",
+      sessionId: null
+    });
+
+    return NextResponse.json({
+      answer: reply?.text ?? FALLBACK_REPLY,
+      options: reply?.options ?? [],
+      openField: reply?.openField ?? true,
+      activeAgent
+    });
+  }
+
+  // Career Guide (default). One persistent session per user.
   const sessionId = deriveCareerGuideSessionId(userId);
   const reply = await invokeCareerGuideAgent({ prompt: message, sessionId });
 
@@ -284,6 +331,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     answer: reply?.text ?? FALLBACK_REPLY,
     options: reply?.options ?? [],
-    openField: reply?.openField ?? true
+    openField: reply?.openField ?? true,
+    activeAgent
   });
 }
