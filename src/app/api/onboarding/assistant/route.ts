@@ -241,6 +241,46 @@ function buildQualificationRows(quals: Record<string, unknown>): Array<{ categor
   return rows;
 }
 
+/** Build the "Years" label for an education entry, using graduationDate as the
+ * range end when endDate is missing (so a start-only + graduation year renders
+ * as a full range instead of dropping the end year). */
+function educationYears(edu: Record<string, unknown>): string {
+  const start = toStr(edu.startDate);
+  const end = toStr(edu.endDate) ?? toStr(edu.graduationDate);
+  if (start && end) return `${start} - ${end}`;
+  return end ?? start ?? "";
+}
+
+/**
+ * Map the agent's `qualifications.education` into editorDraft.educationRows so the
+ * Profile page reflects agent-updated education (the page reads educationRows from
+ * editorDraft, which would otherwise stay frozen at the first-seen values).
+ */
+function buildEducationRows(
+  quals: Record<string, unknown>
+): Array<{ degree: string; school: string; location: string; years: string }> | null {
+  const arr = Array.isArray(quals.education) ? quals.education : null;
+  if (!arr) return null;
+  const rows = arr
+    .filter(isObject)
+    .map((edu) => {
+      const school = toStr(edu.school);
+      if (!school) return null;
+      const field = toStr(edu.field);
+      const degreeParts = [toStr(edu.degree), field ? `in ${field}` : null].filter(
+        (part): part is string => Boolean(part)
+      );
+      return {
+        degree: degreeParts.join(" "),
+        school,
+        location: toStr(edu.location) ?? "",
+        years: educationYears(edu)
+      };
+    })
+    .filter((row): row is { degree: string; school: string; location: string; years: string } => row !== null);
+  return rows.length > 0 ? rows : null;
+}
+
 /**
  * Extract the draft-only profile fields (Professional headline, Value
  * proposition, phone, birth date) from the agent's payload. These have no
@@ -381,6 +421,19 @@ async function persistAgentData(userId: string, data: Record<string, unknown>): 
         ...draftFields,
         _savedAt: new Date().toISOString()
       };
+    }
+    // Reflect agent-updated education in editorDraft.educationRows so the Profile
+    // page (which reads rows from editorDraft) shows the change, e.g. full year
+    // ranges instead of a stale single year.
+    if (qualifications) {
+      const eduRows = buildEducationRows(qualifications);
+      if (eduRows) {
+        updateData.editorDraft = {
+          ...(isObject(updateData.editorDraft) ? updateData.editorDraft : currentDraft),
+          educationRows: eduRows,
+          _savedAt: new Date().toISOString()
+        };
+      }
     }
     if (Object.keys(updateData).length > 0) {
       await db.candidateProfile.update({ where: { userId }, data: updateData });

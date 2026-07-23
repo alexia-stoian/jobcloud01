@@ -278,7 +278,12 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
       const parsed = parseStructuredQualification(qual.value);
       if (parsed && hasText(parsed.school)) {
         const degreeParts = [parsed.degree, parsed.field ? `in ${parsed.field}` : null].filter(hasText);
-        const dateText = formatDateRange(parsed.startDate, parsed.endDate) || (parsed.graduationDate ?? "");
+        // Use graduationDate as the range end when endDate is missing — otherwise
+        // an entry with startDate + graduationDate would render the start year
+        // only (formatDateRange returns just the start and the graduationDate
+        // fallback never fires), dropping the end year.
+        const endForRange = hasText(parsed.endDate) ? parsed.endDate : parsed.graduationDate;
+        const dateText = formatDateRange(parsed.startDate, endForRange) || (parsed.graduationDate ?? "");
         education.push({
           school: parsed.school,
           degree: degreeParts.join(" "),
