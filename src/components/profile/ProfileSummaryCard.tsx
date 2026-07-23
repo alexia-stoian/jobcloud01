@@ -143,11 +143,16 @@ function readSectorFieldDefs(sectorPreferences: unknown): SectorFieldDef[] {
     const options = Array.isArray(record.options)
       ? record.options
           .map((opt) => {
+            // Options may be persisted either as `{ value, label }` objects or as
+            // plain strings (the Career Guide agent emits bare strings) — coerce
+            // a string into both value and label.
+            if (typeof opt === "string") {
+              return { value: opt, label: opt };
+            }
             const option = (opt ?? {}) as { value?: unknown; label?: unknown };
-            return {
-              value: typeof option.value === "string" ? option.value : "",
-              label: typeof option.label === "string" ? option.label : ""
-            };
+            const label = typeof option.label === "string" ? option.label : "";
+            const value = typeof option.value === "string" ? option.value : label;
+            return { value, label };
           })
           .filter((option) => option.label.length > 0)
       : [];
