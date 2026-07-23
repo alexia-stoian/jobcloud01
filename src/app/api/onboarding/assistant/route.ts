@@ -202,6 +202,35 @@ function buildQualificationRows(quals: Record<string, unknown>): Array<{ categor
 }
 
 /**
+ * Extract the draft-only profile fields (Professional headline, Value
+ * proposition) from the agent's payload. These have no CandidateProfile column —
+ * they live in `editorDraft` — so they need separate handling from `mapAgentProfile`.
+ */
+function extractDraftFields(
+  profile: Record<string, unknown>,
+  data: Record<string, unknown>
+): { profileHeadline?: string; valueProposition?: string } {
+  const out: { profileHeadline?: string; valueProposition?: string } = {};
+  const headline =
+    toStr(profile.profileHeadline) ??
+    toStr(profile.headline) ??
+    toStr(profile.professional_headline) ??
+    toStr(data.headline);
+  if (headline) {
+    out.profileHeadline = headline;
+  }
+  const valueProp =
+    toStr(profile.valueProposition) ??
+    toStr(profile.value_proposition) ??
+    toStr(profile.valueProp) ??
+    toStr(data.value_proposition);
+  if (valueProp) {
+    out.valueProposition = valueProp;
+  }
+  return out;
+}
+
+/**
  * Persist everything the agent collected — standard profile fields, role-based
  * Preferences, and CV-derived qualifications — to the signed-in user's profile.
  * Best-effort: never throws into the request handler.
@@ -213,13 +242,21 @@ async function persistAgentData(userId: string, data: Record<string, unknown>): 
     const qualifications = isObject(data.qualifications) ? data.qualifications : null;
 
     const scalar = mapAgentProfile(profile);
-    if (Object.keys(scalar).length === 0 && !preferences && !qualifications) {
+    const draftFields = extractDraftFields(profile, data);
+    const hasDraftFields = Object.keys(draftFields).length > 0;
+    if (Object.keys(scalar).length === 0 && !hasDraftFields && !preferences && !qualifications) {
       return;
     }
 
     const existing = await db.candidateProfile.findUnique({
       where: { userId },
-      select: { id: true, sectorPreferences: true }
+      select: {
+        id: true,
+        sectorPreferences: true,
+        editorDraft: true,
+        primaryRole: true,
+        targetSeniority: true
+      }
     });
     if (!existing) {
       return;
@@ -231,6 +268,52 @@ async function persistAgentData(userId: string, data: Record<string, unknown>): 
       if (merged) {
         updateData.sectorPreferences = merged;
       }
+    }
+    // Write the Professional headline / Value proposition into editorDraft (they
+    // have no column). Prefer the agent's structured values; otherwise derive
+    // them from the profile so the Profile fields don't stay empty. Stamp
+    // _savedAt so ProfileSummaryCard's freshness reconciliation keeps them.
+    const currentDraft = isObject(existing.editorDraft) ? existing.editorDraft : {};
+    const haveHeadline = Boolean(draftFields.profileHeadline || toStr(currentDraft.profileHeadline));
+    const haveValueProp = Boolean(draftFields.valueProposition || toStr(currentDraft.valueProposition));
+    const role = toStr(scalar.primaryRole) ?? toStr(existing.primaryRole);
+    if (role && (!haveHeadline || !haveValueProp)) {
+      const skillRows = Array.isArray(currentDraft.skillRows) ? currentDraft.skillRows : [];
+      const topSkills = skillRows
+        .map((r) => (isObject(r) ? toStr(r.skill) : null))
+        .filter((s): s is string => Boolean(s))
+        .slice(0, 4);
+      const expRows = Array.isArray(currentDraft.workExperienceRows) ? currentDraft.workExperienceRows : [];
+      const latest = expRows.find((r) => isObject(r) && toStr(r.company));
+      const company = isObject(latest) ? toStr(latest.company) : null;
+      const seniority = toStr(scalar.targetSeniority) ?? toStr(existing.targetSeniority);
+      if (!haveHeadline) {
+        draftFields.profileHeadline = [role, ...topSkills.slice(0, 3)].join(" · ");
+      }
+      if (!haveValueProp) {
+        const seniorityLabels: Record<string, string> = {
+          junior: "Junior",
+          mid: "Mid-level",
+          "mid-level": "Mid-level",
+          senior: "Senior",
+          lead: "Lead",
+          principal: "Principal"
+        };
+        const senPrefix = seniority
+          ? `${seniorityLabels[seniority.toLowerCase()] ?? `${seniority.charAt(0).toUpperCase()}${seniority.slice(1)}`} `
+          : "";
+        draftFields.valueProposition =
+          `${senPrefix}${role}` +
+          `${company ? ` with experience at ${company}` : ""}` +
+          `${topSkills.length > 0 ? `, skilled in ${topSkills.join(", ")}` : ""}.`;
+      }
+    }
+    if (Object.keys(draftFields).length > 0) {
+      updateData.editorDraft = {
+        ...currentDraft,
+        ...draftFields,
+        _savedAt: new Date().toISOString()
+      };
     }
     if (Object.keys(updateData).length > 0) {
       await db.candidateProfile.update({ where: { userId }, data: updateData });
