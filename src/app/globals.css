@@ -2076,6 +2076,20 @@ select {
   }
 }
 
+/* ============================================================
+   Career Guide agent chat — scrollable conversation, fixed input
+   ============================================================ */
+.img3-panel--conversation.cg-conversation {
+  height: calc(100dvh - 210px);
+  min-height: 360px;
+}
+
+.cg-conversation__scroll {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .img3-chat {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;

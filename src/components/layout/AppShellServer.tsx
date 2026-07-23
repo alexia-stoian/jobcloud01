@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { auth } from "@/auth/config";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/AppShell";
@@ -40,6 +41,16 @@ export async function AppShellServer({ children }: Props): Promise<React.ReactEl
   const userRole = user?.profile?.primaryRole?.trim() || "";
 
   const isAdmin = await resolveIsAdmin(userId);
+
+  // The admin account is confined to the Admin + Sourcing surfaces only. If it
+  // lands anywhere else (e.g. the post-login /profile/summary), bounce it to
+  // /admin so it never sees the job-seeker flows.
+  if (isAdmin) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    if (!pathname.startsWith("/admin")) {
+      redirect("/admin");
+    }
+  }
 
   return (
     <AppShell userName={userName} userRole={userRole} isAdmin={isAdmin} profileImageSrc={dashboardImage}>

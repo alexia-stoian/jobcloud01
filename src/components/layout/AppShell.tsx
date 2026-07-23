@@ -146,7 +146,6 @@ export function AppShell({ userName, userRole, isAdmin, profileImageSrc, childre
     () =>
       isAdmin
         ? [
-            ...navItems,
             { labelKey: "admin", icon: "shield", href: "/admin" },
             { labelKey: "sourcing", icon: "briefcase", href: "/admin/sourcing" }
           ]

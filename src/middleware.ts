@@ -29,6 +29,7 @@ function resolveLocale(request: NextRequest): string {
 export function middleware(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-app-locale", resolveLocale(request));
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   return NextResponse.next({
     request: {

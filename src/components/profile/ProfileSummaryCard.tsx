@@ -97,6 +97,8 @@ type ProfileDraft = {
   relocationWillingness: string;
   commuteRadius: string;
   sectorPreferences?: { fields: Array<{ key: string; value: string }> };
+  /** ISO timestamp of when this draft was last written (freshness for reconciliation). */
+  _savedAt?: string;
 };
 
 /** One localized MCQ option for a persisted sector field (D-08). */
@@ -141,11 +143,16 @@ function readSectorFieldDefs(sectorPreferences: unknown): SectorFieldDef[] {
     const options = Array.isArray(record.options)
       ? record.options
           .map((opt) => {
+            // Options may be persisted either as `{ value, label }` objects or as
+            // plain strings (the Career Guide agent emits bare strings) — coerce
+            // a string into both value and label.
+            if (typeof opt === "string") {
+              return { value: opt, label: opt };
+            }
             const option = (opt ?? {}) as { value?: unknown; label?: unknown };
-            return {
-              value: typeof option.value === "string" ? option.value : "",
-              label: typeof option.label === "string" ? option.label : ""
-            };
+            const label = typeof option.label === "string" ? option.label : "";
+            const value = typeof option.value === "string" ? option.value : label;
+            return { value, label };
           })
           .filter((option) => option.label.length > 0)
       : [];
@@ -271,7 +278,12 @@ function parseQualifications(qualifications: Array<{ category: string; value: st
       const parsed = parseStructuredQualification(qual.value);
       if (parsed && hasText(parsed.school)) {
         const degreeParts = [parsed.degree, parsed.field ? `in ${parsed.field}` : null].filter(hasText);
-        const dateText = formatDateRange(parsed.startDate, parsed.endDate) || (parsed.graduationDate ?? "");
+        // Use graduationDate as the range end when endDate is missing — otherwise
+        // an entry with startDate + graduationDate would render the start year
+        // only (formatDateRange returns just the start and the graduationDate
+        // fallback never fires), dropping the end year.
+        const endForRange = hasText(parsed.endDate) ? parsed.endDate : parsed.graduationDate;
+        const dateText = formatDateRange(parsed.startDate, endForRange) || (parsed.graduationDate ?? "");
         education.push({
           school: parsed.school,
           degree: degreeParts.join(" "),
@@ -332,6 +344,7 @@ type Props = {
     locale: string;
     editorDraft: Record<string, unknown> | null;
     sectorPreferences?: unknown;
+    updatedAt: string;
   };
   qualifications?: Array<{ category: string; value: string }>;
   draftScopeId: string;
@@ -341,6 +354,11 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   const t = useTranslations("profile");
   const profileDraftStorageKey = buildProfileDraftStorageKey(draftScopeId);
   const didHydrateRef = useRef(false);
+  // Set true right after hydration so the debounced server PATCH below skips the
+  // save that hydration itself triggers — otherwise the freshly-loaded (or
+  // agent-updated) draft would be written straight back, risking overwriting
+  // server-side values with masked/empty ones. Only real user edits should PATCH.
+  const skipNextServerSaveRef = useRef(false);
   const [initialFirstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
   const initialLastName = lastNameParts.join(" ");
   const [initialCity = "", initialCanton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
@@ -517,55 +535,98 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   useEffect(() => {
     try {
       const localDraftRaw = window.localStorage.getItem(profileDraftStorageKey);
-      const localDraft = localDraftRaw ? (JSON.parse(localDraftRaw) as Partial<ProfileDraft>) : {};
+      const localDraft = localDraftRaw
+        ? (JSON.parse(localDraftRaw) as Partial<ProfileDraft>)
+        : ({} as Partial<ProfileDraft>);
       const serverDraft = (profile.editorDraft ?? {}) as Partial<ProfileDraft>;
       const draft = { ...serverDraft, ...localDraft };
 
-      if (typeof draft.profileHeadline === "string") setProfileHeadline(draft.profileHeadline);
-      if (typeof draft.valueProposition === "string") setValueProposition(draft.valueProposition);
-      if (typeof draft.firstName === "string") setFirstName(draft.firstName);
-      if (typeof draft.lastName === "string") setLastName(draft.lastName);
-      if (typeof draft.phone === "string") setPhone(draft.phone);
-      if (typeof draft.city === "string") setCity(draft.city);
-      if (typeof draft.canton === "string") setCanton(draft.canton);
-      if (typeof draft.birthDate === "string") setBirthDate(draft.birthDate);
+      // Freshness reconciliation: if the canonical profile columns were updated
+      // more recently than BOTH saved drafts, they were changed out-of-band
+      // (e.g. by the Career Guide agent). In that case keep the server-seeded
+      // column state and only restore draft-only fields (headline, value prop,
+      // phone, birth date) that have no backing column — so agent updates become
+      // visible while unsaved contact/headline edits are preserved. (Pitfall:
+      // stale local draft masking fresh agent-persisted profile data.)
+      const localSavedAt = typeof localDraft._savedAt === "string" ? Date.parse(localDraft._savedAt) : 0;
+      const serverSavedAt = typeof serverDraft._savedAt === "string" ? Date.parse(serverDraft._savedAt) : 0;
+      const columnsUpdatedAt = Date.parse(profile.updatedAt);
+      const preferServerColumns =
+        Number.isFinite(columnsUpdatedAt) &&
+        columnsUpdatedAt > localSavedAt &&
+        columnsUpdatedAt > serverSavedAt;
 
-      if (Array.isArray(draft.workExperienceRows) && hasMeaningfulWorkRows(draft.workExperienceRows)) setWorkExperienceRows(draft.workExperienceRows);
-      if (Array.isArray(draft.educationRows) && hasMeaningfulEducationRows(draft.educationRows)) setEducationRows(draft.educationRows);
-      if (Array.isArray(draft.skillRows) && hasMeaningfulSkillRows(draft.skillRows)) setSkillRows(draft.skillRows);
-      if (Array.isArray(draft.languageRows) && hasMeaningfulLanguageRows(draft.languageRows)) setLanguageRows(draft.languageRows);
-      if (Array.isArray(draft.certificationRows) && hasMeaningfulCertificationRows(draft.certificationRows)) setCertificationRows(draft.certificationRows);
+      // Draft-only fields (no backing column) are restored with this priority:
+      // when the agent changed the profile out-of-band (preferServerColumns) the
+      // server draft wins; otherwise the most-recently-saved draft wins. In both
+      // cases a BLANK value never masks a real one — the client re-stamps its
+      // local draft on every visit with empty headline/value-proposition, which
+      // would otherwise hide the values the agent just wrote to the server.
+      const resolveDraftOnly = (key: keyof ProfileDraft): string | undefined => {
+        const localVal = typeof localDraft[key] === "string" ? (localDraft[key] as string) : undefined;
+        const serverVal = typeof serverDraft[key] === "string" ? (serverDraft[key] as string) : undefined;
+        const [primary, secondary] = preferServerColumns
+          ? [serverVal, localVal]
+          : localSavedAt >= serverSavedAt
+            ? [localVal, serverVal]
+            : [serverVal, localVal];
+        if (typeof primary === "string" && primary.trim().length > 0) return primary;
+        if (typeof secondary === "string" && secondary.trim().length > 0) return secondary;
+        return primary ?? secondary;
+      };
+      const restoredHeadline = resolveDraftOnly("profileHeadline");
+      if (typeof restoredHeadline === "string") setProfileHeadline(restoredHeadline);
+      const restoredValueProp = resolveDraftOnly("valueProposition");
+      if (typeof restoredValueProp === "string") setValueProposition(restoredValueProp);
+      const restoredPhone = resolveDraftOnly("phone");
+      if (typeof restoredPhone === "string") setPhone(restoredPhone);
+      const restoredBirthDate = resolveDraftOnly("birthDate");
+      if (typeof restoredBirthDate === "string") setBirthDate(restoredBirthDate);
 
-      if (typeof draft.currentJobSituation === "string") setCurrentJobSituation(draft.currentJobSituation);
-      if (typeof draft.employmentObjective === "string") setEmploymentObjective(draft.employmentObjective);
-      if (typeof draft.targetRoles === "string") setTargetRoles(draft.targetRoles);
-      if (typeof draft.targetSeniority === "string") setTargetSeniority(draft.targetSeniority);
-      if (typeof draft.targetIndustries === "string") setTargetIndustries(draft.targetIndustries);
-      if (typeof draft.preferredWorkModel === "string") setPreferredWorkModel(draft.preferredWorkModel);
-      if (typeof draft.contractPreference === "string") setContractPreference(draft.contractPreference);
-      if (typeof draft.workRate === "string") setWorkRate(draft.workRate);
-      if (typeof draft.workPermitStatus === "string") setWorkPermitStatus(draft.workPermitStatus);
-      if (typeof draft.salaryExpectation === "string") setSalaryExpectation(draft.salaryExpectation);
-      if (typeof draft.visaSponsorship === "string") setVisaSponsorship(draft.visaSponsorship);
-      if (typeof draft.relocationWillingness === "string") setRelocationWillingness(draft.relocationWillingness);
-      if (typeof draft.commuteRadius === "string") setCommuteRadius(draft.commuteRadius);
-      if (draft.sectorPreferences && Array.isArray(draft.sectorPreferences.fields)) {
-        const restored: Record<string, string> = {};
-        for (const field of draft.sectorPreferences.fields) {
-          if (field && typeof field.key === "string" && typeof field.value === "string") {
-            restored[field.key] = field.value;
+      if (!preferServerColumns) {
+        if (typeof draft.firstName === "string") setFirstName(draft.firstName);
+        if (typeof draft.lastName === "string") setLastName(draft.lastName);
+        if (typeof draft.city === "string") setCity(draft.city);
+        if (typeof draft.canton === "string") setCanton(draft.canton);
+
+        if (Array.isArray(draft.workExperienceRows) && hasMeaningfulWorkRows(draft.workExperienceRows)) setWorkExperienceRows(draft.workExperienceRows);
+        if (Array.isArray(draft.educationRows) && hasMeaningfulEducationRows(draft.educationRows)) setEducationRows(draft.educationRows);
+        if (Array.isArray(draft.skillRows) && hasMeaningfulSkillRows(draft.skillRows)) setSkillRows(draft.skillRows);
+        if (Array.isArray(draft.languageRows) && hasMeaningfulLanguageRows(draft.languageRows)) setLanguageRows(draft.languageRows);
+        if (Array.isArray(draft.certificationRows) && hasMeaningfulCertificationRows(draft.certificationRows)) setCertificationRows(draft.certificationRows);
+
+        if (typeof draft.currentJobSituation === "string") setCurrentJobSituation(draft.currentJobSituation);
+        if (typeof draft.employmentObjective === "string") setEmploymentObjective(draft.employmentObjective);
+        if (typeof draft.targetRoles === "string") setTargetRoles(draft.targetRoles);
+        if (typeof draft.targetSeniority === "string") setTargetSeniority(draft.targetSeniority);
+        if (typeof draft.targetIndustries === "string") setTargetIndustries(draft.targetIndustries);
+        if (typeof draft.preferredWorkModel === "string") setPreferredWorkModel(draft.preferredWorkModel);
+        if (typeof draft.contractPreference === "string") setContractPreference(draft.contractPreference);
+        if (typeof draft.workRate === "string") setWorkRate(draft.workRate);
+        if (typeof draft.workPermitStatus === "string") setWorkPermitStatus(draft.workPermitStatus);
+        if (typeof draft.salaryExpectation === "string") setSalaryExpectation(draft.salaryExpectation);
+        if (typeof draft.visaSponsorship === "string") setVisaSponsorship(draft.visaSponsorship);
+        if (typeof draft.relocationWillingness === "string") setRelocationWillingness(draft.relocationWillingness);
+        if (typeof draft.commuteRadius === "string") setCommuteRadius(draft.commuteRadius);
+        if (draft.sectorPreferences && Array.isArray(draft.sectorPreferences.fields)) {
+          const restored: Record<string, string> = {};
+          for (const field of draft.sectorPreferences.fields) {
+            if (field && typeof field.key === "string" && typeof field.value === "string") {
+              restored[field.key] = field.value;
+            }
           }
-        }
-        if (Object.keys(restored).length > 0) {
-          setSectorValues((current) => ({ ...current, ...restored }));
+          if (Object.keys(restored).length > 0) {
+            setSectorValues((current) => ({ ...current, ...restored }));
+          }
         }
       }
       didHydrateRef.current = true;
+      skipNextServerSaveRef.current = true;
     } catch {
       // Ignore malformed local drafts and continue with defaults.
       didHydrateRef.current = true;
     }
-  }, [profile.editorDraft, profileDraftStorageKey]);
+  }, [profile.editorDraft, profile.updatedAt, profileDraftStorageKey]);
 
   useEffect(() => {
     const draft: ProfileDraft = {
@@ -599,6 +660,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
         sectorFieldDefs.length > 0
           ? { fields: sectorFieldDefs.map((field) => ({ key: field.key, value: sectorValues[field.key] ?? "" })) }
           : undefined,
+      _savedAt: new Date().toISOString()
     };
 
     window.localStorage.setItem(profileDraftStorageKey, JSON.stringify(draft));
@@ -636,6 +698,13 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
 
   useEffect(() => {
     if (!didHydrateRef.current) {
+      return;
+    }
+    // Don't persist the state changes produced by hydration itself — only real
+    // user edits. This prevents a masked/empty draft from clobbering the values
+    // the Career Guide agent wrote to the server.
+    if (skipNextServerSaveRef.current) {
+      skipNextServerSaveRef.current = false;
       return;
     }
 
