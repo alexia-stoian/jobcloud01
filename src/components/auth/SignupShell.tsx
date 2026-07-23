@@ -21,14 +21,20 @@ export function SignupShell(): React.ReactElement {
     router.push("/");
   }
 
-  async function submit(event: React.FormEvent): Promise<void> {
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setMessage("");
+
+    // Read actual field values from the form. Browser autofill sets the input
+    // DOM value without firing React's onChange, so controlled state can be empty.
+    const formData = new FormData(event.currentTarget);
+    const emailValue = ((formData.get("email") as string | null) ?? email).trim();
+    const passwordValue = (formData.get("password") as string | null) ?? password;
 
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email: emailValue, password: passwordValue })
     });
 
     const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
@@ -57,13 +63,20 @@ export function SignupShell(): React.ReactElement {
         <form className="stack-form" onSubmit={submit}>
           <label>
             Email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <input
+              type="email"
+              name="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
           </label>
           <label>
             Password
             <div className="password-field">
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required

@@ -25,11 +25,19 @@ export function LoginShell(): React.ReactElement {
     router.push("/");
   }
 
-  async function submit(event: React.FormEvent): Promise<void> {
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+
+    // Read the actual field values from the form rather than React state.
+    // Browser autofill sets the input DOM value WITHOUT firing React's onChange,
+    // so the controlled state can be empty even when the fields show credentials.
+    const formData = new FormData(event.currentTarget);
+    const emailValue = ((formData.get("email") as string | null) ?? email).trim();
+    const passwordValue = (formData.get("password") as string | null) ?? password;
+
     const result = await signIn("credentials", {
-      email,
-      password,
+      email: emailValue,
+      password: passwordValue,
       redirect: false,
       callbackUrl: LOGIN_FALLBACK_ROUTE
     });
@@ -55,13 +63,20 @@ export function LoginShell(): React.ReactElement {
         <form className="stack-form" onSubmit={submit}>
           <label>
             Email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <input
+              type="email"
+              name="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
           </label>
           <label>
             Password
             <div className="password-field">
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
