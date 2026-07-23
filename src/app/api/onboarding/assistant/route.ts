@@ -66,6 +66,26 @@ const DIRECT_PROFILE_FIELDS = new Set([
   "commuteRadius"
 ]);
 
+/**
+ * Short-label columns (job titles, enums). Reject sentence-like values so the
+ * agent can't corrupt e.g. `primaryRole` with a value proposition or summary.
+ */
+const SHORT_LABEL_FIELDS = new Set([
+  "primaryRole",
+  "targetRoles",
+  "targetSeniority",
+  "preferredWorkModel",
+  "contractPreference",
+  "workRate",
+  "currentJobSituation",
+  "relocationWillingness"
+]);
+
+/** True when a string reads like a short label rather than a sentence. */
+function looksLikeLabel(value: string): boolean {
+  return value.length <= 80 && !value.includes("—") && !/\.\s/.test(value);
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -91,7 +111,7 @@ function mapAgentProfile(profile: Record<string, unknown>): Record<string, strin
   const data: Record<string, string> = {};
 
   const targetRole = toStr(profile.target_role);
-  if (targetRole) {
+  if (targetRole && looksLikeLabel(targetRole)) {
     data.primaryRole = targetRole;
     data.targetRoles = targetRole;
   }
@@ -107,7 +127,8 @@ function mapAgentProfile(profile: Record<string, unknown>): Record<string, strin
   for (const [key, value] of Object.entries(profile)) {
     if (DIRECT_PROFILE_FIELDS.has(key)) {
       const str = toStr(value);
-      if (str) {
+      // Reject sentence-like values for short-label columns (anti-corruption).
+      if (str && (!SHORT_LABEL_FIELDS.has(key) || looksLikeLabel(str))) {
         data[key] = str;
       }
     }
@@ -255,6 +276,7 @@ async function persistAgentData(userId: string, data: Record<string, unknown>): 
         sectorPreferences: true,
         editorDraft: true,
         primaryRole: true,
+        targetRoles: true,
         targetSeniority: true
       }
     });
@@ -276,7 +298,13 @@ async function persistAgentData(userId: string, data: Record<string, unknown>): 
     const currentDraft = isObject(existing.editorDraft) ? existing.editorDraft : {};
     const haveHeadline = Boolean(draftFields.profileHeadline || toStr(currentDraft.profileHeadline));
     const haveValueProp = Boolean(draftFields.valueProposition || toStr(currentDraft.valueProposition));
-    const role = toStr(scalar.primaryRole) ?? toStr(existing.primaryRole);
+    // Use a clean, label-like role for derivation (guard against a corrupted
+    // primaryRole leaking into the headline / value proposition).
+    const rawRole = toStr(scalar.primaryRole) ?? toStr(existing.primaryRole);
+    const role =
+      rawRole && looksLikeLabel(rawRole)
+        ? rawRole
+        : (toStr(existing.targetRoles)?.split(",")[0]?.trim() ?? null);
     if (role && (!haveHeadline || !haveValueProp)) {
       const skillRows = Array.isArray(currentDraft.skillRows) ? currentDraft.skillRows : [];
       const topSkills = skillRows
@@ -416,7 +444,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Career Guide (default). One persistent session per user.
   const sessionId = deriveCareerGuideSessionId(userId);
-  const reply = await invokeCareerGuideAgent({ prompt: message, sessionId });
+
+  // Give the Career Guide visibility of the saved profile so it can SEE the
+  // current fields (including Professional headline and Value proposition) and
+  // update them, instead of re-asking for details already on file. Loaded by
+  // userId → never shared across accounts.
+  const profileContext = await buildCandidateContext(userId);
+  const careerGuidePrompt = profileContext
+    ? `[CURRENT PROFILE — the candidate's saved profile. Reference these fields and feel free to refine any of them, including the Professional headline and Value proposition. Don't re-ask for information already present here. When you set or change the headline or value proposition, return them in your structured response as profile.profileHeadline and profile.valueProposition (the exact text). Keep profile.primaryRole a short job title only — never put a summary or sentence in it.]\n${profileContext}\n\n---\nUser message: ${message}`
+    : message;
+  const reply = await invokeCareerGuideAgent({ prompt: careerGuidePrompt, sessionId });
 
   // Persist everything the agent collected (standard fields, role-based
   // Preferences, CV qualifications) onto the user's profile. Best-effort.
