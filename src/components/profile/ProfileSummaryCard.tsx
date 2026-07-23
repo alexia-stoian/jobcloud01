@@ -349,6 +349,11 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
   const t = useTranslations("profile");
   const profileDraftStorageKey = buildProfileDraftStorageKey(draftScopeId);
   const didHydrateRef = useRef(false);
+  // Set true right after hydration so the debounced server PATCH below skips the
+  // save that hydration itself triggers — otherwise the freshly-loaded (or
+  // agent-updated) draft would be written straight back, risking overwriting
+  // server-side values with masked/empty ones. Only real user edits should PATCH.
+  const skipNextServerSaveRef = useRef(false);
   const [initialFirstName = "", ...lastNameParts] = (profile.fullName ?? "").trim().split(/\s+/).filter(Boolean);
   const initialLastName = lastNameParts.join(" ");
   const [initialCity = "", initialCanton = ""] = (profile.preferredLocation ?? "").split(",").map((item) => item.trim());
@@ -546,13 +551,32 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
         columnsUpdatedAt > localSavedAt &&
         columnsUpdatedAt > serverSavedAt;
 
-      // Draft-only fields (no backing column) are always restored from whichever
-      // draft was saved most recently, in both branches.
-      const draftOnly = localSavedAt >= serverSavedAt ? localDraft : serverDraft;
-      if (typeof draftOnly.profileHeadline === "string") setProfileHeadline(draftOnly.profileHeadline);
-      if (typeof draftOnly.valueProposition === "string") setValueProposition(draftOnly.valueProposition);
-      if (typeof draftOnly.phone === "string") setPhone(draftOnly.phone);
-      if (typeof draftOnly.birthDate === "string") setBirthDate(draftOnly.birthDate);
+      // Draft-only fields (no backing column) are restored with this priority:
+      // when the agent changed the profile out-of-band (preferServerColumns) the
+      // server draft wins; otherwise the most-recently-saved draft wins. In both
+      // cases a BLANK value never masks a real one — the client re-stamps its
+      // local draft on every visit with empty headline/value-proposition, which
+      // would otherwise hide the values the agent just wrote to the server.
+      const resolveDraftOnly = (key: keyof ProfileDraft): string | undefined => {
+        const localVal = typeof localDraft[key] === "string" ? (localDraft[key] as string) : undefined;
+        const serverVal = typeof serverDraft[key] === "string" ? (serverDraft[key] as string) : undefined;
+        const [primary, secondary] = preferServerColumns
+          ? [serverVal, localVal]
+          : localSavedAt >= serverSavedAt
+            ? [localVal, serverVal]
+            : [serverVal, localVal];
+        if (typeof primary === "string" && primary.trim().length > 0) return primary;
+        if (typeof secondary === "string" && secondary.trim().length > 0) return secondary;
+        return primary ?? secondary;
+      };
+      const restoredHeadline = resolveDraftOnly("profileHeadline");
+      if (typeof restoredHeadline === "string") setProfileHeadline(restoredHeadline);
+      const restoredValueProp = resolveDraftOnly("valueProposition");
+      if (typeof restoredValueProp === "string") setValueProposition(restoredValueProp);
+      const restoredPhone = resolveDraftOnly("phone");
+      if (typeof restoredPhone === "string") setPhone(restoredPhone);
+      const restoredBirthDate = resolveDraftOnly("birthDate");
+      if (typeof restoredBirthDate === "string") setBirthDate(restoredBirthDate);
 
       if (!preferServerColumns) {
         if (typeof draft.firstName === "string") setFirstName(draft.firstName);
@@ -592,6 +616,7 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
         }
       }
       didHydrateRef.current = true;
+      skipNextServerSaveRef.current = true;
     } catch {
       // Ignore malformed local drafts and continue with defaults.
       didHydrateRef.current = true;
@@ -668,6 +693,13 @@ export function ProfileSummaryCard({ profile, qualifications = [], draftScopeId 
 
   useEffect(() => {
     if (!didHydrateRef.current) {
+      return;
+    }
+    // Don't persist the state changes produced by hydration itself — only real
+    // user edits. This prevents a masked/empty draft from clobbering the values
+    // the Career Guide agent wrote to the server.
+    if (skipNextServerSaveRef.current) {
+      skipNextServerSaveRef.current = false;
       return;
     }
 
