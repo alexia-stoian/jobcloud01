@@ -47,6 +47,12 @@ export async function callAnthropic(prompt: string, maxTokens: number): Promise<
       body: JSON.stringify({
         anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: maxTokens,
+        // Disable extended thinking. Claude Sonnet 5 turns it on by default and,
+        // for a complex prompt, can spend the ENTIRE max_tokens budget on internal
+        // reasoning and return EMPTY text (stop_reason "max_tokens") — which made
+        // gap-question generation silently produce nothing. Disabling it sends the
+        // whole budget to the actual JSON answer.
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }]
       }),
       signal: controller.signal,

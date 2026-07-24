@@ -50,7 +50,7 @@ export interface PublicQuestion {
 /** Maximum questions delivered per candidate (CONTEXT: <=5). */
 const MAX_QUESTIONS = 5;
 /** Token budget for one candidate's generation call. */
-const GENERATION_MAX_TOKENS = 1500;
+const GENERATION_MAX_TOKENS = 2048;
 
 /** The raw question shape requested from the model (before server post-processing). */
 type LlmQuestion = {
