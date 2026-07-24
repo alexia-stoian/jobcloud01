@@ -72,6 +72,9 @@ async function callAnthropic(prompt: string, maxTokens: number): Promise<string 
       body: JSON.stringify({
         anthropic_version: BEDROCK_ANTHROPIC_VERSION,
         max_tokens: maxTokens,
+        // Disable extended thinking — Claude Sonnet 5 can otherwise spend the whole
+        // token budget on reasoning and return empty text (stop_reason "max_tokens").
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }]
       }),
       signal: controller.signal,
