@@ -59,6 +59,18 @@ const THANKS_REPLY: Record<Locale, string> = {
 };
 
 /**
+ * Hidden kickoff prompt sent to the agent for a brand-new account so the Career
+ * Guide opens the conversation with its first onboarding question, instead of
+ * waiting for the user to type. This user turn is NOT rendered — only the agent's
+ * reply is shown.
+ */
+const KICKOFF: Record<Locale, string> = {
+  en: "Hi! I just created my account and I'd like to get started with building my profile.",
+  de: "Hallo! Ich habe gerade mein Konto erstellt und möchte mit dem Aufbau meines Profils beginnen.",
+  fr: "Salut ! Je viens de créer mon compte et j'aimerais commencer à construire mon profil."
+};
+
+/**
  * Career Guide chat — a plain conversation with the Bedrock AgentCore agent.
  *
  * Every user message (typed text, a tapped option, or an uploaded CV's text) is
@@ -77,6 +89,9 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
   // set, the chat is in "sourcing mode": input + options route to the dedicated
   // sourcing endpoint instead of the agent.
   const [pendingSourcing, setPendingSourcing] = useState<{ id: string; allowCustom: boolean } | null>(null);
+  // True for a brand-new account until the agent's opening question is requested.
+  // Drives the one-time auto-kickoff so the Career Guide starts the conversation.
+  const [needsKickoff, setNeedsKickoff] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Which agent is currently leading the conversation. The Career Guide hands off
@@ -241,14 +256,14 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
     let cancelled = false;
     void (async () => {
       // 1. Restore the normal Career Guide conversation.
-      let base: ChatMessage[] = [{ role: "assistant", text: GREETING[locale] }];
+      let restored: ChatMessage[] = [];
       try {
         const res = await fetch("/api/career-guide/history", { cache: "no-store" });
         if (res.ok) {
           const data = (await res.json()) as {
             history?: Array<{ role?: string; text?: string; options?: unknown }>;
           };
-          const restored = (data.history ?? [])
+          restored = (data.history ?? [])
             .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string")
             .map((m) => ({
               role: m.role as "user" | "assistant",
@@ -257,25 +272,32 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
                 ? (m.options as unknown[]).filter((o): o is string => typeof o === "string")
                 : undefined
             }));
-          if (restored.length > 0) {
-            base = restored;
-          }
         }
       } catch {
-        // Ignore — start from the greeting.
+        // Ignore — treat as a new account.
       }
       if (cancelled) {
         return;
       }
+      // An empty saved history means this is a brand-new account.
+      const isNewAccount = restored.length === 0;
+      const base: ChatMessage[] = isNewAccount ? [{ role: "assistant", text: GREETING[locale] }] : restored;
       // 2. Append any queued recruiter (sourcing) questions after the conversation.
       const sourcing = await loadInitialSourcing();
       if (cancelled) {
         return;
       }
       if (sourcing) {
+        // Recruiter flow takes priority — deliver it on top of the greeting/history.
         sourcingActiveRef.current = true;
         setHistory([...base, ...sourcing.bubbles]);
         setPendingSourcing(sourcing.pending);
+      } else if (isNewAccount) {
+        // New account, no recruiter flow: let the agent open with its first
+        // question. Start from an empty thread (a typing indicator shows) and
+        // trigger the one-time kickoff below.
+        setHistory([]);
+        setNeedsKickoff(true);
       } else {
         setHistory(base);
       }
@@ -353,6 +375,17 @@ export function CareerGuideChat({ locale }: Props): React.ReactElement {
     },
     [locale, router]
   );
+
+  // New-account auto-kickoff: once hydration finished with an empty thread, ask
+  // the agent for its opening question. Runs once (the flag clears immediately).
+  // The kickoff user turn is intentionally not rendered — only the agent replies.
+  useEffect(() => {
+    if (!hydrated || !needsKickoff) {
+      return;
+    }
+    setNeedsKickoff(false);
+    void sendToAgent(KICKOFF[locale]);
+  }, [hydrated, needsKickoff, sendToAgent, locale]);
 
   const sendTyped = useCallback(async (): Promise<void> => {
     const trimmed = message.trim();
