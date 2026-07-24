@@ -250,11 +250,14 @@ function buildStrengtheningTopics(needs: RecruiterNeeds, exclude: string[]): str
 }
 
 /**
- * Generate <=5 grounded MCQs for one candidate. Topics come from the candidate's
- * unmet/partial checklist items first; for a strong candidate with fewer than
- * MAX_QUESTIONS gaps, they are supplemented with "strengthening" topics from the
- * recruiter's needs so any >=60% candidate still receives questions. Returns []
- * only when there is genuinely nothing to ask or the LLM is unavailable.
+ * Generate <=5 grounded MCQs for one candidate. Topics target the candidate's
+ * genuinely UNCERTAIN requirements — the recruiter's real doubts (checklist items
+ * with status `partial`/`unmet`). An already-met strength is NEVER turned into a
+ * question: re-confirming a strength the candidate already gets credit for should
+ * not move the match %. Only when a candidate has NO gaps at all do we fall back
+ * to light "prove your claimed strengths" topics so a flawless match still gets a
+ * short set. Returns [] only when there is genuinely nothing to ask or the LLM is
+ * unavailable.
  */
 export async function generateGapQuestions(
   needs: RecruiterNeeds,
@@ -262,10 +265,12 @@ export async function generateGapQuestions(
   candidate?: CandidateBundle
 ): Promise<GeneratedQuestion[]> {
   const gaps = result.checklist.filter((c) => c.status !== "met").map((c) => c.label);
+  // Prefer the uncertain requirements. Only fall back to strengthening topics
+  // (about already-met strengths) when the candidate has no gaps to probe.
   const topics =
-    gaps.length >= MAX_QUESTIONS
+    gaps.length > 0
       ? gaps.slice(0, MAX_QUESTIONS)
-      : [...gaps, ...buildStrengtheningTopics(needs, gaps)].slice(0, MAX_QUESTIONS);
+      : buildStrengtheningTopics(needs, []).slice(0, MAX_QUESTIONS);
   if (topics.length === 0) {
     return [];
   }
